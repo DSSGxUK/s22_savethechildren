@@ -3,11 +3,45 @@ stc_unicef_cpi
 
 A package to produce a high-resolution multi-dimensional child poverty index.
 
-To set up pre-commit to run, just `pip install pre-commit`, navigate to top-level directory, then run `pre-commit install` to be good to go. Github workflow to automatically register issues from `# TODO:` comments already set up.
+To set up pre-commit to run, just `pip install pre-commit`, navigate to top-level directory, then run `pre-commit install` to be good to go.
+
+Github workflow to automatically register issues from `# TODO:` comments already set up: for extra functionality see below.
 
 While `black` will autoformat scripts on commit, if you want this to run locally you should `pip install black[jupyter]` to allow formatting of exploratory notebooks also.
 
-Project Organization
+## TODO Options
+
+This section is copied from the [original TODO repo README](https://github.com/alstr/todo-to-issue-action).
+
+Unless specified otherwise, options should be on their own line, below the initial TODO declaration.
+
+### `assignees:`
+
+Comma-separated list of usernames to assign to the issue.
+
+### `labels:`
+
+Comma-separated list of labels to add to the issue. If any of the labels do not already exist, they will be created. The `todo` label is automatically added to issues to help the action efficiently retrieve them in the future.
+
+### `milestone:`
+
+Milestone ID to assign to the issue. Only a single milestone can be specified and this must already have been created.
+
+### Other Options
+
+#### Reference
+
+As per the [Google Style Guide](https://google.github.io/styleguide/cppguide.html#TODO_Comments), you can provide a reference after the TODO label. This will be included in the issue title for searchability.
+
+```python
+def hello_world():
+    # TODO(alstr) Come up with a more imaginative greeting
+    print("Hello world!")
+```
+
+Don't include parentheses within the identifier itself.
+
+# Project Organization
 ------------
 
     ├── LICENSE
