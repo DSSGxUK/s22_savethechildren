@@ -3,6 +3,10 @@ stc_unicef_cpi
 
 A package to produce a high-resolution multi-dimensional child poverty index.
 
+To set up pre-commit to run, just `pip install pre-commit`, navigate to top-level directory, then run `pre-commit install` to be good to go. Github workflow to automatically register issues from `# TODO:` comments already set up.
+
+While `black` will autoformat scripts on commit, if you want this to run locally you should `pip install black[jupyter]` to allow formatting of exploratory notebooks also.
+
 Project Organization
 ------------
 
