@@ -47,7 +47,8 @@ def geotiff_to_df(geotiff_filepath):
     return df
 
 
-geotiff_to_df("/Users/johnf/Downloads/cpiCopLandData.tiff")
+# Example
+# geotiff_to_df("/Users/johnf/Downloads/cpiCopLandData.tiff")
 # with rxr.open_rasterio(
 #     "/Users/johnf/Downloads/cpiCopLandData.tiff", masked=True
 # ) as src:

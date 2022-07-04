@@ -9,6 +9,10 @@ Github workflow to automatically register issues from `# TODO:` comments already
 
 While `black` will autoformat scripts on commit, if you want this to run locally you should `pip install black[jupyter]` to allow formatting of exploratory notebooks also.
 
+## Install locally
+
+To allow import of functions locally through e.g. `stc_unicef_cpi.subpkg.module`, navigate to top-level directory then just run editable install (`pip install -e .`).
+
 ## TODO Options
 
 This section is copied from the [original TODO repo README](https://github.com/alstr/todo-to-issue-action).
