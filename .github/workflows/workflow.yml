@@ -11,10 +11,11 @@ jobs:
         uses: actions/setup-python@v1
         with:
           python-version: 3.7
-      - name: Install Black with jupyter functionality
-        run: pip install black[jupyter]
-      - name: Run black --check .
-        run: black .
+      # NB removed for now due to some issues
+      # - name: Install Black with jupyter functionality
+      #   run: pip install black[jupyter]
+      # - name: Run black
+      #   run: black .
       - name: TODO to Issue
         uses: alstr/todo-to-issue-action@v4.6.3
         id: todo
