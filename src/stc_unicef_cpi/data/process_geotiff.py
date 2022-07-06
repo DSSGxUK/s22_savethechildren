@@ -1,5 +1,6 @@
 import glob
 from pathlib import Path
+from typing import Union
 
 import h3.api.numpy_int as h3
 import matplotlib.pyplot as plt
@@ -181,7 +182,7 @@ def extract_image_at_coords(
 
 
 def extract_ims_from_hex_codes(
-    datasets: list[bytes], hex_codes: list[int], width=256, height=256
+    datasets: Union[list[str], list[bytes]], hex_codes: list[int], width=256, height=256
 ):
     """For a set of datasets, specified by file path, and
     a set of h3 hex codes, extract centered
@@ -268,9 +269,9 @@ def convert_tiffs_to_image_dataset(
     :rtype: np.ndarray
     """
     # absolute path to search for all tiff files inside a specified folder
-    path = tiff_dir.rstrip("/") + "*.tif"
-    raw_path = path.encode("unicode_escape")
-    tif_files = glob.glob(raw_path)
+    path = tiff_dir.rstrip("/") + "/*.tif"
+    # raw_path = path.encode("unicode_escape")
+    tif_files = glob.glob(path)
 
     all_ims = extract_ims_from_hex_codes(tif_files, hex_codes, dim_x, dim_y)
     return all_ims
