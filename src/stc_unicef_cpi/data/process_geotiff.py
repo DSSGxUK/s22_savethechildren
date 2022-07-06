@@ -153,12 +153,6 @@ def extract_image_at_coords(
         lat, long = transformer.transform(lat, long)
     row, col = dataset.index(long, lat)
     max_i, max_j = dataset.height, dataset.width
-    # TODO: Do checks below
-    # TODO: check if need to handle edge cases where
-    # row/col are out of bounds
-    # TODO: check if need to handle edge cases where
-    # bbox goes outside bounds (might be covered by
-    # rioxarray fn)
     left = col - dim_x // 2
     top = row - dim_y // 2
     window = Window(left, top, dim_x, dim_y)
