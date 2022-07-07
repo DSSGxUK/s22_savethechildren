@@ -364,4 +364,4 @@ folium.Map.add_ee_layer = add_ee_layer
 
 # TODO: Add new datasets
 # assignees: fitzgeraldja
-# label: new data
+# labels: new data

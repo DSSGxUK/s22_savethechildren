@@ -131,7 +131,7 @@ def extract_image_at_coords(
     specified lat/long - centered by default
 
     :param dataset: _description_
-    :type dataset: rxr.rio.Dataset
+    :type dataset: rxr.rio.Dataset or rasterio dataset
     :param lat: _description_
     :type lat: float
     :param long: _description_
@@ -204,10 +204,10 @@ def extract_ims_from_hex_codes(
     print(f"Overall, {nbands} bands found in datasets")
     ims = np.zeros((len(hex_codes), nbands, height, width))
     latlongs = [h3.h3_to_geo(hex_code) for hex_code in hex_codes]
+    running_nband = 0
     for ds_idx, dataset in tqdm(
         enumerate(datasets), position=0, total=len(datasets), desc="Dataset progress:"
     ):
-        running_nband = 0
         with rasterio.open(dataset, masked=True) as open_file:
             ds_nbands = len(open_file.indexes)
             for idx, latlong in tqdm(
