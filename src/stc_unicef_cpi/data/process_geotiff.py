@@ -2,6 +2,7 @@ import glob
 from pathlib import Path
 from typing import Union
 
+import geopandas as gpd
 import h3.api.numpy_int as h3
 import matplotlib.pyplot as plt
 import numpy as np
@@ -31,6 +32,45 @@ def print_tif_metadata(rioxarray_rio_obj, name=""):
     print(f"The shape of {name} is:", rioxarray_rio_obj.shape)
     print(f"The spatial resolution for {name} is:", rioxarray_rio_obj.rio.resolution())
     print(f"The metadata for {name} is:", rioxarray_rio_obj.attrs)
+
+
+def clip_tif_to_ctry(file_path, save_dir=None, ctry_name="Nigeria"):
+    """Clip a GeoTIFF to a specified country boundary,
+    and write a new file, with .
+
+    :param file_path: _description_
+    :type file_path: _type_
+    :param save_dir: _description_, defaults to None
+    :type save_dir: _type_, optional
+    :param ctry_name: _description_, defaults to "Nigeria"
+    :type ctry_name: str, optional
+    :raises ValueError: _description_
+    """
+    fname = Path(file_path).name
+    world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    with rasterio.open(file_path, "r", masked=True) as tif_file:
+        world = world.to_crs(tif_file.crs)
+        ctry_shp = world[world.name == ctry_name].geometry
+        out_image, out_transform = rasterio.mask.mask(tif_file, ctry_shp, crop=True)
+        out_meta = tif_file.meta
+
+    if save_dir is not None:
+        save_dir = Path(save_dir)
+        out_meta.update(
+            {
+                "driver": "GTiff",
+                "height": out_image.shape[1],
+                "width": out_image.shape[2],
+                "transform": out_transform,
+            }
+        )
+
+        with rasterio.open(
+            save_dir / (ctry_name + "_" + fname), "w", **out_meta
+        ) as dest:
+            dest.write(out_image)
+    else:
+        raise ValueError("Must specify save_dir")
 
 
 def geotiff_to_df(geotiff_filepath: str):

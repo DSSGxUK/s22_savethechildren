@@ -28,8 +28,9 @@ def netcdf_to_clipped_array(
     """
     fname = Path(file_path).name
     world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-    ctry_shp = world[world.name == ctry_name].geometry
     with rasterio.open(f"netcdf:{file_path}", "r", masked=True) as netf:
+        world = world.to_crs(netf.crs)
+        ctry_shp = world[world.name == ctry_name].geometry
         print(
             f"Pixel scale in crs {netf.crs}: {netf.res}"
         )  # shows pixel scale in crs units
