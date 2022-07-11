@@ -21,9 +21,10 @@ var res_scale = 500;
 // Or specifically request Nigeria population data
 // at specified scale and projection.
 // var popMean = pop_data.toList(pop_data.size()).get(4);
-var popTot = ee.Image('WorldPop/GP/100m/pop_age_sex/NGA_2020').select(
-  'population','M_0','M_1','M_5','M_10','M_15','M_20','F_0','F_1','F_5','F_10','F_15','F_20'
-  );
+var popTot = ee.Image('WorldPop/GP/100m/pop_age_sex/NGA_2020');
+// .select(
+//   'population','M_0','M_1','M_5','M_10','M_15','M_20','F_0','F_1','F_5','F_10','F_15','F_20'
+//   );
 popTot// Force the next reprojection to aggregate instead of resampling.
     // .reduceResolution({
     //   reducer: ee.Reducer.sum().unweighted(),
