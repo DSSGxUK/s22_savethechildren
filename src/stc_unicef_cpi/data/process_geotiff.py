@@ -150,7 +150,16 @@ def extract_image_at_coords(
             print("WARNING, tiff not in lat/long")
         # reproject lat/lon given to tiff crs
         transformer = Transformer.from_crs("EPSG:4326", og_proj)
+        if dataset.crs.epsg_treats_as_latlong():
+            # TODO: Check handling transformations correctly
+            # assignees: fitzgeraldja
+            # labels: data, IMPORTANT
+            # Important! Some bands suggest this is not the case,
+            # but luckily not a huge problem as only transforming
+            # one tiff currently.
+            pass
         lat, long = transformer.transform(lat, long)
+    # TODO: Add try, except block for when out of bounds error thrown
     row, col = dataset.index(long, lat)
     max_i, max_j = dataset.height, dataset.width
     left = col - dim_x // 2

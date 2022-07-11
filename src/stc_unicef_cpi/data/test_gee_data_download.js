@@ -1,8 +1,6 @@
 // NB JUST A TEMPLATE FOR TESTING
 // Won't run alone - for asset generation in https://code.earthengine.google.com/
 
-
-
 // Get a feature collection of administrative boundaries.
 var countries = ee.FeatureCollection("FAO/GAUL/2015/level0").filterBounds(subSaharanAfrica).select("ADM0_NAME");
 
@@ -12,6 +10,7 @@ print(nigeria);
 
 var start_date = ee.Date('2010-01-01');
 var end_date = ee.Date('2020-01-01');
+var res_scale = 500;
 
 ///////////// POPULATION ////////////////
 // Full dataset as follows
@@ -26,18 +25,19 @@ var popTot = ee.Image('WorldPop/GP/100m/pop_age_sex/NGA_2020').select(
   'population','M_0','M_1','M_5','M_10','M_15','M_20','F_0','F_1','F_5','F_10','F_15','F_20'
   );
 popTot// Force the next reprojection to aggregate instead of resampling.
-    .reduceResolution({
-      reducer: ee.Reducer.sum().unweighted(),
-      maxPixels: 1024
-    })
-    // Request the data at the scale and projection of X image (if request projection as below).
-    .reproject({
-      crs: 'EPSG:3857',
-      scale: 1000
-    });
+    // .reduceResolution({
+    //   reducer: ee.Reducer.sum().unweighted(),
+    //   maxPixels: 4096
+    // })
+    // // Request the data at the scale and projection of X image (if request projection as below).
+    // .reproject({
+    //   crs: 'EPSG:3857',
+    //   scale: res_scale
+    // })
+    ;
 print('popTot',popTot);
 
-print('pop proj',popTot.select('population').projection())
+print('pop scale',popTot.select('population').projection().nominalScale())
 
 
 Map.addLayer(popTot.clip(nigeria),
@@ -54,9 +54,14 @@ var copLandUse = ee.ImageCollection("COPERNICUS/Landcover/100m/Proba-V-C3/Global
     ).filterBounds(nigeria)
     .filterDate(start_date,end_date);
 print('COPLAND',copLandUse);
+// // Get information about the bands as a list.
+// var copBandNames = copLandUse.mean().bandNames();
+// print('COP band names:', copBandNames);  // ee.List of band names
+
 Map.addLayer(copLandUse.select('discrete_classification').reduce(ee.Reducer.mean()).clip(nigeria),
     {}, "COP Land Use");
 
+print('COP scale',copLandUse.select('discrete_classification').first().projection().nominalScale())
 // GHSL DATA
 // See https://developers.google.com/earth-engine/datasets/catalog/JRC_GHSL_P2016_BUILT_LDSMT_GLOBE_V1?hl=en&authuser=1
 // for band details
@@ -65,9 +70,9 @@ var ghslLandUse = ee.Image("JRC/GHSL/P2016/BUILT_LDSMT_GLOBE_V1")
       .select('built','cnfd')
       .clip(nigeria);
 print('GHSL LAND',ghslLandUse);
-var ghslVis = {bands: ['built','cnfd']
-// min: 0, max: 20000
-};
+
+print('GHSL scale',ghslLandUse.select('built').projection().nominalScale())
+
 Map.addLayer(ghslLandUse,
     ghslVis, "GHSL");
 
@@ -81,6 +86,8 @@ var ndwi = ee.ImageCollection('LANDSAT/LC08/C01/T1_ANNUAL_NDWI')
                   .filterBounds(nigeria)
                   .select('NDWI');
 print('NDWI',ndwi)
+// NB seems like this is wrong - actual pixel size supposed to be ~30m
+print('NDWI scale',ndwi.first().select('NDWI').projection().nominalScale())
 
 
 Map.addLayer(ndwi.reduce(ee.Reducer.mean()).clip(nigeria), ndwiVis, 'NDWI');
@@ -94,6 +101,8 @@ var ndvi = ee.ImageCollection('LANDSAT/LC08/C01/T1_32DAY_NDVI')
                   .filterBounds(nigeria)
                   ;
 print('NDVI',ndvi)
+// NB seems like again this is wrong - actual pixel size supposed to be ~30m
+print('NDVI scale',ndvi.first().select('NDVI').projection().nominalScale())
 
 
 Map.addLayer(ndvi.reduce(ee.Reducer.mean()).clip(nigeria), ndviVis, 'NDVI');
@@ -105,6 +114,9 @@ Map.addLayer(ndvi.reduce(ee.Reducer.mean()).clip(nigeria), ndviVis, 'NDVI');
 // See https://developers.google.com/earth-engine/datasets/catalog/CGIAR_SRTM90_V4?hl=en&authuser=1#bands
 // 90m res, single band (elevation)
 var elevation = ee.Image('CGIAR/SRTM90_V4').select('elevation').clip(nigeria);
+
+print('Elevation / slope scale',elevation.projection().nominalScale())
+
 var slope = ee.Terrain.slope(elevation);
 Map.addLayer(elevation,{min: 0, max: 2000},'elevation')
 Map.addLayer(slope, {min: 0, max: 60}, 'slope');
@@ -129,16 +141,17 @@ var pollution = ee.ImageCollection.fromImages(
                   .filterDate(start_date,end_date)
                   .filter(ee.Filter.calendarRange(m,m,'month'))
                   .filterBounds(nigeria)
-                  .select('Optical_Depth_047')
+                  .select('Optical_Depth_047','Optical_Depth_055')
                   .mean()
                   .set('month', m);
                   }));
 
 
-
 print('Pollution',pollution)
+print('Pollution scale',pollution.select('Optical_Depth_047').first().projection().nominalScale())
 
-Map.addLayer(pollution.mean()
+Map.addLayer(pollution.select('Optical_Depth_047')
+            .mean()
             .clip(nigeria),
             poll_band47_viz,
             'Pollution: Optical Depth 047');
@@ -156,8 +169,10 @@ var nighttime = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG')
                   .select('avg_rad','cf_cvg');
 
 print('Nighttime',nighttime);
+print('Nighttime scale',nighttime.select('avg_rad').first().projection().nominalScale())
 
-var nighttimeVis = {bands: ['avg_rad'], min: 0, max: 20};
+
+
 
 Map.addLayer(nighttime.mean().clip(nigeria), nighttimeVis, 'Nighttime');
 
@@ -166,9 +181,15 @@ Map.addLayer(nighttime.mean().clip(nigeria), nighttimeVis, 'Nighttime');
 // Map.setCenter(22.22,1.60, 6); // DRC
 Map.setCenter(7.683939924577903,7.70381136085568,6); // Nigeria
 
+// Fix the projection used to export, so all on same grid
+var export_proj = popTot.select('population').projection().getInfo();
+
 var fullCollection = ee.ImageCollection(
   [popTot.clip(nigeria),
-  copLandUse.select('discrete_classification').reduce(ee.Reducer.mean()).clip(nigeria),
+  copLandUse
+    // .select('discrete_classification')
+    .reduce(ee.Reducer.mean())
+    .clip(nigeria),
   ghslLandUse,
   ndwi.reduce(ee.Reducer.mean()).clip(nigeria),
   ndvi.reduce(ee.Reducer.mean()).clip(nigeria),
@@ -179,30 +200,133 @@ var fullCollection = ee.ImageCollection(
   );
 print('full',fullCollection)
 
-
-
-
-
-// Optionally retrieve the projection information from a band of the original image.
-// Call getInfo() on the projection to request a client-side object containing
-// the crs and transform information needed for the client-side Export function.
-// var projection = landsat.select('B2').projection().getInfo();
-var projection = {crs: 'EPSG:3857',
-                  transform: {}};
-
-// Export the image to an Earth Engine asset.
-Export.image.toAsset({
-  image: fullCollection,
-  description: 'cpiSatData',
-  assetId: 'cpiSatDatav1',
-  crs: projection.crs,
-  crsTransform: projection.transform,
+// Can't export ImageCollection, only images, so do each separately
+// First population
+Export.image.toDrive({
+  image: popTot.clip(nigeria),
+  description: 'cpiPopData_'+res_scale,
+  // assetId: 'cpiPopDatav1',
+  fileFormat: 'GeoTIFF',
   region: nigeria,
-  // pyramidingPolicy: {
-  //   'b4_mean': 'mean',
-  //   'b4_sample': 'sample',
-  //   'b4_max': 'max'
-  // }
+  scale: res_scale,
+  crs: export_proj.crs,
+  crsTransform: export_proj.transform,
+  folder: 'Data',
+  maxPixels: 9e8
+});
+
+// Now Cop. Land
+Export.image.toDrive({
+  image: copLandUse
+    // .select('discrete_classification')
+    .reduce(ee.Reducer.mean())
+    .clip(nigeria),
+  description: 'cpiCopLandData_'+res_scale,
+  // assetId: 'cpiCopLandDatav1',
+  fileFormat: 'GeoTIFF',
+  region: nigeria,
+  scale: res_scale,
+  crs: export_proj.crs,
+  crsTransform: export_proj.transform,
+  folder: 'Data',
+  maxPixels: 9e8
+});
+
+// GHSL
+Export.image.toDrive({
+  image: ghslLandUse,
+  description: 'cpiGHSLData_'+res_scale,
+  // assetId: 'cpiGHSLDatav1',
+  fileFormat: 'GeoTIFF',
+  region: nigeria,
+  scale: res_scale,
+  crs: export_proj.crs,
+  crsTransform: export_proj.transform,
+  folder: 'Data',
+  maxPixels: 9e8
+});
+
+// NDWI
+Export.image.toDrive({
+  image: ndwi.reduce(ee.Reducer.mean()).clip(nigeria),
+  description: 'cpiNDWIData_'+res_scale,
+  // assetId: 'cpiNDWIDatav1',
+  fileFormat: 'GeoTIFF',
+  region: nigeria,
+  scale: res_scale,
+  crs: export_proj.crs,
+  crsTransform: export_proj.transform,
+  folder: 'Data',
+  maxPixels: 9e8
+});
+
+// NDVI
+Export.image.toDrive({
+  image: ndvi.reduce(ee.Reducer.mean()).clip(nigeria),
+  description: 'cpiNDVIData_'+res_scale,
+  // assetId: 'cpiNDVIDatav1',
+  fileFormat: 'GeoTIFF',
+  region: nigeria,
+  scale: res_scale,
+  crs: export_proj.crs,
+  crsTransform: export_proj.transform,
+  folder: 'Data',
+  maxPixels: 9e8
+});
+
+// Elevation + slope
+Export.image.toDrive({
+  image: elevation,
+  description: 'cpiElevationData_'+res_scale,
+  // assetId: 'cpiElevationDatav1',
+  fileFormat: 'GeoTIFF',
+  region: nigeria,
+  scale: res_scale,
+  crs: export_proj.crs,
+  crsTransform: export_proj.transform,
+  folder: 'Data',
+  maxPixels: 9e8
+});
+Export.image.toDrive({
+  image: slope,
+  description: 'cpiSlopeData_'+res_scale,
+  // assetId: 'cpiSlopeDatav1',
+  fileFormat: 'GeoTIFF',
+  region: nigeria,
+  scale: res_scale,
+  crs: export_proj.crs,
+  crsTransform: export_proj.transform,
+  folder: 'Data',
+  maxPixels: 9e8
+});
+
+// Pollution
+Export.image.toDrive({
+  image: pollution.mean().clip(nigeria),
+  description: 'cpiPollutionData_'+res_scale,
+  // assetId: 'cpiPollutionDatav1',
+  fileFormat: 'GeoTIFF',
+  region: nigeria,
+  scale: res_scale,
+  crs: export_proj.crs,
+  crsTransform: export_proj.transform,
+  folder: 'Data',
+  maxPixels: 9e8
+});
+
+
+// Nighttime
+Export.image.toDrive({
+  image: nighttime.mean().toFloat().clip(nigeria),
+  description: 'cpiNighttimeData_'+res_scale,
+  // assetId: 'cpiNighttimeDatav1',
+  fileFormat: 'GeoTIFF',
+  region: nigeria,
+  scale: res_scale,
+  crs: export_proj.crs,
+  crsTransform: export_proj.transform,
+  folder: 'Data',
+  maxPixels: 9e8
 });
 
 // CONSIDER ALT VEG  (enhanced version of NDVI)
@@ -211,6 +335,34 @@ Export.image.toAsset({
 // CONSIDER INCLUDING S.D. values alongside mean (esp for e.g. pollution)
 // Can combine as here
 // https://developers.google.com/earth-engine/guides/reducers_intro
+
+
+
+
+// Optionally retrieve the projection information from a band of the original image.
+// Call getInfo() on the projection to request a client-side object containing
+// the crs and transform information needed for the client-side Export function.
+// var projection = landsat.select('B2').projection().getInfo();
+// var projection = {crs: 'EPSG:3857',
+//                   transform: {}};
+
+// // Export the image to an Earth Engine asset.
+// Export.image.toAsset({
+//   image: fullCollection,
+//   description: 'cpiSatData',
+//   assetId: 'cpiSatDatav1',
+//   // crs: projection.crs,
+//   // crsTransform: projection.transform,
+//   region: nigeria,
+//   scale: 1000,
+//   maxPixels: 9e8
+//   // pyramidingPolicy: {
+//   //   'b4_mean': 'mean',
+//   //   'b4_sample': 'sample',
+//   //   'b4_max': 'max'
+//   // }
+// });
+
 
 
 
