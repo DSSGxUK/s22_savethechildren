@@ -13,6 +13,8 @@ from pyproj import Transformer
 from rasterio.windows import Window
 from tqdm.auto import tqdm
 
+from typing import List
+
 
 def print_tif_metadata(rioxarray_rio_obj, name=""):
     """View metadata associated with a raster file,
@@ -93,12 +95,21 @@ def geotiff_to_df(geotiff_filepath: str):
             og_proj = open_file.rio.crs
         open_file = open_file.squeeze()
         open_file.name = "data"
-        band_names = open_file.attrs["long_name"]
+        try:
+            band_names = open_file.attrs["long_name"]
+            multi_bands = True
+        except KeyError:
+            assert len(open_file.shape) == 2
+            print("Single band found only")
+            multi_bands = False
         df = open_file.to_dataframe()
     # print(df.reset_index().describe())
     df.drop(columns=["spatial_ref"], inplace=True)
     df.dropna(subset=["data"], inplace=True)
-    df.rename(index=dict(zip(range(1, len(band_names) + 1), band_names)), inplace=True)
+    if multi_bands:
+        df.rename(
+            index=dict(zip(range(1, len(band_names) + 1), band_names)), inplace=True
+        )
 
     if len(df.index.names) == 3:
         df.index.set_names(["band", "latitude", "longitude"], inplace=True)
@@ -226,7 +237,7 @@ def extract_image_at_coords(
 
 
 def extract_ims_from_hex_codes(
-    datasets: Union[list[str], list[bytes]], hex_codes: list[int], width=256, height=256
+    datasets: Union[List[str], List[bytes]], hex_codes: List[int], width=256, height=256
 ):
     """For a set of datasets, specified by file path, and
     a set of h3 hex codes, extract centered
@@ -288,7 +299,7 @@ def extract_ims_from_hex_codes(
 
 
 def convert_tiffs_to_image_dataset(
-    tiff_dir: str, hex_codes: list[int], dim_x=256, dim_y=256
+    tiff_dir: str, hex_codes: List[int], dim_x=256, dim_y=256
 ) -> np.ndarray:
     """Convert set of GeoTIFFs to a 4D numpy array according
     to specified dataset - expect the path to a directory
