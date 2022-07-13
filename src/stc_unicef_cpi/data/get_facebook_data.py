@@ -114,7 +114,7 @@ def get_facebook_estimates(coords, name_out):
     )
     data = pd.DataFrame()
     _, account = fb_api_init(token, account_id)
-    for i, (lat, long) in enumerate(coords[900:1000]):
+    for i, (lat, long) in enumerate(coords):
         try:
             row = delivery_estimate(account, lat, long, radius, opt)
             data = data.append(row, ignore_index=True)
