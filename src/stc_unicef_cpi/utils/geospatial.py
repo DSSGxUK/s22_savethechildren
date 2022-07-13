@@ -29,3 +29,16 @@ def aggregate_hexagon(df, col_to_agg, name_agg, type):
     df = df[["hex_code", col_to_agg]]
     df = df.rename({col_to_agg: name_agg}, axis=1)
     return df
+
+
+def get_hexes_for_ctry(ctry_name="Nigeria", level=7):
+    """Get array of all hex codes for specified country
+
+    :param ctry_name: _description_, defaults to 'Nigeria'
+    :type ctry_name: str, optional
+    :param level: _description_, defaults to 7
+    :type level: int, optional
+    """
+    world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    ctry_shp = world[world.name == ctry_name].geometry.values[0].__geo_interface__
+    return h3.polyfill(ctry_shp, level)

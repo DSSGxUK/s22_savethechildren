@@ -77,7 +77,7 @@ def clip_tif_to_ctry(file_path, save_dir=None, ctry_name="Nigeria"):
         raise ValueError("Must specify save_dir")
 
 
-def geotiff_to_df(geotiff_filepath: str):
+def geotiff_to_df(geotiff_filepath: str, verbose=False):
     """Convert a geotiff file to a pandas dataframe,
     and print some additional info.
 
@@ -90,7 +90,8 @@ def geotiff_to_df(geotiff_filepath: str):
     reproj = False
     with rxr.open_rasterio(geotiff_filepath, masked=True) as open_file:
         name = Path(geotiff_filepath).name
-        print_tif_metadata(open_file, name)
+        if verbose:
+            print_tif_metadata(open_file, name)
         if open_file.rio.crs != "EPSG:4326":
             print("Reprojection to lat/lon required: completing...")
             reproj = True
@@ -190,7 +191,7 @@ def agg_tif_to_df(
         title = Path(fname).name.lstrip(rm_prefix).rstrip(".tif")
         print(f"Working with {title}: {i+1}/{len(tif_files)}...")
         # Convert to dataframe
-        tmp = geotiff_to_df(fname)
+        tmp = geotiff_to_df(fname, verbose=verbose)
         print("Converted to dataframe!")
         if verbose:
             print("Dataframe info:")
@@ -201,9 +202,7 @@ def agg_tif_to_df(
             print("Large dataframe, using dask instead...")
             with Client() as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
                 # NB ideal to have partitions around 100MB in size
-                ddf = dd.from_pandas(
-                    tmp, npartitions=len(tmp) // max_records + 1
-                )  # chunksize = max_records(?)
+                ddf = dd.from_pandas(tmp, npartitions=5)  # chunksize = max_records(?)
 
                 ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
                     lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7),
