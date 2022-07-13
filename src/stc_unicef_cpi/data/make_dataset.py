@@ -1,27 +1,30 @@
 # -*- coding: utf-8 -*-
+from operator import index
 import pandas as pd
 import geopandas as gpd
 import h3.api.numpy_int as h3
 
+from src.stc_unicef_cpi.data.process_geotiff import geotiff_to_df
+
 # Read
 
-ori = pd.read_csv("../../stc_unicef_cpi/data/nga_clean_v1.csv")
+ori = pd.read_csv("nga_clean_v1.csv")
 print(ori.dtypes)
 
 # Health Sites
-# df = pd.read_csv("nga_health.csv")
+df = pd.read_csv("nga_health.csv")
 
 # Remove health facilities without coordinates
-# df = df[~df.X.isna()]
-# df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.X, df.Y))
-# df["hex_code"] = df[["X", "Y"]].apply(
-#    lambda row: h3.geo_to_h3(row["X"], row["Y"], 7), axis=1
-# )
-# df = df.groupby("hex_code").count().reset_index()
-# df = df[["hex_code", "geometry"]]
-# df = df.rename({"geometry": "n_health"}, axis=1)
-# ori = ori.merge(df, how="left", on="hex_code")
-# ori.to_excel("nga_clean_v2.xlsx")
+df = df[~df.X.isna()]
+df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.X, df.Y))
+df["hex_code"] = df[["X", "Y"]].apply(
+    lambda row: h3.geo_to_h3(row["X"], row["Y"], 7), axis=1
+)
+df = df.groupby("hex_code").count().reset_index()
+df = df[["hex_code", "geometry"]]
+df = df.rename({"geometry": "n_health"}, axis=1)
+ori = ori.merge(df, how="left", on="hex_code")
+ori.to_csv("nga_clean_v1.csv", index=False)
 
 # Education Facilities
 # df = gpd.read_file("nga_education")
@@ -34,22 +37,33 @@ print(ori.dtypes)
 # df = df[["hex_code", "geometry"]]
 # df = df.rename({"geometry": "n_education"}, axis=1)
 # ori = ori.merge(df, how="left", on="hex_code")
-# ori.to_excel("nga_clean_v3.xlsx")
+# ori.to_csv("nga_clean_v1.csv", index=False)
 
 
 # Critical Infrastructure
 
-# pd.read_tif("infrastructure/CISI/010_degree/africa.tif")
+# df = geotiff_to_df(
+#    "../../stc_unicef_cpi/data/infrastructure/CISI/010_degree/africa.tif"
+# )
+# df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.latitude, df.longitude))
+# df["hex_code"] = df[["latitude", "longitude"]].apply(
+#    lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7), axis=1
+# )
+# df = df.groupby("hex_code").mean().reset_index()
+# df = df[["hex_code", "fric"]]
+# df = df.rename({"fric": "cii"}, axis=1)
+# ori = ori.merge(df, how="left", on="hex_code")
+# ori.to_csv("nga_clean_v1.csv", index=False)
 
 # Conflict Zones
-df = pd.read_csv("conflict/GEDEvent_v22_1.csv")
-df = df[df.country == "Nigeria"]
-df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.latitude, df.longitude))
-df["hex_code"] = df[["latitude", "longitude"]].apply(
-    lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7), axis=1
-)
-df = df.groupby("hex_code").count().reset_index()
-df = df[["hex_code", "geometry"]]
-df = df.rename({"geometry": "n_conflicts"}, axis=1)
-ori = ori.merge(df, how="left", on="hex_code")
-ori.to_csv("nga_clean_v1.csv")
+# df = pd.read_csv("conflict/GEDEvent_v22_1.csv")
+# df = df[df.country == "Nigeria"]
+# df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.latitude, df.longitude))
+# df["hex_code"] = df[["latitude", "longitude"]].apply(
+#    lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7), axis=1
+# )
+# df = df.groupby("hex_code").count().reset_index()
+# df = df[["hex_code", "geometry"]]
+# df = df.rename({"geometry": "n_conflicts"}, axis=1)
+# ori = ori.merge(df, how="left", on="hex_code")
+# ori.to_csv("nga_clean_v1.csv", index=False)
