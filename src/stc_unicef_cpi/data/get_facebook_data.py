@@ -69,7 +69,7 @@ def define_params(lat, lon, radius, opt):
     return params
 
 
-def get_long_lat(data, hex_code):
+def get_coordinates(data, hex_code):
     """Get centroid of hexagon
     :param data: dataset
     :type data: dataframe
@@ -135,5 +135,5 @@ def get_facebook_estimates(coords, name_out):
 
 name_in, name_out = "nga_clean_v1.csv", "fb_nigeria_train.parquet"
 df = pd.read_csv(name_in)
-coords = get_long_lat(df, "hex_code")
+coords = get_coordinates(df, "hex_code")
 get_facebook_estimates(coords, name_out)
