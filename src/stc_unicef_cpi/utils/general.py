@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import wget
 import zipfile
 import os
