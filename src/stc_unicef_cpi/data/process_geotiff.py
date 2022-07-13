@@ -2,6 +2,7 @@ import glob
 from pathlib import Path
 from typing import Union
 
+import dask.dataframe as dd
 import geopandas as gpd
 import h3.api.numpy_int as h3
 import matplotlib.pyplot as plt
@@ -9,7 +10,10 @@ import numpy as np
 import pandas as pd
 import rasterio
 import rioxarray as rxr
+import swifter
+from dask.distributed import Client
 from pyproj import Transformer
+from rasterio.enums import Resampling
 from rasterio.windows import Window
 from tqdm.auto import tqdm
 
@@ -133,6 +137,95 @@ def geotiff_to_df(geotiff_filepath: str):
         df[["latitude", "longitude"]] = coords
 
     # print(df.head())
+    return df
+
+
+def agg_tif_to_df(
+    df, tiff_dir, rm_prefix="cpi", agg_fn=np.mean, max_records=int(1e5), verbose=False
+):
+    """Pass df with hex_code column of numpy_int type h3 codes,
+    and a directory with tiff files, then aggregate pixels from tiffs
+    within each hexagon according to given function.
+
+    Note that rather than using shapefiles, this uses pixel centroid
+    values, hence different quantities of pixels may be aggregated
+    in each hexagon, and it will not work sensibly at all if the
+    resolution of the tiff file is lower than the resolution of
+    the specified hexagons.
+
+    :param df: _description_
+    :type df: _type_
+    :param tiff_dir: _description_
+    :type tiff_dir: _type_
+    :param rm_prefix: _description_, defaults to "cpi"
+    :type rm_prefix: str, optional
+    :param agg_fn: _description_, defaults to np.mean
+    :type agg_fn: _type_, optional
+    :param max_records: _description_, defaults to int(1e5)
+    :type max_records: _type_, optional
+    :param verbose: _description_, defaults to False
+    :type verbose: bool, optional
+    :raises ValueError: _description_
+    :return: _description_
+    :rtype: _type_
+    """
+    try:
+        assert "hex_code" in df.columns
+    except AttributeError:
+        raise ValueError("hex_code not in df.columns")
+
+    # absolute path to search for all tiff files inside a specified folder
+    path = tiff_dir.rstrip("/") + "/*.tif"
+    tif_files = glob.glob(path)
+    for i, fname in enumerate(tif_files):
+        title = Path(fname).name.lstrip(rm_prefix).rstrip(".tif")
+        print(f"Working with {title}: {i+1}/{len(tif_files)}...")
+        # Convert to dataframe
+        tmp = geotiff_to_df(fname)
+        print("Converted to dataframe!")
+        if verbose:
+            print("Dataframe info:")
+            print(tmp.info())
+        print("Adding hex info...")
+        # need to split df into manageable chunks for memory
+        if len(tmp.index) > max_records:
+            print("Large dataframe, using dask instead...")
+            with Client(n_workers=4, memory_limit="4GB") as client:
+                ddf = dd.from_pandas(
+                    tmp, npartitions=len(tmp) // max_records + 1
+                )  # chunksize = max_records(?)
+                ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
+                    lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7),
+                    axis=1,
+                    meta=(None, "int64"),
+                )
+                ddf = ddf.drop(columns=["latitude", "longitude"])
+                print("Done!")
+                print("Aggregating within cells...")
+                ddf = ddf.groupby("hex_code").agg(
+                    {col: agg_fn for col in ddf.columns if col != "hex_code"}
+                )
+                tmp = ddf.compute()
+        else:
+            tmp["hex_code"] = tmp[["latitude", "longitude"]].swifter.apply(
+                lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7), axis=1
+            )
+            tmp.drop(columns=["latitude", "longitude"], inplace=True)
+            print("Done!")
+            print("Aggregating within cells...")
+            tmp = tmp.groupby(by=["hex_code"], as_index=False).agg(
+                {col: agg_fn for col in tmp.columns if col != "hex_code"}
+            )
+        print("Joining to survey data...")
+        # Aggregate ground truth to hexagonal cells with mean
+        # NB automatically excludes missing data for households,
+        # so differing quantities of data for different values
+        df = df.merge(
+            tmp,
+            how="left",
+            on="hex_code",
+        )
+        print("Done!")
     return df
 
 
@@ -319,3 +412,35 @@ def convert_tiffs_to_image_dataset(
 
     all_ims = extract_ims_from_hex_codes(tif_files, hex_codes, dim_x, dim_y)
     return all_ims
+
+
+def resample_tif(tif_file_path, dest_dir, rescale_factor=2):
+    with rasterio.open(tif_file_path) as dataset:
+        # resample data to target shape
+        data = dataset.read(
+            out_shape=(
+                dataset.count,
+                int(dataset.height * rescale_factor),
+                int(dataset.width * rescale_factor),
+            ),
+            resampling=Resampling.bilinear,
+        )
+
+        # scale image transform
+        transform = dataset.transform * dataset.transform.scale(
+            (dataset.width / data.shape[-1]), (dataset.height / data.shape[-2])
+        )
+        dest_dir = Path(dest_dir)
+        name = Path(tif_file_path).name
+        with rasterio.open(
+            dest_dir / name,
+            "w",
+            driver="GTiff",
+            height=data.shape[-2],
+            width=data.shape[-1],
+            count=dataset.count,
+            dtype=data.dtype,
+            crs=dataset.crs,
+            transform=transform,
+        ) as dest:
+            dest.write(data)

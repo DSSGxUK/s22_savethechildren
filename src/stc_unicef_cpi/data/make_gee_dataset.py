@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import rasterio
 import requests  # type: ignore
 import rioxarray as rxr
-from dotenv import find_dotenv, load_dotenv
 from humanfriendly import format_size
 from rasterio.plot import show
 from tqdm import tqdm
