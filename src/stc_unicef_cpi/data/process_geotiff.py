@@ -1,6 +1,6 @@
 import glob
 from pathlib import Path
-from typing import Union
+from typing import List, Union
 
 import dask.dataframe as dd
 import geopandas as gpd
@@ -16,8 +16,6 @@ from pyproj import Transformer
 from rasterio.enums import Resampling
 from rasterio.windows import Window
 from tqdm.auto import tqdm
-
-from typing import List
 
 
 def print_tif_metadata(rioxarray_rio_obj, name=""):
@@ -201,10 +199,12 @@ def agg_tif_to_df(
         # need to split df into manageable chunks for memory
         if len(tmp.index) > max_records:
             print("Large dataframe, using dask instead...")
-            with Client(n_workers=4, memory_limit="4GB") as client:
+            with Client() as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
+                # NB ideal to have partitions around 100MB in size
                 ddf = dd.from_pandas(
                     tmp, npartitions=len(tmp) // max_records + 1
                 )  # chunksize = max_records(?)
+
                 ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
                     lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7),
                     axis=1,
