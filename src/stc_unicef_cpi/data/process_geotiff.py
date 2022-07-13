@@ -202,8 +202,13 @@ def agg_tif_to_df(
             print("Large dataframe, using dask instead...")
             with Client() as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
                 # NB ideal to have partitions around 100MB in size
-                ddf = dd.from_pandas(tmp, npartitions=5)  # chunksize = max_records(?)
-
+                ddf = dd.from_pandas(
+                    tmp,
+                    npartitions=max(
+                        [10, int(tmp.memory_usage(deep=True).sum() // int(1e6))]
+                    ),
+                )  # chunksize = max_records(?)
+                print(f"Using {ddf.npartitions} partitions")
                 ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
                     lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7),
                     axis=1,
