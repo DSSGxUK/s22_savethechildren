@@ -107,7 +107,7 @@ def get_facebook_estimates(coords, name_out, res):
         except Exception as e:
             if e._api_error_code == 80004:
                 print(f"Too many calls!\nStopped at {i}, ({lat, long}).")
-                data.to_parquet(name_out)
+                data.to_parquet(f"../../../data/{name_out}")
                 time.sleep(3800)
                 row = delivery_estimate(account, lat, long, radius, opt)
             else:
@@ -115,6 +115,6 @@ def get_facebook_estimates(coords, name_out, res):
                 row = pd.DataFrame()
                 row["lat"], row["long"] = lat, long
             data = data.append(row, ignore_index=True)
-        data.to_parquet(name_out)
     data["hex_centroid"] = coords
+    data.to_parquet(f"../../../data/{name_out}")
     return data
