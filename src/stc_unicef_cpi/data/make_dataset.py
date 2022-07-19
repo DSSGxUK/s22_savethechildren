@@ -55,7 +55,7 @@ def append_predictor_variables(country_code="NGA", lat="latnum", long="longnum",
     coords = sub["hex_centroid"].values
     # Facebook connectity metrics
     connect_fb = get_facebook_estimates(coords, name_out, res)
-    sub = sub.merge(connect_fb, on="hex_centroid", how="left")
+    sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
     print(sub)
 
 

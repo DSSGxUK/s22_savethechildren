@@ -116,5 +116,5 @@ def get_facebook_estimates(coords, name_out, res):
                 row["lat"], row["long"] = lat, long
             data = data.append(row, ignore_index=True)
         data.to_parquet(name_out)
-
+    data["hex_centroid"] = coords
     return data
