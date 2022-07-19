@@ -25,9 +25,8 @@ def get_facebook_credentials(creds_file):
     creds = read_yaml_file(creds_file)["facebook"]
     token = creds["access_token"]
     id = creds["account_id"]
-    optimization = creds["optimization"]
 
-    return token, id, optimization
+    return token, id
 
 
 def download_file(url, name):
@@ -70,3 +69,4 @@ def download_unzip(url, name):
 
     download_file(url, name)
     unzip_file(name)
+
