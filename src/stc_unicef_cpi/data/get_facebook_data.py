@@ -93,7 +93,7 @@ def get_facebook_estimates(coords, name_out, res):
     :return:
     :rtype:
     """
-    token, account_id = get_facebook_credentials("../../conf/credentials.yaml")
+    token, account_id = get_facebook_credentials("../../../conf/credentials.yaml")
     data = pd.DataFrame()
     _, account = fb_api_init(token, account_id)
     if res == 7:
@@ -118,4 +118,3 @@ def get_facebook_estimates(coords, name_out, res):
         data.to_parquet(name_out)
 
     return data
-
