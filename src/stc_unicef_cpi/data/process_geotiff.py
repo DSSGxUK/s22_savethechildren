@@ -1,4 +1,5 @@
 import glob
+import os
 from pathlib import Path
 from typing import List, Union
 
@@ -11,7 +12,7 @@ import pandas as pd
 import rasterio
 import rioxarray as rxr
 import swifter
-from dask.distributed import Client
+from dask.distributed import Client, LocalCluster
 from pyproj import Transformer
 from rasterio.enums import Resampling
 from rasterio.windows import Window
@@ -77,12 +78,61 @@ def clip_tif_to_ctry(file_path, save_dir=None, ctry_name="Nigeria"):
         raise ValueError("Must specify save_dir")
 
 
-def geotiff_to_df(geotiff_filepath: str, verbose=False):
+def rxr_reproject_tiff_to_target(
+    src_tiff_file: Union[str, Path],
+    target_tiff_file: Union[str, Path],
+    dest_path: Union[str, Path] = None,
+    verbose=False,
+):
+    # f"shape: {raster.rio.shape}\n"
+    # f"resolution: {raster.rio.resolution()}\n"
+    # f"bounds: {raster.rio.bounds()}\n"
+    # f"sum: {raster.sum().item()}\n"
+    # f"CRS: {raster.rio.crs}\n"
+    with rxr.open_rasterio(src_tiff_file, masked=True) as src_file, rxr.open_rasterio(
+        target_tiff_file, masked=True
+    ) as target_file:
+        if src_file.rio.crs is None:
+            src_file.rio.write_crs(4326, inplace=True)
+            print("Warning, no CRS present in src, assuming EPSG:4326")
+        # NB by default uses nearest-neighbour resampling
+        # - simplest but often worse. Chosen bilinear here
+        # instead as that's what GEE uses, so at least
+        # now consistent for all data.
+        # TODO: Consider if alternative resampling scheme
+        # to bilinear is better for this task
+        rxr_match = src_file.rio.reproject_match(
+            target_file, resampling=rasterio.enums.Resampling(1)
+        )
+        if verbose:
+            print_tif_metadata(rxr_match)
+            print_tif_metadata(target_file)
+            # fig, ax = plt.subplots()
+            # rxr_match.plot(ax=ax)
+            # fig2, ax2 = plt.subplots()
+            # target_file.plot(ax=ax2)
+        if dest_path is not None:
+            dest_path = Path(dest_path)
+            rxr_match.rio.to_raster(dest_path)
+        else:
+            return rxr_match
+
+
+def geotiff_to_df(
+    geotiff_filepath: str, spec_band_names: List[str] = None, verbose=False
+):
     """Convert a geotiff file to a pandas dataframe,
     and print some additional info.
 
     :param geotiff_filepath: path to a geotiff file
     :type geotiff_filepath: str
+    :param spec_band_names: Specified band names - only used
+                            if these are not specified in
+                            the GeoTIFF itself, at which
+                            point they are mandatory
+    :type spec_band_names: List[str], optional
+    :param verbose: verbose output, defaults to False
+    :type verbose: bool, optional
     :returns: pandas dataframe
     """
     # # NB quadkeys are defined on Mercator projection, so must reproject
@@ -93,18 +143,56 @@ def geotiff_to_df(geotiff_filepath: str, verbose=False):
         if verbose:
             print_tif_metadata(open_file, name)
         if open_file.rio.crs != "EPSG:4326":
-            print("Reprojection to lat/lon required: completing...")
-            reproj = True
             og_proj = open_file.rio.crs
+            if og_proj is None:
+                print("Warning: no CRS found in geotiff file:")
+                print("assuming EPSG:4326")
+                open_file.rio.write_crs(4326, inplace=True)
+            else:
+                print("Reprojection to lat/lon required: completing...")
+                reproj = True
+                if not open_file.crs.epsg_treats_as_latlong():
+                    print("Warning")
         open_file = open_file.squeeze()
         open_file.name = "data"
         try:
             band_names = open_file.attrs["long_name"]
             multi_bands = True
         except KeyError:
-            assert len(open_file.shape) == 2
-            print("Single band found only")
-            multi_bands = False
+            try:
+                assert len(open_file.shape) == 2
+                print("Single band found only")
+                multi_bands = False
+            except AssertionError:
+                # Multi-Band but with different
+                # naming convention
+                with rasterio.open(geotiff_filepath) as rast_file:
+                    if verbose:
+                        print("rioxarray struggling...")
+                        print("rasterio finds following metadata:")
+                        print(rast_file.meta)
+                    if rast_file.meta["count"] == 1:
+                        print("Single band found only")
+                        multi_bands = False
+                    else:
+                        multi_bands = True
+                        band_names = rast_file.descriptions
+                        if set(band_names) == {None}:
+                            try:
+                                assert spec_band_names is not None
+                            except AssertionError:
+                                raise ValueError("Must specify band names")
+                            try:
+                                assert len(spec_band_names) == len(band_names)
+                            except AssertionError:
+                                raise ValueError(
+                                    "Band names specified do not match number of bands"
+                                )
+                            band_names = spec_band_names
+                        if verbose:
+                            print("Found bands", band_names)
+                            # print(rast_file.tags())
+                            # print(rast_file.tags(1))
         df = open_file.to_dataframe()
     # print(df.reset_index().describe())
     df.drop(columns=["spatial_ref"], inplace=True)
@@ -115,6 +203,7 @@ def geotiff_to_df(geotiff_filepath: str, verbose=False):
         )
 
     if len(df.index.names) == 3:
+        # TO SORT FOR OTHER ORDERING
         df.index.set_names(["band", "latitude", "longitude"], inplace=True)
     elif len(df.index.names) == 2:
         df.index.set_names(["latitude", "longitude"], inplace=True)
@@ -151,7 +240,13 @@ def geotiff_to_df(geotiff_filepath: str, verbose=False):
 
 
 def agg_tif_to_df(
-    df, tiff_dir, rm_prefix="cpi", agg_fn=np.mean, max_records=int(1e5), verbose=False
+    df,
+    tiff_dir,
+    rm_prefix="cpi",
+    agg_fn=np.mean,
+    max_records=int(1e5),
+    replace_old=True,
+    verbose=False,
 ):
     """Pass df with hex_code column of numpy_int type h3 codes,
     and a directory with tiff files, then aggregate pixels from tiffs
@@ -173,6 +268,9 @@ def agg_tif_to_df(
     :type agg_fn: _type_, optional
     :param max_records: _description_, defaults to int(1e5)
     :type max_records: _type_, optional
+    :param replace_old: Overwrite old columns if match new data,
+                        defaults to True
+    :type replace_old: bool, optional
     :param verbose: _description_, defaults to False
     :type verbose: bool, optional
     :raises ValueError: _description_
@@ -184,9 +282,18 @@ def agg_tif_to_df(
     except AttributeError:
         raise ValueError("hex_code not in df.columns")
 
-    # absolute path to search for all tiff files inside a specified folder
-    path = tiff_dir.rstrip("/") + "/*.tif"
-    tif_files = glob.glob(path)
+    try:
+        if os.path.isdir(tiff_dir):
+            # absolute path to search for all tiff files inside a specified folder
+            path = Path(tiff_dir) / "*.tif"
+            tif_files = glob.glob(str(path))
+        elif os.path.isfile(tiff_dir):
+            tif_files = [tiff_dir]
+    except TypeError:
+        # list of tiff files passed directly
+        assert type(tiff_dir) == list
+        tif_files = tiff_dir
+
     for i, fname in enumerate(tif_files):
         title = Path(fname).name.lstrip(rm_prefix).rstrip(".tif")
         print(f"Working with {title}: {i+1}/{len(tif_files)}...")
@@ -200,27 +307,55 @@ def agg_tif_to_df(
         # need to split df into manageable chunks for memory
         if len(tmp.index) > max_records:
             print("Large dataframe, using dask instead...")
-            with Client() as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
-                # NB ideal to have partitions around 100MB in size
-                ddf = dd.from_pandas(
-                    tmp,
-                    npartitions=max(
-                        [10, int(tmp.memory_usage(deep=True).sum() // int(1e6))]
-                    ),
-                )  # chunksize = max_records(?)
-                print(f"Using {ddf.npartitions} partitions")
-                ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
-                    lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7),
-                    axis=1,
-                    meta=(None, "int64"),
-                )
-                ddf = ddf.drop(columns=["latitude", "longitude"])
-                print("Done!")
-                print("Aggregating within cells...")
-                ddf = ddf.groupby("hex_code").agg(
-                    {col: agg_fn for col in ddf.columns if col != "hex_code"}
-                )
-                tmp = ddf.compute()
+            try:
+                with Client(
+                    "tcp://localhost:8786", timeout="2s"
+                ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
+                    # NB ideal to have partitions around 100MB in size
+                    ddf = dd.from_pandas(
+                        tmp,
+                        npartitions=max(
+                            [10, int(tmp.memory_usage(deep=True).sum() // int(1e6))]
+                        ),
+                    )  # chunksize = max_records(?)
+                    print(f"Using {ddf.npartitions} partitions")
+                    ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
+                        lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7),
+                        axis=1,
+                        meta=(None, "int64"),
+                    )
+                    ddf = ddf.drop(columns=["latitude", "longitude"])
+                    print("Done!")
+                    print("Aggregating within cells...")
+                    ddf = ddf.groupby("hex_code").agg(
+                        {col: agg_fn for col in ddf.columns if col != "hex_code"}
+                    )
+                    tmp = ddf.compute()
+            except OSError:
+                cluster = LocalCluster(scheduler_port=8786)
+                with Client(
+                    cluster, timeout="2s"
+                ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
+                    # NB ideal to have partitions around 100MB in size
+                    ddf = dd.from_pandas(
+                        tmp,
+                        npartitions=max(
+                            [10, int(tmp.memory_usage(deep=True).sum() // int(1e6))]
+                        ),
+                    )  # chunksize = max_records(?)
+                    print(f"Using {ddf.npartitions} partitions")
+                    ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
+                        lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7),
+                        axis=1,
+                        meta=(None, "int64"),
+                    )
+                    ddf = ddf.drop(columns=["latitude", "longitude"])
+                    print("Done!")
+                    print("Aggregating within cells...")
+                    ddf = ddf.groupby("hex_code").agg(
+                        {col: agg_fn for col in ddf.columns if col != "hex_code"}
+                    )
+                    tmp = ddf.compute()
         else:
             tmp["hex_code"] = tmp[["latitude", "longitude"]].swifter.apply(
                 lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7), axis=1
@@ -235,6 +370,11 @@ def agg_tif_to_df(
         # Aggregate ground truth to hexagonal cells with mean
         # NB automatically excludes missing data for households,
         # so differing quantities of data for different values
+        if replace_old:
+            override_cols = [col for col in tmp.columns if col in df.columns]
+            if len(override_cols) > 0:
+                print("Overwriting old columns:", override_cols)
+            df.drop(columns=override_cols, inplace=True)
         df = df.merge(
             tmp,
             how="left",
@@ -421,9 +561,9 @@ def convert_tiffs_to_image_dataset(
     :rtype: np.ndarray
     """
     # absolute path to search for all tiff files inside a specified folder
-    path = tiff_dir.rstrip("/") + "/*.tif"
+    path = Path(tiff_dir) / "*.tif"
     # raw_path = path.encode("unicode_escape")
-    tif_files = glob.glob(path)
+    tif_files = glob.glob(str(path))
 
     all_ims = extract_ims_from_hex_codes(tif_files, hex_codes, dim_x, dim_y)
     return all_ims
