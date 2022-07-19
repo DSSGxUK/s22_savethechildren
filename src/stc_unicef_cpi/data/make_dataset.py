@@ -50,13 +50,11 @@ def create_target_variable(country_code, lat, long, res):
 
 def append_predictor_variables(country_code="NGA", lat="latnum", long="longnum", res=6):
     sub = create_target_variable(country_code, lat, long, res)
-    sub = sub.head(10)
-    name_out = "fb_nigeria_train.parquet"
+    name_out = "fb_train.parquet"
     coords = sub["hex_centroid"].values
     # Facebook connectity metrics
     connect_fb = get_facebook_estimates(coords, name_out, res)
     sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
-    print(sub)
 
 
 append_predictor_variables()
