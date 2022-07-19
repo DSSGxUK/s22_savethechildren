@@ -5,9 +5,12 @@ import geopandas as gpd
 from functools import reduce
 
 from src.stc_unicef_cpi.data.process_geotiff import geotiff_to_df
+from src.stc_unicef_cpi.data.get_facebook_data import get_facebook_estimates
+
 from src.stc_unicef_cpi.utils.geospatial import (
     create_geometry,
     get_hex_code,
+    get_hex_centroid,
     aggregate_hexagon,
     get_lat_long,
 )
@@ -26,18 +29,47 @@ def select_country(df, country_code, lat, long):
     return subset
 
 
-def create_train_dataset(country_code="NGA", lat="latnum", long="longnum", res=6):
+def aggregate_dataset(df):
+
+    df = df.groupby(by=["hex_code"], as_index=False).mean()
+
+    return df
+
+
+def create_target_variable(country_code, lat, long, res):
     source = "../../../data/childpoverty_microdata_gps_21jun22.csv"
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
     sub = get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
+    sub = aggregate_dataset(sub)
+    sub = get_hex_centroid(sub, "hex_code")
 
     return sub
 
 
-sub = create_train_dataset()
-print(sub)
+def append_predictor_variables(country_code="NGA", lat="latnum", long="longnum", res=6):
+    sub = create_target_variable(country_code, lat, long, res)
+    sub = sub.head(10)
+    name_out = "fb_nigeria_train.parquet"
+    coords = sub["hex_centroid"].values
+    # Facebook connectity metrics
+    connect_fb = get_facebook_estimates(coords, name_out, res)
+    sub = sub.merge(connect_fb, on="hex_centroid", how="left")
+    print(sub)
+
+
+append_predictor_variables()
+
+# def get_
+# osm_nga.hex_id = osm_nga.hex_id.swifter.apply(h3.string_to_h3)
+# osm_nga.rename(columns={"hex_id": "hex_code"}, inplace=True)
+# osm_nga.drop(columns=["geometry"], inplace=True)
+# nga_df = nga_df.merge(
+#    osm_nga.groupby(by=["hex_code"], as_index=False).mean(), how="left", on="hex_code"
+# )
+# sub = create_target_variable()
+# print(sub)
 
 ## Health Sites
 # hh = pd.read_csv("nga_health.csv")

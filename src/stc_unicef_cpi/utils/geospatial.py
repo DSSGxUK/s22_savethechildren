@@ -8,15 +8,31 @@ def get_lat_long(df, geo_col):
     return df
 
 
+def get_hex_centroid(df, hex_code):
+    """Get centroid of hexagon
+    :param data: dataset
+    :type data: dataframe
+    :param hex_code: name of column containing the hexagon code
+    :type hex_code: string
+    :return: coords
+    :rtype: list of tuples
+    """
+    df["hex_centroid"] = df[[hex_code]].apply(
+        lambda row: h3.h3_to_geo(row[hex_code]), axis=1
+    )
+    df["lat"], df["long"] = df["hex_centroid"].str
+    return df
+
+
 def create_geometry(df, lat, long):
     df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lat], df[long]))
     return df
 
 
-def get_hex_code(df, lat, long):
+def get_hex_code(df, lat, long, res):
 
     df["hex_code"] = df[[lat, long]].apply(
-        lambda row: h3.geo_to_h3(row[lat], row[long], 7), axis=1
+        lambda row: h3.geo_to_h3(row[lat], row[long], res), axis=1
     )
     return df
 

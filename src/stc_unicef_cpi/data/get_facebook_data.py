@@ -7,6 +7,7 @@ import h3.api.numpy_int as h3
 from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.api import FacebookAdsApi
 
+from src.stc_unicef_cpi.utils.constants import radius_6, radius_7
 from src.stc_unicef_cpi.utils.general import get_facebook_credentials
 
 
@@ -103,17 +104,19 @@ def delivery_estimate(account, lat, long, radius, opt):
     return row
 
 
-def get_facebook_estimates(coords, name_out):
+def get_facebook_estimates(coords, name_out, res):
     """Get delivery estimates from a lists of coordinates
 
     :return:
     :rtype:
     """
-    token, account_id, _, radius, opt = get_facebook_credentials(
-        "../../conf/credentials.yaml"
-    )
+    token, account_id, opt = get_facebook_credentials("../../../conf/credentials.yaml")
     data = pd.DataFrame()
     _, account = fb_api_init(token, account_id)
+    if res == 7:
+        radius = radius_7
+    else:
+        radius = radius_6
     for i, (lat, long) in enumerate(coords):
         try:
             row = delivery_estimate(account, lat, long, radius, opt)
@@ -128,12 +131,7 @@ def get_facebook_estimates(coords, name_out):
                 print(f"Point {i}, ({lat, long}) not found.")
                 row = pd.DataFrame()
                 row["lat"], row["long"] = lat, long
-                pass
             data = data.append(row, ignore_index=True)
         data.to_parquet(name_out)
 
-
-name_in, name_out = "nga_clean_v1.csv", "fb_nigeria_train.parquet"
-df = pd.read_csv(name_in)
-coords = get_coordinates(df, "hex_code")
-get_facebook_estimates(coords, name_out)
+    return data
