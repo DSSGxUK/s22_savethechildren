@@ -7,7 +7,7 @@ import h3.api.numpy_int as h3
 from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.api import FacebookAdsApi
 
-from src.stc_unicef_cpi.utils.constants import radius_6, radius_7
+from src.stc_unicef_cpi.utils.constants import radius_6, radius_7, opt
 from src.stc_unicef_cpi.utils.general import get_facebook_credentials
 
 
@@ -70,23 +70,6 @@ def define_params(lat, lon, radius, opt):
     return params
 
 
-def get_coordinates(data, hex_code):
-    """Get centroid of hexagon
-    :param data: dataset
-    :type data: dataframe
-    :param hex_code: name of column containing the hexagon code
-    :type hex_code: string
-    :return: coords
-    :rtype: list of tuples
-    """
-    data["hex_centroid"] = data[[hex_code]].apply(
-        lambda row: h3.h3_to_geo(row[hex_code]), axis=1
-    )
-    data["lat"], data["long"] = data["hex_centroid"].str
-    coords = list(zip(data["lat"], data["long"]))
-    return coords
-
-
 def point_delivery_estimate(account, lat, lon, radius, opt):
     """Point delivery estimate
     :return: _description_
@@ -110,7 +93,7 @@ def get_facebook_estimates(coords, name_out, res):
     :return:
     :rtype:
     """
-    token, account_id, opt = get_facebook_credentials("../../../conf/credentials.yaml")
+    token, account_id = get_facebook_credentials("../../conf/credentials.yaml")
     data = pd.DataFrame()
     _, account = fb_api_init(token, account_id)
     if res == 7:
@@ -135,3 +118,4 @@ def get_facebook_estimates(coords, name_out, res):
         data.to_parquet(name_out)
 
     return data
+
