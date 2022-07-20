@@ -260,7 +260,9 @@ def agg_tif_to_df(
 
     :param df: _description_
     :type df: _type_
-    :param tiff_dir: _description_
+    :param tiff_dir: Either directory containing .tifs, a
+                     single .tif file, or a list of .tif
+                     files to aggregate to given df
     :type tiff_dir: _type_
     :param rm_prefix: _description_, defaults to "cpi"
     :type rm_prefix: str, optional
