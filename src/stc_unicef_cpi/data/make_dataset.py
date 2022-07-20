@@ -66,26 +66,26 @@ def append_predictor_variables(
     # path_data = "../../../data/"
     # file_exists = os.path.exists(f"{path_data}conflict/GEDEvent_v22_1.csv")
     # if file_exists:
-    #    pass
+    #   pass
     # else:
-    #    download_econ_data(path_data)
-
-    # Critical Infrastructure
+    #   download_econ_data(path_data)
+    #
+    ## Critical Infrastructure
     # ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
     # ci = create_geometry(ci, "latitude", "longitude")
     # ci = get_hex_code(ci, "latitude", "longitude")
     # ci = aggregate_hexagon(ci, "fric", "cii", "mean")
-
-    # Conflict Zones
+    #
+    ## Conflict Zones
     # cz = pd.read_csv(f"{path_data}conflict/GEDEvent_v22_1.csv")
     # cz = cz[cz.country == country]
     # cz = create_geometry(cz, "latitude", "longitude")
     # cz = get_hex_code(cz, "latitude", "longitude")
     # cz = aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
-
-    # dfs = [sub, ci, cz]
+    #
+    ## dfs = [sub, ci, cz]
     # sub = reduce(
-    #    lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
+    #   lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     # )
 
     # Road density
@@ -118,11 +118,3 @@ append_predictor_variables()
 # edu = get_lat_long(edu, "geometry")
 # edu = get_hex_code(edu, "lat", "long")
 # edu = aggregate_hexagon(edu, "geometry", "n_education", "count")
-
-
-## Merge into original dataset
-# name_file = "nga_clean_v1.csv"
-# df = pd.read_csv(name_file)
-# dfs = [df, hh, edu, ci, cz]
-# df = reduce(lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs)
-# df.to_csv(name_file, index=False)

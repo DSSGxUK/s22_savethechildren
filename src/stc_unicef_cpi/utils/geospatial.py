@@ -1,7 +1,9 @@
+from math import degrees
 import geopandas as gpd
 import h3.api.numpy_int as h3
 
 from pyproj import Geod
+from shapely.geometry.polygon import Polygon
 
 
 def get_lat_long(df, geo_col):
@@ -84,3 +86,11 @@ def get_area_polygon(polygon, crs="WGS84"):
     # Transform area in km^2
     area = area / 10**6
     return area
+
+
+def get_poly_boundary(df, hex_code):
+
+    df["geometry"] = [
+        Polygon(h3.h3_to_geo_boundary(x, geo_json=True)) for x in df[hex_code]
+    ]
+    return df
