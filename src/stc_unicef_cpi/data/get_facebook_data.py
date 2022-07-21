@@ -6,8 +6,9 @@ import pandas as pd
 from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.api import FacebookAdsApi
 
-from src.stc_unicef_cpi.utils.constants import radius_6, radius_7, opt
+from src.stc_unicef_cpi.utils.constants import opt
 from src.stc_unicef_cpi.utils.general import get_facebook_credentials
+from src.stc_unicef_cpi.utils.geospatial import hexagon_area
 
 
 def fb_api_init(token, id):
@@ -95,10 +96,7 @@ def get_facebook_estimates(coords, name_out, res):
     token, account_id = get_facebook_credentials("../../../conf/credentials.yaml")
     data = pd.DataFrame()
     _, account = fb_api_init(token, account_id)
-    if res == 7:
-        radius = radius_7
-    else:
-        radius = radius_6
+    radius = hexagon_area(res)
     for i, (lat, long) in enumerate(coords):
         try:
             row = delivery_estimate(account, lat, long, radius, opt)

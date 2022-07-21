@@ -1,9 +1,24 @@
 # -*- coding: utf-8 -*-
 import geopandas as gpd
 import h3.api.numpy_int as h3
+import math
 
 from pyproj import Geod
 from shapely.geometry.polygon import Polygon
+from src.stc_unicef_cpi.utils.constants import res_area
+
+
+def hexagon_radius(res):
+    """Get radius according to h3 resolution
+    :param res: resolution
+    :type res: int
+    :return: radius corresponding to the resolution
+    :rtype: float
+    """
+    for key, value in res_area.items():
+        if key == res:
+            radius = math.sqrt(value * 2 / (3 * math.sqrt(3)))
+    return radius
 
 
 def get_lat_long(data, geo_col):

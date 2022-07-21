@@ -90,7 +90,7 @@ def append_predictor_variables(
     # cell = aggregate_hexagon(cell, "cid", "cells", "count")
 
     # Aggregate Data
-    ## dfs = [sub, ci, cz]
+    # dfs = [sub, cell, ci, cz]
     # sub = reduce(
     #   lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     # )

@@ -3,6 +3,7 @@ import wget
 import zipfile
 import os
 import yaml
+import pandas as pd
 
 from functools import wraps
 from time import time
@@ -17,7 +18,7 @@ def read_yaml_file(yaml_file):
         with open(yaml_file, "r") as f:
             config = yaml.safe_load(f)
     except:
-        raise FileNotFoundError("Couldnt load the file")
+        raise FileNotFoundError("Couldn't load the file")
 
     return config
 
