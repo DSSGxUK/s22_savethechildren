@@ -4,18 +4,14 @@ import pandas as pd
 import geopandas as gpd
 import h3.api.numpy_int as h3
 import requests
-import tqdm
 
-from shapely.geometry import mapping
 from shapely import wkt
-from shapely.ops import unary_union
 from io import StringIO
-from tqdm.auto import tqdm
 
-from src.stc_unicef_cpi.utils.geospatial import get_area_polygon, get_hexes_for_ctry
+from src.stc_unicef_cpi.utils.geospatial import get_poly_boundary, get_hexes_for_ctry
 
 
-def add_neighboring_hexagons(hex_codes):
+def add_neighboring_hexagons(df, hex_code_col="hex_code"):
     """Return dataframe with cluster_id and geometry of hexagons passed in input and their neighbors
     :param data:
     :type data: pandas dataframe
@@ -23,12 +19,20 @@ def add_neighboring_hexagons(hex_codes):
     :rtype: pandas Dataframe
     """
     # create union of hexagons neighbors with the hexagons in the shapefile
-    neighbors = [h3.k_ring(hex_code) for hex_code in hex_codes]
-    hex_code = "hex_code"
+
+    neighbors = set()
+    # create union of hexagons neighbors with the hexagons in the shapefile
+    for i in range(df.shape[0]):
+        neighbors = neighbors.union(h3.k_ring(df.loc[i][hex_code_col], 1))
+
     # add hexagons belonging to the dataframe passed as input
-    data = pd.DataFrame(hexagons, columns=[hex_code])
+    all_hexagons = neighbors.union(set(df[hex_code_col]))
+
+    # add geometry
+    # add hexagons belonging to the dataframe passed as input
+    data = pd.DataFrame(all_hexagons, columns=[hex_code_col])
     data = gpd.GeoDataFrame(data)
-    data = get_poly_boundary(data, hex_code)
+    data = get_poly_boundary(data, hex_code_col)
 
     return data
 
@@ -69,15 +73,14 @@ def query_osm_road(geometry, elem="way"):
 
 
 def get_osm_info(query_osm_road):
-    """Query the input though Overpass API to access Open Street Map data
-    :param build_query: string of a query
-    :type build_query: str
+    """Parse query through Overpass API to access Open Street Map data
+    :param query_osm_road: string of a query
+    :type query_osm_road: str
     :returns: return dataframe with data accessed
-    :rtype: pandas dataframe
+    :rtype: dataframe
     """
     overpass_url = "http://overpass-api.de/api/interpreter"
     response = requests.get(overpass_url, params={"data": query_osm_road})
-
     df = pd.read_csv(StringIO(response.text), sep="\t")
 
     return df
@@ -93,7 +96,8 @@ def assign_road_length_to_hex(data_with_neigh):
     store_results = get_osm_info(
         query_osm_road(str(data_with_neigh.loc[0]["geometry"]))
     )
-    for i in enumerate(data_with_neigh.shape[0], start=1):
+
+    for i in range(1, data_with_neigh.shape[0]):
         temp = get_osm_info(query_osm_road(str(data_with_neigh.loc[i]["geometry"])))
         if temp.shape[1] == 1:
             temp = get_osm_info(query_osm_road(str(data_with_neigh.loc[i]["geometry"])))
@@ -133,10 +137,13 @@ def assign_cluster(data, store_results):
 
 
 hex_res_nga = get_hexes_for_ctry(ctry_name="Nigeria", res=2)
-data_with_neigh = add_neighboring_hexagons(hex_res_nga)
+hex_code = "hex_code"
+df = pd.DataFrame(hex_res_nga, columns=[hex_code])
+print(df)
+data_with_neigh = add_neighboring_hexagons(df)
 print(data_with_neigh)
-
-# store_results = assign_road_length_to_hex(data_with_neigh)
+store_results = assign_road_length_to_hex(data_with_neigh)
+print(store_results)
 # nga_hex = assign_cluster(nga_hex, store_results)
 #
 # nga_hex["area_km2"] = nga_hex["geometry"].progress_apply(
