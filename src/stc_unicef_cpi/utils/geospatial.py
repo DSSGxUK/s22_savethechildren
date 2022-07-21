@@ -8,7 +8,7 @@ from shapely.geometry.polygon import Polygon
 from src.stc_unicef_cpi.utils.constants import res_area
 
 
-def hexagon_radius(res):
+def get_hex_radius(res):
     """Get radius according to h3 resolution
     :param res: resolution
     :type res: int

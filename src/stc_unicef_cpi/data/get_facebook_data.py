@@ -8,7 +8,7 @@ from facebook_business.api import FacebookAdsApi
 
 from src.stc_unicef_cpi.utils.constants import opt
 from src.stc_unicef_cpi.utils.general import get_facebook_credentials
-from src.stc_unicef_cpi.utils.geospatial import hexagon_radius
+from src.stc_unicef_cpi.utils.geospatial import get_hex_radius
 
 
 def fb_api_init(token, id):
@@ -96,7 +96,7 @@ def get_facebook_estimates(coords, name_out, res):
     token, account_id = get_facebook_credentials("../../../conf/credentials.yaml")
     data = pd.DataFrame()
     _, account = fb_api_init(token, account_id)
-    radius = hexagon_radius(res)
+    radius = get_hex_radius(res)
     for i, (lat, long) in enumerate(coords):
         try:
             row = delivery_estimate(account, lat, long, radius, opt)
