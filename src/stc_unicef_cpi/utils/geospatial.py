@@ -1,4 +1,4 @@
-from math import degrees
+# -*- coding: utf-8 -*-
 import geopandas as gpd
 import h3.api.numpy_int as h3
 
@@ -6,13 +6,22 @@ from pyproj import Geod
 from shapely.geometry.polygon import Polygon
 
 
-def get_lat_long(df, geo_col):
-    df["lat"] = df[geo_col].map(lambda p: p.x)
-    df["long"] = df[geo_col].map(lambda p: p.y)
-    return df
+def get_lat_long(data, geo_col):
+    """Get latitude and longitude points
+    from a given geometry column
+    :param data: dataset
+    :type data: dataframe
+    :param geo_col: name of column containing the geometry
+    :type geo_col: string
+    :return: dataset
+    :rtype: dataframe with latitude and longitude columns
+    """
+    data["lat"] = data[geo_col].map(lambda p: p.x)
+    data["long"] = data[geo_col].map(lambda p: p.y)
+    return data
 
 
-def get_hex_centroid(df, hex_code):
+def get_hex_centroid(data, hex_code):
     """Get centroid of hexagon
     :param data: dataset
     :type data: dataframe
@@ -21,18 +30,26 @@ def get_hex_centroid(df, hex_code):
     :return: coords
     :rtype: list of tuples
     """
-    df["hex_centroid"] = df[[hex_code]].apply(
+    data["hex_centroid"] = data[[hex_code]].apply(
         lambda row: h3.h3_to_geo(row[hex_code]), axis=1
     )
-    df["lat"], df["long"] = df["hex_centroid"].str
-    return df
+    data["lat"], data["long"] = data["hex_centroid"].str
+    return data
 
 
-def create_geometry(df, lat, long):
-    # lat --> y
-    # long ---> x
-    df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[long], df[lat]))
-    return df
+def create_geometry(data, lat, long):
+    """Create geometry column from longitude (x) and latitude (y) columns
+    :param data: dataset
+    :type data: dataframe
+    :param lat: name of column containing the longitude of a point
+    :type lat: string
+    :param long: name of column containing the longitude of a point
+    :type long: string
+    :return: data
+    :rtype: datafrane with geometry column
+    """
+    data = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data[long], data[lat]))
+    return data
 
 
 def get_hex_code(df, lat, long, res):
