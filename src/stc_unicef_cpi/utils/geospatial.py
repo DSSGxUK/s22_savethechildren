@@ -29,12 +29,13 @@ def get_hex_centroid(df, hex_code):
 
 
 def create_geometry(df, lat, long):
-    df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lat], df[long]))
+    # lat --> y
+    # long ---> x
+    df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[long], df[lat]))
     return df
 
 
 def get_hex_code(df, lat, long, res):
-
     df["hex_code"] = df[[lat, long]].apply(
         lambda row: h3.geo_to_h3(row[lat], row[long], res), axis=1
     )

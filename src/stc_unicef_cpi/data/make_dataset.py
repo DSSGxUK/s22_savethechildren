@@ -83,15 +83,18 @@ def append_predictor_variables(
     # cz = get_hex_code(cz, "latitude", "longitude")
     # cz = aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
     #
+    ## Open Cell Data
+    # cell = get_cell_data(country)
+    # cell = create_geometry(cell, "lat", "long")
+    # cell = get_hex_code(cell, "lat", "long")
+    # cell = aggregate_hexagon(cell, "cid", "cells", "count")
+
+    # Aggregate Data
     ## dfs = [sub, ci, cz]
     # sub = reduce(
     #   lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     # )
 
-    # Open Cell Data
-    # country = "Taiwan"
-    df = get_cell_data(country)
-    print(df)
     # Road density
     shp_ctry = get_shape_for_ctry(country)
     print(shp_ctry)
