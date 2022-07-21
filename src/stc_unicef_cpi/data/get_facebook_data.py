@@ -1,8 +1,7 @@
-"""Get delivery estimates using Facebook Marketing API"""
+"""GET DELIVERY ESTIMATES FROM FACEBOOK MARKETING API"""
 
 import time
 import pandas as pd
-import h3.api.numpy_int as h3
 
 from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.api import FacebookAdsApi

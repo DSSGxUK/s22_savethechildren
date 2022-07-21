@@ -8,7 +8,7 @@ from functools import reduce
 from src.stc_unicef_cpi.data.process_geotiff import geotiff_to_df
 from src.stc_unicef_cpi.data.get_facebook_data import get_facebook_estimates
 from src.stc_unicef_cpi.data.get_econ_data import download_econ_data
-
+from src.stc_unicef_cpi.data.get_cell_tower_data import get_cell_data
 from src.stc_unicef_cpi.utils.geospatial import (
     create_geometry,
     get_hex_code,
@@ -88,6 +88,10 @@ def append_predictor_variables(
     #   lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     # )
 
+    # Open Cell Data
+    # country = "Taiwan"
+    df = get_cell_data(country)
+    print(df)
     # Road density
     shp_ctry = get_shape_for_ctry(country)
     print(shp_ctry)
