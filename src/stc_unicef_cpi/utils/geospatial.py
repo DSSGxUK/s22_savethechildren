@@ -1,18 +1,43 @@
-from math import degrees
+# -*- coding: utf-8 -*-
 import geopandas as gpd
 import h3.api.numpy_int as h3
+import math
 
+from shapely import wkt
 from pyproj import Geod
 from shapely.geometry.polygon import Polygon
+from src.stc_unicef_cpi.utils.constants import res_area
 
 
-def get_lat_long(df, geo_col):
-    df["lat"] = df[geo_col].map(lambda p: p.x)
-    df["long"] = df[geo_col].map(lambda p: p.y)
-    return df
+def get_hex_radius(res):
+    """Get radius according to h3 resolution
+    :param res: resolution
+    :type res: int
+    :return: radius corresponding to the resolution
+    :rtype: float
+    """
+    for key, value in res_area.items():
+        if key == res:
+            radius = math.sqrt(value * 2 / (3 * math.sqrt(3)))
+    return radius
 
 
-def get_hex_centroid(df, hex_code):
+def get_lat_long(data, geo_col):
+    """Get latitude and longitude points
+    from a given geometry column
+    :param data: dataset
+    :type data: dataframe
+    :param geo_col: name of column containing the geometry
+    :type geo_col: string
+    :return: dataset
+    :rtype: dataframe with latitude and longitude columns
+    """
+    data["lat"] = data[geo_col].map(lambda p: p.x)
+    data["long"] = data[geo_col].map(lambda p: p.y)
+    return data
+
+
+def get_hex_centroid(data, hex_code):
     """Get centroid of hexagon
     :param data: dataset
     :type data: dataframe
@@ -21,20 +46,29 @@ def get_hex_centroid(df, hex_code):
     :return: coords
     :rtype: list of tuples
     """
-    df["hex_centroid"] = df[[hex_code]].apply(
+    data["hex_centroid"] = data[[hex_code]].apply(
         lambda row: h3.h3_to_geo(row[hex_code]), axis=1
     )
-    df["lat"], df["long"] = df["hex_centroid"].str
-    return df
+    data["lat"], data["long"] = data["hex_centroid"].str
+    return data
 
 
-def create_geometry(df, lat, long):
-    df = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df[lat], df[long]))
-    return df
+def create_geometry(data, lat, long):
+    """Create geometry column from longitude (x) and latitude (y) columns
+    :param data: dataset
+    :type data: dataframe
+    :param lat: name of column containing the longitude of a point
+    :type lat: string
+    :param long: name of column containing the longitude of a point
+    :type long: string
+    :return: data
+    :rtype: datafrane with geometry column
+    """
+    data = gpd.GeoDataFrame(data, geometry=gpd.points_from_xy(data[long], data[lat]))
+    return data
 
 
 def get_hex_code(df, lat, long, res):
-
     df["hex_code"] = df[[lat, long]].apply(
         lambda row: h3.geo_to_h3(row[lat], row[long], res), axis=1
     )
@@ -59,7 +93,6 @@ def get_shape_for_ctry(ctry_name):
 
 def get_hexes_for_ctry(ctry_name="Nigeria", res=7):
     """Get array of all hex codes for specified country
-
     :param ctry_name: _description_, defaults to 'Nigeria'
     :type ctry_name: str, optional
     :param level: _description_, defaults to 7
@@ -77,19 +110,13 @@ def get_area_polygon(polygon, crs="WGS84"):
     :type polygon: Polygon
     """
     geometry = wkt.loads(str(polygon))
-    # Set CRS to WGS84
     geod = Geod(ellps=crs)
-    # Compute the area of the polygon projecting it on earth
-    # The area is in meter squared
     area = geod.geometry_area_perimeter(geometry)[0]
-
-    # Transform area in km^2
     area = area / 10**6
     return area
 
 
 def get_poly_boundary(df, hex_code):
-
     df["geometry"] = [
         Polygon(h3.h3_to_geo_boundary(x, geo_json=True)) for x in df[hex_code]
     ]

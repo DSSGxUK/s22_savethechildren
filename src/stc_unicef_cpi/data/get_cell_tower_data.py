@@ -1,9 +1,16 @@
+"""GET CELL TOWER DATA FROM OPEN CELL ID"""
+
 import pandas as pd
-from bs4 import BeautifulSoup
 import requests
 import glob
 
-token = "pk.d27849667f07fc6305b62c3542393128"
+from bs4 import BeautifulSoup
+
+from src.stc_unicef_cpi.utils.general import (
+    get_open_cell_credentials,
+    create_folder,
+    read_csv_gzip,
+)
 
 
 def get_opencell_url(country, token):
@@ -42,47 +49,7 @@ def get_opencell_url(country, token):
     return links
 
 
-import os
-
-
-def create_folder(dir):
-    if not os.path.exists(dir):
-        os.mkdir(dir)
-
-
-colnames = [
-    "radio",
-    "mcc",
-    "mnc",
-    "lac",
-    "cid",
-    "range",
-    "long",
-    "lat",
-    "sample",
-    "changeable_1",
-    "changeable_0",
-    "created",
-    "updated",
-    "avg_signal",
-]
-
-
-def read_csv_gzip(args, colnames=colnames):
-
-    df = pd.read_csv(
-        args,
-        compression="gzip",
-        sep=",",
-        names=colnames,
-        quotechar='"',
-        error_bad_lines=False,
-        header=None,
-    )
-    return df
-
-
-def get_cell_data(country, token):
+def get_cell_data(country, save_path="../../../data/cell_data"):
     """get_cell_data _summary_
 
     _extended_summary_
@@ -94,8 +61,8 @@ def get_cell_data(country, token):
     :return: _description_
     :rtype: _type_
     """
-    save_path = "../../../data/cell_data"
     create_folder(save_path)
+    token = get_open_cell_credentials("../../../conf/credentials.yaml")
     urls = get_opencell_url(country, token)
     country = country.lower().replace(" ", "_")
     for url in urls:
@@ -105,9 +72,3 @@ def get_cell_data(country, token):
     df = pd.concat(map(read_csv_gzip, glob.glob(f"{save_path}/{country}_*")))
     df = df.reset_index(drop=True)
     return df
-
-
-country = "Taiwan"
-
-df = get_cell_data(country, token)
-print(df)

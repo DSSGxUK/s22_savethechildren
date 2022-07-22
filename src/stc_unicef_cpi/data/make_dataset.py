@@ -7,13 +7,13 @@ from functools import reduce
 
 from src.stc_unicef_cpi.data.process_geotiff import geotiff_to_df
 from src.stc_unicef_cpi.data.get_facebook_data import get_facebook_estimates
+from src.stc_unicef_cpi.data.get_osm_data import get_road_density
 from src.stc_unicef_cpi.data.get_econ_data import download_econ_data
-
+from src.stc_unicef_cpi.data.get_cell_tower_data import get_cell_data
 from src.stc_unicef_cpi.utils.geospatial import (
     create_geometry,
     get_hex_code,
     get_hex_centroid,
-    get_shape_for_ctry,
     aggregate_hexagon,
     get_lat_long,
 )
@@ -21,7 +21,6 @@ from src.stc_unicef_cpi.utils.geospatial import (
 
 def read_input_unicef(path_read):
     df = pd.read_csv(path_read)
-
     return df
 
 
@@ -54,56 +53,54 @@ def create_target_variable(country_code, lat, long, res):
 def append_predictor_variables(
     country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6
 ):
-
+    # TODO: Integrate satellite information to pipeline
+    # TODO: Include threshold to pipeline
     sub = create_target_variable(country_code, lat, long, res)
     name_out = "fb_train.parquet"
 
     # Facebook connectivity metrics
-    # connect_fb = get_facebook_estimates(sub["hex_centroid"].values, name_out, res)
-    # sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
+    connect_fb = get_facebook_estimates(sub["hex_centroid"].values, name_out, res)
+    sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
 
     # Download data if it does not exist
-    # path_data = "../../../data/"
-    # file_exists = os.path.exists(f"{path_data}conflict/GEDEvent_v22_1.csv")
-    # if file_exists:
-    #   pass
-    # else:
-    #   download_econ_data(path_data)
-    #
-    ## Critical Infrastructure
-    # ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
-    # ci = create_geometry(ci, "latitude", "longitude")
-    # ci = get_hex_code(ci, "latitude", "longitude")
-    # ci = aggregate_hexagon(ci, "fric", "cii", "mean")
-    #
-    ## Conflict Zones
-    # cz = pd.read_csv(f"{path_data}conflict/GEDEvent_v22_1.csv")
-    # cz = cz[cz.country == country]
-    # cz = create_geometry(cz, "latitude", "longitude")
-    # cz = get_hex_code(cz, "latitude", "longitude")
-    # cz = aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
-    #
-    ## dfs = [sub, ci, cz]
-    # sub = reduce(
-    #   lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
-    # )
+    path_data = "../../../data/"
+    file_exists = os.path.exists(f"{path_data}conflict/GEDEvent_v22_1.csv")
+    if file_exists:
+        pass
+    else:
+        download_econ_data(path_data)
+
+    # Critical Infrastructure
+    ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
+    ci = create_geometry(ci, "latitude", "longitude")
+    ci = get_hex_code(ci, "latitude", "longitude")
+    ci = aggregate_hexagon(ci, "fric", "cii", "mean")
+
+    # Conflict Zones
+    cz = pd.read_csv(f"{path_data}conflict/GEDEvent_v22_1.csv")
+    cz = cz[cz.country == country]
+    cz = create_geometry(cz, "latitude", "longitude")
+    cz = get_hex_code(cz, "latitude", "longitude")
+    cz = aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
+
+    # Open Cell Data
+    cell = get_cell_data(country)
+    cell = create_geometry(cell, "lat", "long")
+    cell = get_hex_code(cell, "lat", "long")
+    cell = aggregate_hexagon(cell, "cid", "cells", "count")
 
     # Road density
-    shp_ctry = get_shape_for_ctry(country)
-    print(shp_ctry)
+    road = get_road_density(country, res)
+
+    # Aggregate Data
+    dfs = [sub, cell, ci, cz, road]
+    sub = reduce(
+        lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
+    )
 
 
 append_predictor_variables()
 
-# def get_
-# osm_nga.hex_id = osm_nga.hex_id.swifter.apply(h3.string_to_h3)
-# osm_nga.rename(columns={"hex_id": "hex_code"}, inplace=True)
-# osm_nga.drop(columns=["geometry"], inplace=True)
-# nga_df = nga_df.merge(
-#    osm_nga.groupby(by=["hex_code"], as_index=False).mean(), how="left", on="hex_code"
-# )
-# sub = create_target_variable()
-# print(sub)
 
 ## Health Sites
 # hh = pd.read_csv("nga_health.csv")
