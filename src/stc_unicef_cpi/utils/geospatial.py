@@ -3,6 +3,7 @@ import geopandas as gpd
 import h3.api.numpy_int as h3
 import math
 
+from shapely import wkt
 from pyproj import Geod
 from shapely.geometry.polygon import Polygon
 from src.stc_unicef_cpi.utils.constants import res_area
@@ -92,7 +93,6 @@ def get_shape_for_ctry(ctry_name):
 
 def get_hexes_for_ctry(ctry_name="Nigeria", res=7):
     """Get array of all hex codes for specified country
-
     :param ctry_name: _description_, defaults to 'Nigeria'
     :type ctry_name: str, optional
     :param level: _description_, defaults to 7
@@ -110,19 +110,13 @@ def get_area_polygon(polygon, crs="WGS84"):
     :type polygon: Polygon
     """
     geometry = wkt.loads(str(polygon))
-    # Set CRS to WGS84
     geod = Geod(ellps=crs)
-    # Compute the area of the polygon projecting it on earth
-    # The area is in meter squared
     area = geod.geometry_area_perimeter(geometry)[0]
-
-    # Transform area in km^2
     area = area / 10**6
     return area
 
 
 def get_poly_boundary(df, hex_code):
-
     df["geometry"] = [
         Polygon(h3.h3_to_geo_boundary(x, geo_json=True)) for x in df[hex_code]
     ]
