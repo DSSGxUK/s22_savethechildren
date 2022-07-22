@@ -24,21 +24,11 @@ def downloader_google_earth_engine(ee_object, region, scale):
     """
     init_gee()
     try:
-        # download image
-        if isinstance(ee_object, ee.image.Image):
-            print("Its Image")
-            url = ee_object.getDownloadUrl(
-                {"scale": scale, "crs": "EPSG:4326", "region": region}
-            )
-            return url
-
-        # download imagecollection
-        elif isinstance(ee_object, ee.imagecollection.ImageCollection):
-            print("It's ImageCollection")
-            ee_object_new = ee_object.mosaic()
-            url = ee_object_new.getDownloadUrl(
-                {"scale": scale, "crs": "EPSG:4326", "region": region}
-            )
-            return url
+        if isinstance(ee_object, ee.imagecollection.ImageCollection):
+            ee_object = ee_object.mosaic()
+        url = ee_object.getDownloadUrl(
+            {"scale": scale, "crs": "EPSG:4326", "region": region}
+        )
+        return url
     except:
         print("Could not download")
