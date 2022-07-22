@@ -53,7 +53,8 @@ def create_target_variable(country_code, lat, long, res):
 def append_predictor_variables(
     country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6
 ):
-
+    # TODO: Integrate satellite information to pipeline
+    # TODO: Include threshold to pipeline
     sub = create_target_variable(country_code, lat, long, res)
     name_out = "fb_train.parquet"
 
