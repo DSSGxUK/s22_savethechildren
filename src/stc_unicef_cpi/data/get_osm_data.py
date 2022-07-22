@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*
-
 import pandas as pd
-import geopandas as gpd
 import h3.api.numpy_int as h3
 import requests
+import time
 
 from shapely import wkt
 from io import StringIO
@@ -11,69 +10,54 @@ from io import StringIO
 from src.stc_unicef_cpi.utils.geospatial import get_poly_boundary, get_hexes_for_ctry
 
 
-def add_neighboring_hexagons(df, hex_code_col="hex_code"):
-    """Return dataframe with cluster_id and geometry of hexagons passed in input and their neighbors
-    :param data:
-    :type data: pandas dataframe
-    :return: dataframe with cluster id and geometry of data passed in input plus their neighbors
-    :rtype: pandas Dataframe
-    """
-    # create union of hexagons neighbors with the hexagons in the shapefile
-
-    neighbors = set()
-    # create union of hexagons neighbors with the hexagons in the shapefile
-    for i in range(df.shape[0]):
-        neighbors = neighbors.union(h3.k_ring(df.loc[i][hex_code_col], 1))
-
-    # add hexagons belonging to the dataframe passed as input
-    all_hexagons = neighbors.union(set(df[hex_code_col]))
-
-    # add geometry
-    # add hexagons belonging to the dataframe passed as input
-    data = pd.DataFrame(all_hexagons, columns=[hex_code_col])
-    data = gpd.GeoDataFrame(data)
-    data = get_poly_boundary(data, hex_code_col)
-
-    return data
-
-
-def format_polygon(geometry):
-    """Format the coordinates of a polygon to pass them to use in a query built with Overpass query.
-    The desidered format is: "latitude_1 longitude_1 latitude_2 longitude_2 latitude_3 longitude_3 …"
+def format_polygon_coords(geometry):
+    """Format the coordinates for Overpass
     :param geometry: string of polygon
     :type geometry: str
     :return: formatted string
     :rtype: str
     """
-
-    # Load the input to extract latitude and longitude
-    # The first coordinate is the longitude and the second the latitude
     x, y = wkt.loads(geometry).exterior.coords.xy
-    print(len(x))
-    polygon_coord_list = [str(y[i]) + " " + str(x[i]) for i in range(6)]
-    polygon_coord = " ".join(polygon_coord_list)
+    polygon_coord = [str(y[i]) + " " + str(x[i]) for i in range(len(x) - 1)]
+    polygon_coord = " ".join(polygon_coord)
 
     return polygon_coord
 
 
-def query_osm_road(geometry, elem="way"):
-    """Build query to access lat, long, lengths and type of roads in a polygon passed as input.
-    The  query will return a csv file
+def add_neighboring_hexagons(hex_codes, hex_code_col="hex_code"):
+    """Get all hexagons and their respective coordinates
+    :param hex_codes: list of hexagons codes
+    :type hex_codes: list
+    :return: hex_codes and geometry of polygons
+    :rtype: list
+    """
+    neighbors = [h3.k_ring(hex_code) for hex_code in hex_codes]
+    neighbors = [x for xs in neighbors for x in xs]
+    neighbors.extend(hex_codes)
+    hex_codes = list(set(neighbors))
+    data = pd.DataFrame(hex_codes, columns=[hex_code_col])
+    data = get_poly_boundary(data, hex_code_col)
+    coords = data["geometry"].to_list()
+    coords = [format_polygon_coords(str(coord)) for coord in coords]
+    return coords
+
+
+def query_osm_road(coords, elem="way"):
+    """Build query to access lat, long, lengths and type of roads in a polygon
     :param geometry: string of polygon
     :type geometry: str
-    :param elem: specify whether you want ways or also nodes and relations (with 'nrw'). Note that nodes have length 0.
+    :param elem: specify whether you want ways or also nodes and relations
     :returns: string of the query
     :rtype: str
     """
-    polygon_coord = format_polygon(geometry)
     hw = f"[out:csv(::id, ::lat, ::lon, length, highway)]; {elem} [highway](poly:'"
-    geom = f"{hw}{polygon_coord}'); convert result ::=::,::geom=geom(),length=length(); (._;>;); out geom; "
+    geom = f"{hw}{coords}'); convert result ::=::,::geom=geom(),length=length(); (._;>;); out geom; "
 
     return geom
 
 
 def get_osm_info(query_osm_road):
-    """Parse query through Overpass API to access Open Street Map data
+    """Parse query through Overpass to access Open Street
     :param query_osm_road: string of a query
     :type query_osm_road: str
     :returns: return dataframe with data accessed
@@ -82,30 +66,21 @@ def get_osm_info(query_osm_road):
     overpass_url = "http://overpass-api.de/api/interpreter"
     response = requests.get(overpass_url, params={"data": query_osm_road})
     df = pd.read_csv(StringIO(response.text), sep="\t")
+    time.sleep(5)
 
     return df
 
 
-def assign_road_length_to_hex(data_with_neigh):
-    """Query the input though Overpass API to access road length through Open Street Map data
-    :param data_with_neigh: dataframe with H3 ids in a column called hex_id
-    :type data_with_neigh: pandas dataframe
-    :returns: return dataframe with lat, lon, length and type of road access through OSM
-    :rtype: pandas dataframe
+def assign_road_length_to_hex(coords):
+    """Query the input though Overpass to get road length
+    :param coords: coordinates of polygon
+    :type coords: list
+    :returns:lat, lon, length and type of highway
+    :rtype: dataframe
     """
-    store_results = get_osm_info(
-        query_osm_road(str(data_with_neigh.loc[0]["geometry"]))
-    )
-
-    for i in range(1, data_with_neigh.shape[0]):
-        temp = get_osm_info(query_osm_road(str(data_with_neigh.loc[i]["geometry"])))
-        if temp.shape[1] == 1:
-            temp = get_osm_info(query_osm_road(str(data_with_neigh.loc[i]["geometry"])))
-        else:
-            pass
-        store_results = pd.concat([store_results, temp])
-
-    return store_results
+    data = [get_osm_info(query_osm_road(element)) for element in coords]
+    data = pd.concat(data).reset_index(drop=True)
+    return data
 
 
 def assign_cluster(data, store_results):
@@ -136,14 +111,9 @@ def assign_cluster(data, store_results):
     return data
 
 
-hex_res_nga = get_hexes_for_ctry(ctry_name="Nigeria", res=2)
-hex_code = "hex_code"
-df = pd.DataFrame(hex_res_nga, columns=[hex_code])
-print(df)
-data_with_neigh = add_neighboring_hexagons(df)
-print(data_with_neigh)
-store_results = assign_road_length_to_hex(data_with_neigh)
-print(store_results)
+hexes_nigeria = get_hexes_for_ctry(ctry_name="Nigeria", res=2)
+coords_nga = add_neighboring_hexagons(hexes_nigeria)
+store_results = assign_road_length_to_hex(coords_nga)
 # nga_hex = assign_cluster(nga_hex, store_results)
 #
 # nga_hex["area_km2"] = nga_hex["geometry"].progress_apply(
