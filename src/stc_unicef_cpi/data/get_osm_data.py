@@ -7,7 +7,12 @@ import time
 from shapely import wkt
 from io import StringIO
 
-from src.stc_unicef_cpi.utils.geospatial import get_poly_boundary, get_hexes_for_ctry
+from src.stc_unicef_cpi.utils.geospatial import (
+    get_poly_boundary,
+    get_hexes_for_ctry,
+    get_area_polygon,
+    get_hex_code,
+)
 
 
 def format_polygon_coords(geometry):
@@ -83,42 +88,38 @@ def assign_road_length_to_hex(coords):
     return data
 
 
-def assign_cluster(data, store_results):
-    """Assign H3 cluster with a specified resolution to all row of a dataframe (containing in columns '@lat', '@lon' the latitude and longitude)
-    :param data: data with hexagonal cluster with resolution
-    :type data: pandas dataframe
-    :param store_results: dataframe where each row is the central point of the road (lat, lon, length, type of road)
-    :type store_results: pandas dataframe
-    :returns: return dataframe 'data' with extra column computing road length of that hexagon
-    :rtype: pandas dataframe
+def assign_cluster(
+    results, country, res, lat="@lat", long="@lon", hex_code_col="hex_code"
+):
+    """Assign H3 cluster with a specified resolution
+    :param results: dataframe with central point of the road lat, lon, length, type_road
+    :type results: dataframe
+    :param country: country of interest
+    :type country: str
+    :param res: resolution
+    :type res: int
+    :returns: hexes with road length
+    :rtype: dataframe
     """
-    # Access resolution of clusters
-    resolution = h3.h3_get_resolution(data.loc[0]["hex_id"])
-    # Assign cluster to rows
-    store_results["cluster_id"] = store_results.progress_apply(
-        lambda x: h3.geo_to_h3(x["@lat"], x["@lon"], resolution), axis=1
-    )
-
-    # Sum length of road in the same cluster
-    temp = store_results.groupby(["cluster_id"])["length"].sum().reset_index()
-    # Transform in km
+    hexes = pd.DataFrame(get_hexes_for_ctry(country, res), columns=[hex_code_col])
+    hexes = get_poly_boundary(hexes, hex_code_col)
+    results = get_hex_code(results, lat, long, res)
+    temp = results.groupby([hex_code_col])["length"].sum().reset_index()
     temp["length_km"] = temp["length"] / 1000
     temp.drop(columns="length", inplace=True)
+    hexes = hexes.merge(temp, on=hex_code_col, how="left")
+    hexes["length_km"].fillna(0, inplace=True)
+    hexes["area_km2"] = hexes["geometry"].apply(lambda poly: get_area_polygon(poly))
+    hexes["road_density"] = hexes.apply(
+        lambda x: (x["length_km"] / x["area_km2"]), axis=1
+    )
+    return hexes
 
-    data = pd.merge(data, temp, how="left", left_on="hex_id", right_on="cluster_id")
-    data["length_km"].fillna(0, inplace=True)
 
-    return data
+def get_road_density(country="Nigeria", res=7):
+    hexes = get_hexes_for_ctry(country, res=2)
+    coords = add_neighboring_hexagons(hexes)
+    overpass_results = assign_road_length_to_hex(coords)
+    road_density = assign_cluster(overpass_results, country, res)
 
-
-hexes_nigeria = get_hexes_for_ctry(ctry_name="Nigeria", res=2)
-coords_nga = add_neighboring_hexagons(hexes_nigeria)
-store_results = assign_road_length_to_hex(coords_nga)
-# nga_hex = assign_cluster(nga_hex, store_results)
-#
-# nga_hex["area_km2"] = nga_hex["geometry"].progress_apply(
-#    lambda poly: get_area_polygon(poly)
-# )
-# nga_hex["road_density"] = nga_hex.progress_apply(
-#    lambda x: (x["length_km"] / x["area_km2"]), axis=1
-# )
+    return road_density
