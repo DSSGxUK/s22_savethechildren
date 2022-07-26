@@ -251,6 +251,7 @@ def lgbmreg_optuna(
     target_name="test",
     logging_level=optuna.logging.ERROR,
     experiment_name="nga-cpi",
+    tracking_uri="../models/mlruns",
 ):
     """Use optuna / FLAML to train tuned LGBMRegressor
     NB expect target y to be a vector due to computational expense, and desire to log runs separately
@@ -346,6 +347,7 @@ def lgbmreg_optuna(
                 - an example of valid input.
                 - inferred signature of the inputs and outputs of the model.
         """
+        mlflow.set_tracking_uri(tracking_uri)
         client = mlflow.tracking.MlflowClient()
         try:
             # Create an experiment name, which must be unique and case sensitive
@@ -444,7 +446,7 @@ def lgbmreg_optunaCV(
     dtrain = lgb_optuna.Dataset(X_train, y_train)
     params = {
         "objective": "regression",
-        "metric": "l1",
+        "metric": "l2",
         "boosting_type": "gbdt",
     }
     tuner = lgb_optuna.LightGBMTunerCV(
@@ -452,7 +454,7 @@ def lgbmreg_optunaCV(
         dtrain,
         folds=KFold(n_splits=5),
         study=study,
-        # callbacks=[LightGBMPruningCallback(trial, "l1")],
+        # callbacks=[LightGBMPruningCallback(trial, "l2")],
         callbacks=[lgb.early_stopping(100)],
         return_cvbooster=True,
     )
@@ -500,7 +502,7 @@ def lgbmreg_optunaCV(
                 f"{experiment_name}: {target_name}"
             )
             # experiment = client.get_experiment(experiment_id)
-        except ValueError:
+        except:
             assert f"{experiment_name}: {target_name}" in [
                 exp.name for exp in client.list_experiments()
             ]
@@ -510,7 +512,7 @@ def lgbmreg_optunaCV(
                 if exp.name == f"{experiment_name}: {target_name}"
             ][0]
         mlflow.lightgbm.autolog(
-            registered_model_name=f"{experiment_name}:{target_name}_{model}"
+            registered_model_name=f"{experiment_name}:{target_name}_lgbm"
         )
         # NB this assumes using solely lgbm, not e.g. lgbm contained
         # inside an sklearn pipeline in which case should use
@@ -585,10 +587,10 @@ def objective(trial, X, y):
             X_train,
             y_train,
             eval_set=[(X_test, y_test)],
-            eval_metric="l1",
+            eval_metric="l2",
             early_stopping_rounds=100,
             callbacks=[
-                LightGBMPruningCallback(trial, "l1")
+                LightGBMPruningCallback(trial, "l2")
             ],  # Add a pruning callback that detects unpromising hyperparameter sets before
             # training them on data, saving a lot of time - l1 is alt for mae
         )
