@@ -11,6 +11,9 @@ def init_gee():
     ee.Initialize()
 
 
+init_gee()
+
+
 def downloader_google_earth_engine(ee_object, region, scale):
     """Download ImageCollection or single image
     :param ee_object: _description_
