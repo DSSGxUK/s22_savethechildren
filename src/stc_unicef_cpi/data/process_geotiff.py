@@ -476,7 +476,11 @@ def extract_image_at_coords(
 
 
 def extract_ims_from_hex_codes(
-    datasets: Union[List[str], List[bytes]], hex_codes: List[int], width=256, height=256
+    datasets: Union[List[str], List[bytes]],
+    hex_codes: List[int],
+    width=256,
+    height=256,
+    verbose=False,
 ):
     """For a set of datasets, specified by file path, and
     a set of h3 hex codes, extract centered
@@ -493,6 +497,8 @@ def extract_ims_from_hex_codes(
     :type width: int, optional
     :param height: _description_, defaults to 256
     :type height: int, optional
+    :param verbose: _description_, defaults to False
+    :type verbose: bool, optional
     :return: _description_
     :rtype: _type_
     """
@@ -500,7 +506,8 @@ def extract_ims_from_hex_codes(
     for dataset in datasets:
         with rasterio.open(dataset) as open_file:
             nbands += len(open_file.indexes)
-    print(f"Overall, {nbands} bands found in datasets")
+    if verbose:
+        print(f"Overall, {nbands} bands found in datasets")
     ims = np.zeros((len(hex_codes), nbands, height, width))
     latlongs = [h3.h3_to_geo(hex_code) for hex_code in hex_codes]
     running_nband = 0

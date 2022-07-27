@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from flaml import AutoML
 from sklearn.base import (
     BaseEstimator,
     RegressorMixin,
@@ -65,7 +66,16 @@ class InflatedValsRegressor(BaseEstimator, RegressorMixin):
         self.classifier = classifier
         self.regressor = regressor
 
-    def fit(self, X, y, inflated_vals=[0], sample_weight=None, allow_nan=True):
+    def fit(
+        self,
+        X,
+        y,
+        inflated_vals=[0],
+        sample_weight=None,
+        allow_nan=True,
+        cls_fit_kwargs=None,
+        reg_fit_kwargs=None,
+    ):
         """
         Fit the model.
 
@@ -92,24 +102,31 @@ class InflatedValsRegressor(BaseEstimator, RegressorMixin):
         y_cls = self.get_cls_labels(y, inflated_vals)
         self._check_n_features(X, reset=True)
         if not is_classifier(self.classifier):
-            raise ValueError(
-                f"`classifier` has to be a classifier. Received instance of {type(self.classifier)} instead."
-            )
+            if type(self.classifier) != type(AutoML()):
+                raise ValueError(
+                    f"`classifier` has to be a classifier. Received instance of {type(self.classifier)} instead."
+                )
         if not is_regressor(self.regressor):
-            raise ValueError(
-                f"`regressor` has to be a regressor. Received instance of {type(self.regressor)} instead."
-            )
+            if type(self.regressor) != type(AutoML()):
+                raise ValueError(
+                    f"`regressor` has to be a regressor. Received instance of {type(self.regressor)} instead."
+                )
 
         try:
             check_is_fitted(self.classifier)
             self.classifier_ = self.classifier
         except NotFittedError:
             self.classifier_ = clone(self.classifier)
-            self.classifier_.fit(X, y_cls, sample_weight=sample_weight)
+            if type(self.classifier) != type(AutoML()):
+                self.classifier_.fit(
+                    X, y_cls, sample_weight=sample_weight, **cls_fit_kwargs
+                )
+            else:
+                self.classifier_.fit(X_train=X, y_train=y_cls, **cls_fit_kwargs)
 
         non_inflated_indices = np.where(
-            ~np.isin(self.classifier_.predict(X), self.infl_cls)
-            # ~np.isin(y_cls, infl_cls)
+            # ~np.isin(self.classifier_.predict(X), self.infl_cls)
+            ~np.isin(y_cls, self.infl_cls)
         )[0]
 
         if non_inflated_indices.size > 0:
@@ -118,13 +135,21 @@ class InflatedValsRegressor(BaseEstimator, RegressorMixin):
                 self.regressor_ = self.regressor
             except NotFittedError:
                 self.regressor_ = clone(self.regressor)
-                self.regressor_.fit(
-                    X[non_inflated_indices],
-                    y[non_inflated_indices],
-                    sample_weight=sample_weight[non_inflated_indices]
-                    if sample_weight is not None
-                    else None,
-                )
+                if type(self.regressor) != type(AutoML()):
+                    self.regressor_.fit(
+                        X[non_inflated_indices],
+                        y[non_inflated_indices],
+                        sample_weight=sample_weight[non_inflated_indices]
+                        if sample_weight is not None
+                        else None,
+                        **reg_fit_kwargs,
+                    )
+                else:
+                    self.regressor_.fit(
+                        X_train=X[non_inflated_indices],
+                        y_train=y[non_inflated_indices],
+                        **reg_fit_kwargs,
+                    )
         else:
             raise ValueError(
                 "The predicted training labels are all zero, making the regressor obsolete. Change the classifier or use a plain regressor instead."
