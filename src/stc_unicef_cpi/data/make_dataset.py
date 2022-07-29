@@ -4,6 +4,7 @@ import geopandas as gpd
 import os.path
 
 from functools import reduce
+from datetime import date
 
 from src.stc_unicef_cpi.data.process_geotiff import geotiff_to_df
 from src.stc_unicef_cpi.data.get_facebook_data import get_facebook_estimates
@@ -14,10 +15,12 @@ from src.stc_unicef_cpi.utils.geospatial import (
     create_geometry,
     get_hex_code,
     get_hex_centroid,
+    get_hexes_for_ctry,
     aggregate_hexagon,
     get_lat_long,
 )
 
+from src.stc_unicef_cpi.data.get_speedtest_data import get_speedtest_url, get_speedtest_info
 
 def read_input_unicef(path_read):
     df = pd.read_csv(path_read)
@@ -41,6 +44,7 @@ def aggregate_dataset(df):
 def create_target_variable(country_code, lat, long, res):
     source = "../../../data/childpoverty_microdata_gps_21jun22.csv"
     df = read_input_unicef(source)
+    print(df)
     sub = select_country(df, country_code, lat, long)
     sub = get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
@@ -56,48 +60,63 @@ def append_predictor_variables(
     # TODO: Integrate satellite information to pipeline
     # TODO: Include threshold to pipeline
     sub = create_target_variable(country_code, lat, long, res)
-    name_out = "fb_train.parquet"
+    # countries hexes
+    hexes = get_hexes_for_ctry(country, res)
+    ctry = pd.DataFrame(hexes, columns=['hex_code'])
+    ctry = get_hex_centroid(ctry, "hex_code")
+    ctry_name = country_code.lower()
+    today = date.today()
+    dat_scp = today.strftime("%d-%m-%Y")
+    name_out = f"fb_{ctry_name}_res{res}_{dat_scp}.parquet"
 
-    # Facebook connectivity metrics
-    connect_fb = get_facebook_estimates(sub["hex_centroid"].values, name_out, res)
-    sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
+    ## Facebook connectivity metrics
+    connect_fb = get_facebook_estimates(ctry["hex_centroid"].values[0:900], name_out, res)
+    #sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
+#
+    ## Download data if it does not exist
+    #path_data = "../../../data/"
+    #file_exists = os.path.exists(f"{path_data}conflict/GEDEvent_v22_1.csv")
+    #if file_exists:
+    #    pass
+    #else:
+    #    download_econ_data(path_data)
+#
+    ## Critical Infrastructure
+    #ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
+    #ci = create_geometry(ci, "latitude", "longitude")
+    #ci = get_hex_code(ci, "latitude", "longitude")
+    #ci = aggregate_hexagon(ci, "fric", "cii", "mean")
+#
+    ## Conflict Zones
+    #cz = pd.read_csv(f"{path_data}conflict/GEDEvent_v22_1.csv")
+    #cz = cz[cz.country == country]
+    #cz = create_geometry(cz, "latitude", "longitude")
+    #cz = get_hex_code(cz, "latitude", "longitude")
+    #cz = aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
+#
+    ## Open Cell Data
+    #cell = get_cell_data(country)
+    #cell = create_geometry(cell, "lat", "long")
+    #cell = get_hex_code(cell, "lat", "long")
+    #cell = aggregate_hexagon(cell, "cid", "cells", "count")
+#
+    ## Road density
+    #road = get_road_density(country, res)
 
-    # Download data if it does not exist
-    path_data = "../../../data/"
-    file_exists = os.path.exists(f"{path_data}conflict/GEDEvent_v22_1.csv")
+    # Speet Test
+    url, name = get_speedtest_url(service_type='mobile', year=2021, q=4)
+    file_exists = os.path.exists(f"{path_data}connectivity/GEDEvent_v22_1.csv")
     if file_exists:
         pass
     else:
         download_econ_data(path_data)
+    get_speedtest_info(url, name)
 
-    # Critical Infrastructure
-    ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
-    ci = create_geometry(ci, "latitude", "longitude")
-    ci = get_hex_code(ci, "latitude", "longitude")
-    ci = aggregate_hexagon(ci, "fric", "cii", "mean")
-
-    # Conflict Zones
-    cz = pd.read_csv(f"{path_data}conflict/GEDEvent_v22_1.csv")
-    cz = cz[cz.country == country]
-    cz = create_geometry(cz, "latitude", "longitude")
-    cz = get_hex_code(cz, "latitude", "longitude")
-    cz = aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
-
-    # Open Cell Data
-    cell = get_cell_data(country)
-    cell = create_geometry(cell, "lat", "long")
-    cell = get_hex_code(cell, "lat", "long")
-    cell = aggregate_hexagon(cell, "cid", "cells", "count")
-
-    # Road density
-    road = get_road_density(country, res)
-
-    # Aggregate Data
-    dfs = [sub, cell, ci, cz, road]
-    sub = reduce(
-        lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
-    )
-
+    ## Aggregate Data
+    #dfs = [sub, cell, ci, cz, road]
+    #sub = reduce(
+    #    lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
+    #)
 
 append_predictor_variables()
 

@@ -40,7 +40,7 @@ def prep_tile(data, name):
     """
     data = data[['avg_d_kbps', 'avg_u_kbps', 'geometry']]
     print('Saving speedtest data to directory...')
-    data.to_csv(name, index=False)
+    data.to_csv(f"../data/connectivity/{name}", index=False)
 
 
 def get_speedtest_info(url, name):
@@ -50,7 +50,3 @@ def get_speedtest_info(url, name):
             data = prep_tile(data, name)
         except:
             raise ValueError("Unable to retrieve data.")
-
-
-url, name = get_speedtest_url(service_type='mobile', year=2021, q=4)
-get_speedtest_info(url, name)
