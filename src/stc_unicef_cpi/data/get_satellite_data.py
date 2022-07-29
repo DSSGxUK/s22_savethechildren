@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 import ee
-
+import src.stc_unicef_cpi.utils.constants as c
 
 class SatelliteImages():
     """Get Satellite Images From Google Earth Engine"""
 
-    def __init__(self, country, folder, res):
+    def __init__(self, country, folder=c.folder_ee, res=c.res_ee, start=c.start_ee, end=c.end_ee):
 
         self.country = country
         self.folder = folder
         self.res = res
-        self.start = '2010-01-01'
-        self.end = '2020-01-01'
+        self.start = start
+        self.end = end
 
     def get_country_boundaries(self):
         """Get countries boundaries"""
@@ -23,7 +23,7 @@ class SatelliteImages():
         return ctry, geo
 
     def get_projection(self):
-        """Get country projections for image download"""
+        """Get country projections downloaded image"""
 
         pop_tot = ee.Image('WorldPop/GP/100m/pop_age_sex/NGA_2020')
         proj = pop_tot.select('population').projection().getInfo()
@@ -31,7 +31,7 @@ class SatelliteImages():
         return proj['transform'], proj['crs']
 
     def task_config(self, geo, name, image, transform, proj):
-
+        """"Determine countries parameters"""
         config = {
             'region': geo,
             'description': f"{name}_{self.country.lower()}_{self.res}",
@@ -43,26 +43,26 @@ class SatelliteImages():
             'image': image,
             'maxPixels': 9e8
         }
-
         return config
 
-    def run_task_ee(self, config):
+    def export_drive(self, config):
+        """"""
         task = ee.batch.Export.image.toDrive(**config)
         task.start()
 
         return task
 
     def get_pop_data(self, transform, proj, geo, name='cpi_poptotal'):
+        """Get Population in Nigeria"""
         ctry, geo = self.get_country_boundaries()
         transform, proj = self.get_projection()
         pop_tot = ee.Image('WorldPop/GP/100m/pop_age_sex/NGA_2020').clip(ctry)
         config = self.task_config(geo, name, pop_tot, transform, proj)
-        task = self.run_task_ee(config)
+        task = self.export_drive(config)
         
         return task
 
     def get_precipitation_data(self, transform, proj, ctry, geo, start_date, end_date):
-
         # nasa data
         precip = ee.ImageCollection('NASA/GPM_L3/IMERG_MONTHLY_V06').\
             select('precipitation').filterBounds(ctry).filterDate(start_date, end_date).\
@@ -84,7 +84,7 @@ class SatelliteImages():
         collections = zip(images, names)
         for image, name in collections:
             config = self.task_config(geo, name, image, transform, proj)
-            task = self.run_task_ee(config)
+            task = self.export_drive(config)
         return task
 
     def get_copernicus_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_cop_land'):
@@ -92,14 +92,14 @@ class SatelliteImages():
             select('discrete_classification','discrete_classification-proba').\
                 filterBounds(ctry).filterDate(start_date, end_date)
         config = self.task_config(geo, name, cop_land_use, transform, proj)
-        task = self.run_task_ee(config)
+        task = self.export_drive(config)
 
         return task
 
     def get_land_use_data(self, transform, proj, ctry, geo, name='cpi_ghsl'):
         ghsl_land_use = ee.Image("JRC/GHSL/P2016/BUILT_LDSMT_GLOBE_V1").select('built', 'cnfd').clip(ctry)
         config = self.task_config(geo, name, ghsl_land_use, transform, proj)
-        task = self.run_task_ee(config)
+        task = self.export_drive(config)
         
         return task
 
@@ -109,7 +109,7 @@ class SatelliteImages():
                 filterBounds(ctry).select('NDWI')
         ndwi = ndwi.reduce(ee.Reducer.mean()).clip(ctry)
         config = self.task_config(geo, name, ndwi, transform, proj)
-        task = self.run_task_ee(config)
+        task = self.export_drive(config)
         return task
 
     def get_ndvi_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_ndvi'):
@@ -117,34 +117,32 @@ class SatelliteImages():
             select('NDVI').filterDate(start_date, end_date).filterBounds(ctry)
         ndvi = ndvi.reduce(ee.Reducer.mean()).clip(ctry)
         config = self.task_config(geo, name, ndvi, transform, proj)
-        task = self.run_task_ee(config)  
+        task = self.export_drive(config)  
         return task
 
     def get_pollution_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_pollution'):
-        
-        months = ee.List.sequence(1, 12)
+
         def func_pio(m, ctry=ctry):
-        
             collection = ee.ImageCollection('MODIS/006/MCD19A2_GRANULES').\
                 filterDate(start_date, end_date).filter(ee.Filter.calendarRange(m, m, 'month')).\
                 filterBounds(ctry).select('Optical_Depth_047', 'Optical_Depth_055').mean().\
                 set('month', m)
             return collection
+        months = ee.List.sequence(1, 12)
         pollution = ee.ImageCollection.fromImages(months.map(func_pio))
         pollution = pollution.mean().clip(ctry)
         config = self.task_config(geo, name, pollution, transform, proj)
-        task = self.run_task_ee(config)
+        task = self.export_drive(config)
         return task
 
     def get_topography_data(self, transform, proj, ctry, geo, name='cpi_poptotal'):
-
         elevation = ee.Image('CGIAR/SRTM90_V4').select('elevation').clip(ctry)
         slope = ee.Terrain.slope(elevation)
         images, names = [elevation, slope], ['cpi_elevation', 'cpi_slope']
         collections = zip(images, names)
         for image, name in collections:
             config = self.task_config(geo, name, image, transform, proj)
-            task = self.run_task_ee(config)
+            task = self.export_drive(config)
         return task
 
     def get_nightime_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_poptotal'):
@@ -152,8 +150,7 @@ class SatelliteImages():
             filterDate(start_date, end_date).filterBounds(ctry).select('avg_rad', 'cf_cvg')
         night_time = night_time.mean().toFloat().clip(ctry)
         config = self.task_config(geo, name, night_time, transform, proj)
-        task = self.run_task_ee(config)
-
+        task = self.export_drive(config)
         return task
 
     def get_satellite_images(self):
@@ -173,4 +170,4 @@ class SatelliteImages():
         self.get_nightime_data(transform, proj, ctry, geo, start_date, end_date)
 
 
-SatelliteImages(country='Nigeria', folder='gee', res=500).get_satellite_images()
+SatelliteImages(country='Nigeria').get_satellite_images()
