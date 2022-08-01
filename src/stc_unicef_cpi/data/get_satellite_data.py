@@ -135,7 +135,7 @@ class SatelliteImages():
         task = self.export_drive(config)
         return task
 
-    def get_topography_data(self, transform, proj, ctry, geo, name='cpi_poptotal'):
+    def get_topography_data(self, transform, proj, ctry, geo):
         elevation = ee.Image('CGIAR/SRTM90_V4').select('elevation').clip(ctry)
         slope = ee.Terrain.slope(elevation)
         images, names = [elevation, slope], ['cpi_elevation', 'cpi_slope']
@@ -145,11 +145,17 @@ class SatelliteImages():
             task = self.export_drive(config)
         return task
 
-    def get_nightime_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_poptotal'):
+    def get_nighttime_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_nighttime'):
         night_time = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG').\
             filterDate(start_date, end_date).filterBounds(ctry).select('avg_rad', 'cf_cvg')
         night_time = night_time.mean().toFloat().clip(ctry)
         config = self.task_config(geo, name, night_time, transform, proj)
+        task = self.export_drive(config)
+        return task
+
+    def get_healthcare_data(self, transform, proj, ctry, geo, name='cpi_health_acc'):
+        health_acc = ee.Image('Oxford/MAP/accessibility_to_healthcare_2019').clip(ctry)
+        config = self.task_config(geo, name, health_acc, transform, proj)
         task = self.export_drive(config)
         return task
 
@@ -167,7 +173,8 @@ class SatelliteImages():
         self.get_ndvi_data(transform, proj, ctry, geo, start_date, end_date)
         self.get_pollution_data(transform, proj, ctry, geo, start_date, end_date)
         self.get_topography_data(transform, proj, ctry, geo)
-        self.get_nightime_data(transform, proj, ctry, geo, start_date, end_date)
+        self.get_nighttime_data(transform, proj, ctry, geo, start_date, end_date)
+        self.get_healthcare_data(transform, proj, ctry, geo)
 
 
 SatelliteImages(country='Nigeria').get_satellite_images()
