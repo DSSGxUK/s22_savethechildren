@@ -1,4 +1,7 @@
+# optimization objective for facebook audience estimates
 opt = "REACH"
+
+# names for data retrieved through open cell id
 open_cell_colnames = [
     "radio",
     "mcc",
@@ -16,8 +19,8 @@ open_cell_colnames = [
     "avg_signal",
 ]
 
+# resolution and area of hexagon in km2
 res_area = {
-    # res : area of hexagon in km2
     0: 4250546.8477000,
     1: 607220.9782429,
     2: 86745.8540347,
@@ -35,9 +38,11 @@ res_area = {
     14: 0.0000063,
     15: 0.0000009,
 }
-
+# google earth engine parameters
 start_ee = '2010-01-01'
 end_ee = '2020-01-01'
 res_ee = 500
 folder_ee = 'gee'
 
+# base directory for data
+base_dir_data = '../../../data'
