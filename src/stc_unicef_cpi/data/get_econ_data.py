@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Download econ and facilities related data"""
+"""Download econ and facilities data"""
 import os
 import src.stc_unicef_cpi.utils.constants as c
 
@@ -7,7 +7,10 @@ from src.stc_unicef_cpi.utils.general import download_unzip, download_file, crea
 
 
 def download_econ_data(out_dir=c.econ_data):
-    """Download Economical Data"""
+    """Download economic data
+    :param out_dir: path to output directory, defaults to c.econ_data
+    :type out_dir: str, optional
+    """
 
     # Check if folder output folder exists
     create_folder(out_dir)
@@ -37,8 +40,11 @@ def download_econ_data(out_dir=c.econ_data):
     download_unzip(gdp_url, out_gdp)
     gdp_zip = f"{out_dir}/real_gdp/updated real GDP/"
     gdp_files = prepend(os.listdir(gdp_zip), gdp_zip)
-    # unzip all elements in folder
-    list(map(unzip_file, gdp_files))
+    list(map(unzip_file, gdp_files)) # unzip all elements in folder
+
+    # Commuting zones
+    commuting_url = 'https://data.humdata.org/dataset/b7aaa3d7-cca2-4364-b7ce-afe3134194a2/resource/37c2353d-08a6-4cc2-8364-5fd9f42d6b64/download/data-for-good-at-meta-commuting-zones-july-2021.csv'
+    download_file(commuting_url, f"{out_dir}/commuting_zones.csv")
 
 
 download_econ_data()
