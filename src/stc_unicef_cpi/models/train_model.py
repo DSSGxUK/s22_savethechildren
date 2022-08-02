@@ -177,6 +177,7 @@ if __name__ == "__main__":
         parser.print_help()
         sys.exit(0)
 
+    DATA_DIRECTORY = Path(args.data)
     if args.save_model:
         SAVE_DIRECTORY = DATA_DIRECTORY.parent / "models"
         SAVE_DIRECTORY.mkdir(exist_ok=True)
@@ -273,7 +274,28 @@ if __name__ == "__main__":
     pipeline = Pipeline(
         [("imputer", imputer), ("standardiser", standardiser), ("model", model)]
     )
+    if args.log_run:
+        MLFLOW_DIR = DATA_DIRECTORY.parent / "models" / "mlruns"
+        MLFLOW_DIR.mkdir(exist_ok=True)
 
+        mlflow.set_tracking_uri(MLFLOW_DIR)
+        client = mlflow.tracking.MlflowClient()
+        try:
+            # Create an experiment name, which must be unique and case sensitive
+            experiment_id = client.create_experiment(
+                f"{args.country}-{args.target}-{args.model}"
+            )
+            # experiment = client.get_experiment(experiment_id)
+        except ValueError:
+            assert f"{args.country}-{args.target}-{args.model}" in [
+                exp.name for exp in client.list_experiments()
+            ]
+            experiment_id = [
+                exp.experiment_id
+                for exp in client.list_experiments()
+                if exp.name == f"{args.country}-{args.target}-{args.model}"
+            ][0]
+        mlflow.start_run(experiment_id=experiment_id)
     if len(Y.shape) == 1:
         pipeline.fit(X_train, Y_train, **pipeline_settings)
     else:
@@ -299,6 +321,23 @@ if __name__ == "__main__":
         # compute different metrics on test set
         y_pred = pipeline.predict(X_test)
         y_test = Y_test.values[:, col_idx]
-        print("r2", "=", 1 - sklearn_metric_loss_score("r2", y_pred, y_test))
-        print("mse", "=", sklearn_metric_loss_score("mse", y_pred, y_test))
-        print("mae", "=", sklearn_metric_loss_score("mae", y_pred, y_test))
+        r2_val = 1 - sklearn_metric_loss_score("r2", y_pred, y_test)
+        print("r2", "=", r2_val)
+        mse_val = sklearn_metric_loss_score("mse", y_pred, y_test)
+        print("mse", "=", mse_val)
+        mae_val = sklearn_metric_loss_score("mae", y_pred, y_test)
+        print("mae", "=", mae_val)
+        if args.log_run:
+            mlflow.log_param(key="best_model", value=automl.best_estimator)
+            mlflow.log_params(automl.best_config)
+            mlflow.log_metric(key="r2_score", value=r2_val)
+            mlflow.log_metric(
+                key="rmse",
+                value=np.sqrt(mse_val),
+            )
+            mlflow.log_metric(
+                key="mae",
+                value=mae_val,
+            )
+    if args.log_run:
+        mlflow.end_run()
