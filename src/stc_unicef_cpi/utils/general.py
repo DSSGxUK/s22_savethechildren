@@ -76,6 +76,14 @@ def unzip_file(name):
     os.remove(name)
 
 
+def prepend(list, str):
+
+    # Using format()
+    str += '{0}'
+    list = [str.format(i) for i in list]
+    return(list)
+
+
 def timing(f):
     @wraps(f)
     def wrap(*args, **kw):

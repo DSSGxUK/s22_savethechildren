@@ -46,3 +46,4 @@ folder_ee = 'gee'
 
 # base directory for data
 base_dir_data = '../../../data'
+econ_data = f'{base_dir_data}/econ'
