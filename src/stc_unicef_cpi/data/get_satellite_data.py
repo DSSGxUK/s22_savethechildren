@@ -2,6 +2,7 @@
 import ee
 import src.stc_unicef_cpi.utils.constants as c
 
+
 class SatelliteImages():
     """Get Satellite Images From Google Earth Engine"""
 
@@ -89,8 +90,8 @@ class SatelliteImages():
 
     def get_copernicus_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_cop_land'):
         cop_land_use = ee.ImageCollection("COPERNICUS/Landcover/100m/Proba-V-C3/Global").\
-            select('discrete_classification','discrete_classification-proba').\
-                filterBounds(ctry).filterDate(start_date, end_date)
+            select('discrete_classification').filterDate(start_date, end_date).filterBounds(ctry)
+        cop_land_use = cop_land_use.reduce(ee.Reducer.mean()).clip(ctry)
         config = self.task_config(geo, name, cop_land_use, transform, proj)
         task = self.export_drive(config)
 
@@ -100,7 +101,7 @@ class SatelliteImages():
         ghsl_land_use = ee.Image("JRC/GHSL/P2016/BUILT_LDSMT_GLOBE_V1").select('built', 'cnfd').clip(ctry)
         config = self.task_config(geo, name, ghsl_land_use, transform, proj)
         task = self.export_drive(config)
-        
+
         return task
 
     def get_ndwi_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_ndwi'):
@@ -175,6 +176,3 @@ class SatelliteImages():
         self.get_topography_data(transform, proj, ctry, geo)
         self.get_nighttime_data(transform, proj, ctry, geo, start_date, end_date)
         self.get_healthcare_data(transform, proj, ctry, geo)
-
-
-SatelliteImages(country='Nigeria').get_satellite_images()
