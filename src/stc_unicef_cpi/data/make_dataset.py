@@ -4,7 +4,7 @@ import geopandas as gpd
 import os.path
 import glob as glob
 
-from functools import reduce
+from functools import reduce, partial
 from datetime import date
 
 import src.stc_unicef_cpi.utils.constants as c
@@ -61,14 +61,38 @@ def create_target_variable(country_code, lat, long, res):
 
 
 def preprocessed_tif_files(country, out_dir=c.int_data):
+
     g.create_folder(out_dir)
+    # clip gdp ppp 30 arc sec
     net.netcdf_to_clipped_array(
         f"{c.ext_data}/gdp_ppp_30.nc", ctry_name=country, save_dir=out_dir
         )
-    for file in ['EC2019', '2019GDP']:
-        pg.clip_tif_to_ctry(
-            f"{c.ext_data}/*/*/2019/{file}.tif", country, out_dir
-            )
+    # clip ec and gdp
+    tifs = f"{c.ext_data}/*/*/2019/*.tif"
+    partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=out_dir)
+    list(map(partial_func, glob.glob(tifs)))
+
+    # reproject resolution + crs
+    #econ_tiffs = glob.glob(str(econ_dir / "*.tif"))
+    #econ_tiffs
+    #for i, econ_tiff in enumerate(econ_tiffs):
+    #    with rxr.open_rasterio(econ_tiff) as data:
+    #        name = Path(econ_tiff).name
+    #        if "GDP_PPP" in name:
+    #            data.attrs["long_name"] = ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"]
+    #        elif "2019GDP" in name:
+    #            data.attrs["long_name"] = ["GDP_2019"]
+    #        elif "EC" in name:
+    #            data.attrs["long_name"] = ["EC_2019"]
+    #        data.rio.to_raster(econ_tiff)
+    #    pg.rxr_reproject_tiff_to_target(
+    #        econ_tiff,
+    #        glob.glob(str(tiff_dir / "*.tif"))[0],
+    #        tiff_dir / Path(econ_tiff).name,
+    #        verbose=True
+    #    )
+
+preprocessed_tif_files(country='Senegal')
 
 def append_predictor_variables(
     country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6
