@@ -1,9 +1,30 @@
 # -*- coding: utf-8 -*-
 """Download econ and facilities data"""
 import os
+import glob
+
 import src.stc_unicef_cpi.utils.constants as c
 
 from src.stc_unicef_cpi.utils.general import download_unzip, download_file, create_folder, unzip_file, prepend
+
+
+def get_data_from_calibrated_nighttime(url, out_dir, dir):
+    """Get data from calibrated nighttime light data,
+    dataset authored by Jiandong Chen, Ming Gao
+    :param url: url of data to download
+    :type url: str
+    :param out_dir: path to output directory
+    :type out_dir: str
+    :param dir: path to specific data type
+    :type dir: str
+    """
+    out = f"{out_dir}/{dir}.zip"
+    download_unzip(url, out)
+    zipped = f"{out_dir}/{dir}/*/"
+    unzip_file(f"{zipped}2019.zip")
+    files = prepend(os.listdir(glob.glob(zipped)[0]), glob.glob(zipped)[0])
+    files = [file for file in files if ".zip" in file]
+    list(map(os.remove, files))
 
 
 def download_econ_data(out_dir=c.econ_data):
@@ -36,11 +57,11 @@ def download_econ_data(out_dir=c.econ_data):
 
     # Global 1 km × 1 km gridded revised real gross domestic product
     gdp_url = "https://figshare.com/ndownloader/files/31456837"
-    out_gdp = f"{out_dir}/real_gdp.zip"
-    download_unzip(gdp_url, out_gdp)
-    gdp_zip = f"{out_dir}/real_gdp/updated real GDP/"
-    gdp_files = prepend(os.listdir(gdp_zip), gdp_zip)
-    list(map(unzip_file, gdp_files)) # unzip all elements in folder
+    get_data_from_calibrated_nighttime(gdp_url, out_dir, 'real_gdp')
+
+    # Global 1 km × 1 km gridded revised electricity consumption
+    ec_url = "https://figshare.com/ndownloader/files/31456843"
+    get_data_from_calibrated_nighttime(ec_url, out_dir, 'elec_cons')
 
     # Commuting zones
     commuting_url = 'https://data.humdata.org/dataset/b7aaa3d7-cca2-4364-b7ce-afe3134194a2/resource/37c2353d-08a6-4cc2-8364-5fd9f42d6b64/download/data-for-good-at-meta-commuting-zones-july-2021.csv'

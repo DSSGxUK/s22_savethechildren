@@ -4,6 +4,7 @@ import zipfile
 import os
 import yaml
 import pandas as pd
+import glob
 
 from functools import wraps
 from time import time
@@ -50,6 +51,10 @@ def download_file(url, name):
 
 
 def create_folder(dir):
+    """Create folder
+    :param dir: directory
+    :type dir: str
+    """
     if not os.path.exists(dir):
         os.mkdir(dir)
 
@@ -69,19 +74,29 @@ def read_csv_gzip(args, colnames=open_cell_colnames):
 
 
 def unzip_file(name):
-    name_folder = name.split(".zip")[0]
-    with zipfile.ZipFile(name, "r") as h:
+    """Unzip file
+    :param name: name or path of file to unzip
+    :type name: str
+    """
+    name_folder = glob.glob(name)[0].split(".zip")[0]
+    with zipfile.ZipFile(glob.glob(name)[0], "r") as h:
         create_folder(name_folder)
         h.extractall(f"{name_folder}/")
-    os.remove(name)
+    os.remove(glob.glob(name)[0])
 
 
 def prepend(list, str):
+    """Prepend string to elements in list
 
-    # Using format()
+    :param list: list of elements
+    :type list: list
+    :param str: string to prepend to each element
+    :type str: str
+    """
     str += '{0}'
-    list = [str.format(i) for i in list]
-    return(list)
+    list = [str.format(element) for element in list]
+
+    return list
 
 
 def timing(f):
