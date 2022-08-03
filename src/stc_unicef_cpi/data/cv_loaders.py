@@ -1,3 +1,4 @@
+import warnings
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 from typing import List, Union
@@ -10,7 +11,9 @@ from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
 from sklearn.cluster import KMeans
 from sklearn.model_selection import GroupKFold, KFold, StratifiedKFold
-from sklearn.utils import check_array
+from sklearn.utils import check_array, check_random_state
+from sklearn.utils.multiclass import type_of_target
+from sklearn.utils.validation import column_or_1d
 from tensorflow import keras
 
 import stc_unicef_cpi.data.process_geotiff as pg
@@ -156,11 +159,7 @@ def cv_split(
 
 
 class HexSpatialKFold(GroupKFold):
-    """NB lightly modified version of GroupKFold which just calculates spatial groups for hex codes
-
-    :param _BaseKFold: _description_
-    :type _BaseKFold: _type_
-    """
+    """NB lightly modified version of GroupKFold which just calculates spatial groups for hex codes"""
 
     def __init__(self, n_splits=5, *, random_state=None):
         super().__init__(n_splits=n_splits)
@@ -237,8 +236,77 @@ class HexSpatialKFold(GroupKFold):
         return clusters
 
     def get_spatial_groups(self, X):
-        latlongs = np.array([h3.h3_to_geo(hex_code) for hex_code in X])
+        if len(X.shape) == 1:
+            latlongs = np.array([h3.h3_to_geo(hex_code) for hex_code in X])
+        else:
+            # assume passing pandas df with columns named 'hex_code'
+            latlongs = np.array([h3.h3_to_geo(hex_code) for hex_code in X["hex_code"]])
         return self.get_even_clusters(latlongs, self.n_splits)
+
+
+class StratifiedIntervalKFold(StratifiedKFold):
+    """NB lightly edited version of stratified KFold where just creates class labels from intervals (to improve folds w inflated vals)"""
+
+    def __init__(self, n_splits=5, *, n_cuts=5, shuffle=False, random_state=None):
+        super().__init__(n_splits=n_splits, shuffle=shuffle, random_state=random_state)
+        self.n_cuts = n_cuts
+
+    def _make_test_folds(self, X, y=None):
+        rng = check_random_state(self.random_state)
+        y = np.asarray(y)
+        type_of_target_y = type_of_target(y)
+        allowed_target_types = ("binary", "multiclass")
+        if type_of_target_y not in allowed_target_types:
+            raise ValueError(
+                "Supported target types are: {}. Got {!r} instead.".format(
+                    allowed_target_types, type_of_target_y
+                )
+            )
+
+        y = column_or_1d(y)
+
+        y_encoded = pd.cut(y, self.n_cuts)
+
+        n_classes = self.n_cuts
+        y_counts = np.bincount(y_encoded)
+        min_groups = np.min(y_counts)
+        if np.all(self.n_splits > y_counts):
+            raise ValueError(
+                "n_splits=%d cannot be greater than the"
+                " number of members in each class." % (self.n_splits)
+            )
+        if self.n_splits > min_groups:
+            warnings.warn(
+                "The least populated class in y has only %d"
+                " members, which is less than n_splits=%d."
+                % (min_groups, self.n_splits),
+                UserWarning,
+            )
+
+        # Determine the optimal number of samples from each class in each fold,
+        # using round robin over the sorted y. (This can be done direct from
+        # counts, but that code is unreadable.)
+        y_order = np.sort(y_encoded)
+        allocation = np.asarray(
+            [
+                np.bincount(y_order[i :: self.n_splits], minlength=n_classes)
+                for i in range(self.n_splits)
+            ]
+        )
+
+        # To maintain the data order dependencies as best as possible within
+        # the stratification constraint, we assign samples from each class in
+        # blocks (and then mess that up when shuffle=True).
+        test_folds = np.empty(len(y), dtype="i")
+        for k in range(n_classes):
+            # since the kth column of allocation stores the number of samples
+            # of class k in each test set, this generates blocks of fold
+            # indices corresponding to the allocation for class k.
+            folds_for_class = np.arange(self.n_splits).repeat(allocation[:, k])
+            if self.shuffle:
+                rng.shuffle(folds_for_class)
+            test_folds[y_encoded == k] = folds_for_class
+        return test_folds
 
 
 # """Example Keras script:

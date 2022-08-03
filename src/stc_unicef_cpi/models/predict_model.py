@@ -19,7 +19,7 @@ if __name__ == "__main__":
         type=str,
         help="Pathway to pretrained model",
     )
-
+    # population threshold
     try:
         args = parser.parse_args()
     except argparse.ArgumentError:

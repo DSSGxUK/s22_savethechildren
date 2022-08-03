@@ -145,7 +145,7 @@ def basic_preprocessor(X_train, model_type="lgb"):
         )
         return preprocessor
     else:
-        X_train[categorical_features] = X_train.astype("category")
+        X_train[categorical_features] = X_train[categorical_features].astype("category")
 
 
 def train_model(

@@ -15,13 +15,15 @@ from sklearn.compose import (
     make_column_selector,
     make_column_transformer,
 )
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer
-from sklearn.impute import IterativeImputer, SimpleImputer
+from sklearn.impute import IterativeImputer, KNNImputer, SimpleImputer
 from sklearn.metrics import mean_squared_error, r2_score  # , log_loss
 from sklearn.model_selection import KFold, train_test_split
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import (
+    MinMaxScaler,
     OneHotEncoder,
     OrdinalEncoder,
     RobustScaler,
@@ -29,6 +31,7 @@ from sklearn.preprocessing import (
 )
 from tqdm.auto import tqdm
 
+from stc_unicef_cpi.data.cv_loaders import HexSpatialKFold, StratifiedIntervalKFold
 from stc_unicef_cpi.utils.mlflow_utils import fetch_logged_data
 from stc_unicef_cpi.utils.scoring import mae
 
@@ -99,6 +102,7 @@ if __name__ == "__main__":
         choices=[
             "lgbm",
             "automl",
+            "catboost",
             # "xgb",
             # "huber",
             # "krr",
@@ -140,11 +144,11 @@ if __name__ == "__main__":
         help="Target variable to use for training, default is all, choices are 'all' (train separate model for each of the following), 'av-severity' (average number of deprivations / child), 'av-prevalence' (average proportion of children with at least one deprivation), or proportion of children deprived in 'education', 'sanitation', 'housing', 'water'",
     )
     parser.add_argument(
-        "--impute-gdp",
+        "--impute",
         type=str,
         default=None,
-        choices=[None, "mean", "knn", "linear", "rf"],
-        help="Impute GDP values prior to training, or leave as nan (default option)",
+        choices=[None, "mean", "median", "knn", "linear", "rf"],
+        help="Impute missing values prior to training, or leave as nan (default option)",
     )
     parser.add_argument(
         "--standardise",
@@ -184,6 +188,8 @@ if __name__ == "__main__":
 
     ### Load data
     # TODO: link w Dani's data generating pipeline
+    # - Either load clean dataset, or pass data directory with all data
+    # files necessary to produce clean data
     if args.cp2nbr:
         # Load all NGA data (including expanded data)
         # TODO: include option to run on expanded dataset
@@ -208,7 +214,6 @@ if __name__ == "__main__":
             ).swifter.apply(lambda pt: pt.within(ctry_geom))
         ]
 
-    XY["name_commuting_zone"] = XY["name_commuting_zone"].astype("category")
     # TODO: consider including hex count threshold here
     # thr_df = pd.read_csv(thr_data)
     # thr_all = all_df.set_index('hex_code').loc[thr_df.hex_code].reset_index()
@@ -219,6 +224,13 @@ if __name__ == "__main__":
     if args.univ:
         # Remove country specific data - e.g. in case of Nigeria,
         # conflict and healthcare data, and FB connectivity data
+        # ('n_conflicts', 15)
+        # ('n_education', 19)
+        # ('n_health', 3)
+        # ('OSM_hospital', 6)
+        # ('OSM_school', 11)
+        # ('health_gv_osm', 6)
+        # ('school_gv_osm', 22)
         pass
     if args.interpretable:
         # Remove auto-encoder features for more interpretable models
@@ -239,11 +251,21 @@ if __name__ == "__main__":
             + ["sumpoor_sev", "deprived_sev"]
         ].copy()
 
-    X = None
-    Y = None
+    categorical_features = X.select_dtypes(exclude=[np.number]).columns
+    X[categorical_features] = X[categorical_features].astype("category")
+
     X_train, X_test, Y_train, Y_test = train_test_split(
-        X, Y, test_size=0.2, random_state=42
+        X, Y, test_size=args.test_size, random_state=42
     )
+    pipeline_settings = dict()
+    # specify KFold strategy
+    # choices = ["normal", "stratified", "spatial"]
+    if args.cv_type == "normal":
+        kfold = KFold(n_splits=args.nfolds, shuffle=True)
+    elif args.cv_type == "stratified":
+        kfold = StratifiedIntervalKFold(n_splits=args.nfolds, shuffle=True, n_cuts=5)
+    elif args.cv_type == "spatial":
+        kfold = HexSpatialKFold(n_splits=args.nfolds)
 
     if args.model == "automl":
         model = AutoML()
@@ -262,18 +284,80 @@ if __name__ == "__main__":
     else:
         raise NotImplementedError("Model not implemented")
 
-    if args.impute_gdp is not None:
-        imp = IterativeImputer(max_iter=10, random_state=42)
-        imputer = SimpleImputer()
+    # imputer setup
+    # choices = [None, "mean", "median", "knn", "linear", "rf"]
+    # NB these imputers will be applied to all features, but other than
+    # ('discrete_classification-proba_mean', 84)
+    # ('GDP_PPP_2015', 282)
+    # ('GDP_PPP_1990', 458)
+    # ('GDP_PPP_2000', 458)
+    # ('avg_signal', 890)
+    # ('avg_d_kbps', 1098)
+    # ('avg_u_kbps', 1098)
+    # ('avg_lat_ms', 1098)
+    # there aren't substantial amounts of missing data for other features (max of 14 records in clean dataset)
+    # optionally add an indicator feature which marks imputed records
+    add_indicator = True
+    if args.impute is None:
+        num_imputer = None
+    elif args.impute == "mean":
+        # default strategy is mean
+        num_imputer = SimpleImputer(add_indicator=add_indicator)
+    elif args.impute == "median":
+        num_imputer = SimpleImputer(strategy="median", add_indicator=add_indicator)
+    elif args.impute == "knn":
+        num_imputer = KNNImputer(n_neighbors=5, add_indicator=add_indicator)
+    elif args.impute == "linear":
+        # default estimator is BayesianRidge
+        num_imputer = IterativeImputer(
+            max_iter=10, random_state=42, add_indicator=add_indicator
+        )
+    elif args.impute == "rf":
+        num_imputer = IterativeImputer(
+            estimator=RandomForestRegressor(
+                n_estimators=20, min_samples_split=5, min_samples_leaf=3
+            ),
+            max_iter=10,
+            random_state=42,
+            add_indicator=add_indicator,
+        )
+    # as only commuting_zn is cat, just use constant imputation for this (only 5 missing records)
+    cat_tf = SimpleImputer(strategy="constant", fill_value="Unknown")
+    imputer = make_column_transformer(
+        (num_imputer, make_column_selector(dtype_include=np.number)),
+        (cat_tf, make_column_selector(dtype_exclude=np.number)),
+    )
 
     set_config(display="diagram")
 
-    if args.standardise is not None:
-        standardiser = StandardScaler()
+    # feature standardisation setup
+    # choices = [None, "standard", "minmax", "robust"]
+    if args.standardise is None:
+        standardiser = None
+    elif args.standardise == "standard":
+        num_tf = StandardScaler()
+    elif args.standardise == "minmax":
+        num_tf = MinMaxScaler()
+    elif args.standardise == "robust":
+        num_tf = RobustScaler()
+
+        # if cat_encoder == "ohe":
+        # only real categorical column is commuting zone, so could do encoding here - however, interested really in GBMs, (LightGBM, XGBoost, CatBoost), all of which have
+        # native support for categorical columns, so can neglect
+        # If was bigger problem, could e.g. try category-encoders lib, https://contrib.scikit-learn.org/category_encoders/index.html
+        # cat_tf = OneHotEncoder(handle_unknown="infrequent_if_exist", min_frequency=5)
+
+    standardiser = make_column_transformer(
+        (num_tf, make_column_selector(dtype_include=np.number)),
+        # (cat_tf, make_column_selector(dtype_exclude=np.number)),
+    )
 
     pipeline = Pipeline(
         [("imputer", imputer), ("standardiser", standardiser), ("model", model)]
     )
+    if args.target_transform is not None:
+        pass
+
     if args.log_run:
         MLFLOW_DIR = DATA_DIRECTORY.parent / "models" / "mlruns"
         MLFLOW_DIR.mkdir(exist_ok=True)
@@ -328,6 +412,7 @@ if __name__ == "__main__":
         mae_val = sklearn_metric_loss_score("mae", y_pred, y_test)
         print("mae", "=", mae_val)
         if args.log_run:
+            # TODO: add tags for standardisation and imputation used etc.
             mlflow.log_param(key="best_model", value=automl.best_estimator)
             mlflow.log_params(automl.best_config)
             mlflow.log_metric(key="r2_score", value=r2_val)
@@ -341,3 +426,4 @@ if __name__ == "__main__":
             )
     if args.log_run:
         mlflow.end_run()
+        # Marina - two stage model as suggested by Lyudmila?
