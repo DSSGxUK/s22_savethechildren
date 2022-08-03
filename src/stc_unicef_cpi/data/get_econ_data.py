@@ -33,7 +33,7 @@ def get_data_from_calibrated_nighttime(url, out_dir, dir):
     list(map(os.remove, files))
 
 
-def download_econ_data(out_dir=c.econ_data):
+def download_econ_data(out_dir=c.ext_data):
     """Download economic data
     :param out_dir: path to output directory, defaults to c.econ_data
     :type out_dir: str, optional
@@ -64,6 +64,11 @@ def download_econ_data(out_dir=c.econ_data):
     # Global 1 km × 1 km gridded revised real gross domestic product
     gdp_url = "https://figshare.com/ndownloader/files/31456837"
     get_data_from_calibrated_nighttime(gdp_url, out_dir, 'real_gdp')
+
+    # GDP per capita given in 2011 international US dollars
+    # 30 arc-second resolution for time steps 1990, 2000, and 2015
+    ppp_url = "https://datadryad.org/stash/downloads/file_stream/241958"
+    download_file(ppp_url, f"{out_dir}/gdp_ppp_30.nc")
 
     # Global 1 km × 1 km gridded revised electricity consumption
     ec_url = "https://figshare.com/ndownloader/files/31456843"

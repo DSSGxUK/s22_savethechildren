@@ -49,4 +49,4 @@ folder_ee = 'gee'
 base_dir_data = '../../../data'
 
 # external data
-econ_data = f'{base_dir_data}/external/econ'
+ext_data = f'{base_dir_data}/external'
