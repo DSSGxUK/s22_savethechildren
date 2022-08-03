@@ -1,19 +1,13 @@
-from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 from typing import List, Union
 
-import h3.api.numpy_int as h3
+import keras
 import numpy as np
-import pandas as pd
 import rasterio
-from scipy.optimize import linear_sum_assignment
-from scipy.spatial.distance import cdist
-from sklearn.cluster import KMeans
-from sklearn.model_selection import GroupKFold, KFold, StratifiedKFold
-from sklearn.utils import check_array
-from tensorflow import keras
 
 import stc_unicef_cpi.data.process_geotiff as pg
+
+# TODO: finish CV splitting fn
 
 
 class KerasDataGenerator(keras.utils.Sequence):
@@ -22,7 +16,7 @@ class KerasDataGenerator(keras.utils.Sequence):
     def __init__(
         self,
         hex_idxs: np.ndarray,
-        labels: np.ndarray,
+        #labels: np.ndarray,
         batch_size=32,
         dim=(16, 16),
         data_files: Union[List[str], List[Path]] = None,
@@ -38,7 +32,7 @@ class KerasDataGenerator(keras.utils.Sequence):
                 "dim must be a tuple of length 2, specifying height and width of extracted images"
             )
         self.batch_size = batch_size
-        self.labels = labels
+        #self.labels = labels
         self.hex_idxs = hex_idxs
         # self.idxs = np.arange(len(self.hex_idxs))
         data_files = list(map(Path, data_files))  # type: ignore
@@ -48,6 +42,7 @@ class KerasDataGenerator(keras.utils.Sequence):
         # matches the order of hex_idxs - this allows memory mapped
         # reading from disk
         self.np_files = [file for file in data_files if file.suffix == ".npy"]
+        
         try:
             assert set(self.tif_files).union(set(self.np_files)) == set(data_files)
         except AssertionError:
@@ -76,16 +71,16 @@ class KerasDataGenerator(keras.utils.Sequence):
         but this means that if shuffle=False, the final (incomplete) batch
         of data will never be seen.
         """
-        return int(np.floor(len(self.hex_idxs) / self.batch_size))
+        return int(np.ceil(len(self.hex_idxs) / self.batch_size))
 
     def __getitem__(self, index):
         "Generate one batch of data"
         # Generate indexes of the batch
         idxs = self.idxs[index * self.batch_size : (index + 1) * self.batch_size]
         # Generate data
-        X, y = self.__data_generation(idxs)
+        X = self.__data_generation(idxs)
 
-        return X, y
+        return X
 
     def on_epoch_end(self):
         "Updates indexes after each epoch"
@@ -98,147 +93,44 @@ class KerasDataGenerator(keras.utils.Sequence):
         hex_idxs = self.hex_idxs[idxs]
         # Initialization
         X = np.empty((self.batch_size, *self.dim, self.n_channels))
-        y = np.empty((self.batch_size), dtype=self.labels.dtype)
+        #y = np.empty((self.batch_size), dtype=self.labels.dtype)
 
         # Generate data
         # by default in shape (image_idx,band,i,j), so permute to (idx,i,j,band)
         X = pg.extract_ims_from_hex_codes(
             self.tif_files, hex_idxs, width=self.dim[1], height=self.dim[0]
         ).transpose((0, 2, 3, 1))
-        y = self.labels[idxs]
+        #y = self.labels[idxs]
+
+        #imputation for nans
+        if np.isnan(np.sum(X)):
+            min = np.min(X[~np.isnan(X)])
+            if min < 0:
+                X = np.nan_to_num(X, nan=2*min)
+            else:
+                X = np.nan_to_num(X, nan=-2*min)
 
         # return X, keras.utils.to_categorical(y, num_classes=self.n_classes)
-        return X, y
+        return X#, y
 
 
-def cv_split(
-    all_hex_idxs: np.ndarray,
-    labels: np.ndarray,
-    k: int,
-    mode="normal",
-    seed=42,
-    strat_cuts=5,
-):
+def cv_split(all_hex_idxs: np.ndarray, labels: np.ndarray, k: int, mode="normal"):
     """Generate k folds on (fixed order) hex dataset - either
     fully random (normal), stratified by interval (stratified),
     or spatially (spatial)
 
-    :param all_hex_idxs: Array of hex codes of dataset
+    :param all_hex_idxs: _description_
     :type all_hex_idxs: np.ndarray of type int
     :param labels: corresponding target labels for these idxs
     :type labels: np.ndarray of type int
-    :param k: Number of folds
+    :param k: _description_
     :type k: int
-    :param mode: mode to generate folds, choice of ['normal','stratified','spatial']. Defaults to 'normal' (fully random)
+    :param mode: _description_, defaults to 'normal'
     :type mode: str, optional
-    :param seed: random seed, defaults to 42
-    :type seed: int, optional
-    :param strat_cuts: number of intervals to cut the data into for stratified CV, defaults to 5
-    :type strat_cuts: int, optional
-    :return: folds
+    :return: _description_
     :rtype: _type_
     """
-    try:
-        assert len(all_hex_idxs) == len(labels)
-    except AssertionError:
-        raise ValueError("all_hex_idxs and labels must be the same length")
-    if mode == "normal":
-        return KFold(n_splits=k, random_state=seed).split(all_hex_idxs, labels)
-    elif mode == "stratified":
-        strat_labels = pd.cut(labels, strat_cuts, labels=False)
-        return StratifiedKFold(n_splits=k, random_state=seed).split(
-            all_hex_idxs, strat_labels
-        )
-    elif mode == "spatial":
-        return HexSpatialKFold(n_splits=k, random_state=seed).split(
-            all_hex_idxs, labels
-        )
-
-
-class HexSpatialKFold(GroupKFold):
-    """NB lightly modified version of GroupKFold which just calculates spatial groups for hex codes
-
-    :param _BaseKFold: _description_
-    :type _BaseKFold: _type_
-    """
-
-    def __init__(self, n_splits=5, *, random_state=None):
-        super().__init__(n_splits=n_splits)
-        self.random_state = random_state
-
-    def _iter_test_indices(self, X, y, groups=None):
-        if groups is None:
-            groups = self.get_spatial_groups(X)
-        groups = check_array(groups, input_name="groups", ensure_2d=False, dtype=None)
-
-        unique_groups, groups = np.unique(groups, return_inverse=True)
-        n_groups = len(unique_groups)
-
-        if self.n_splits > n_groups:
-            raise ValueError(
-                "Cannot have number of splits n_splits=%d greater"
-                " than the number of groups: %d." % (self.n_splits, n_groups)
-            )
-
-        # Weight groups by their number of occurrences
-        n_samples_per_group = np.bincount(groups)
-
-        # Distribute the most frequent groups first
-        indices = np.argsort(n_samples_per_group)[::-1]
-        n_samples_per_group = n_samples_per_group[indices]
-
-        # Total weight of each fold
-        n_samples_per_fold = np.zeros(self.n_splits)
-
-        # Mapping from group index to fold index
-        group_to_fold = np.zeros(len(unique_groups))
-
-        # Distribute samples by adding the largest weight to the lightest fold
-        for group_index, weight in enumerate(n_samples_per_group):
-            lightest_fold = np.argmin(n_samples_per_fold)
-            n_samples_per_fold[lightest_fold] += weight
-            group_to_fold[indices[group_index]] = lightest_fold
-
-        indices = group_to_fold[groups]
-
-        for f in range(self.n_splits):
-            yield np.where(indices == f)[0]
-
-    def haversine(self, latlon1, latlon2):
-        """
-        Calculate the great circle distance between two points
-        on the earth (specified in decimal degrees)
-        """
-        # convert decimal degrees to radians
-        lon1, lat1 = latlon1[::-1]
-        lon2, lat2 = latlon2[::-1]
-        lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
-
-        # haversine formula
-        dlon = lon2 - lon1
-        dlat = lat2 - lat1
-        a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
-        c = 2 * asin(sqrt(a))
-        r = 6371  # Radius of earth in km. Use 3956 for miles
-        return c * r
-
-    def get_even_clusters(self, X, n_clusters):
-        cluster_size = int(np.floor(len(X) / n_clusters))
-        kmeans = KMeans(n_clusters, random_state=self.random_state)
-        kmeans.fit(X)
-        centers = kmeans.cluster_centers_
-        centers = (
-            centers.reshape(-1, 1, X.shape[-1])
-            .repeat(cluster_size, 1)
-            .reshape(-1, X.shape[-1])
-        )
-        distance_matrix = cdist(X, centers, metric=self.haversine)
-        clusters = linear_sum_assignment(distance_matrix)[1] // cluster_size
-        return clusters
-
-    def get_spatial_groups(self, X):
-        latlongs = np.array([h3.h3_to_geo(hex_code) for hex_code in X])
-        return self.get_even_clusters(latlongs, self.n_splits)
+    pass
 
 
 # """Example Keras script:
