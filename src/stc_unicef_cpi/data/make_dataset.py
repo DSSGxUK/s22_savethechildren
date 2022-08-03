@@ -2,15 +2,21 @@
 import pandas as pd
 import geopandas as gpd
 import os.path
+import glob as glob
 
 from functools import reduce
 from datetime import date
 
-from src.stc_unicef_cpi.data.process_geotiff import geotiff_to_df
+import src.stc_unicef_cpi.utils.constants as c
+import src.stc_unicef_cpi.data.process_geotiff as pg
+import src.stc_unicef_cpi.utils.general as g
+import src.stc_unicef_cpi.data.get_econ_data as econ
+import src.stc_unicef_cpi.data.process_netcdf as net
+
 from src.stc_unicef_cpi.data.get_facebook_data import get_facebook_estimates
 from src.stc_unicef_cpi.data.get_osm_data import get_road_density
-from src.stc_unicef_cpi.data.get_econ_data import download_econ_data
 from src.stc_unicef_cpi.data.get_cell_tower_data import get_cell_data
+#from src.stc_unicef_cpi.data.get_satellite_data import SatelliteImages
 from src.stc_unicef_cpi.utils.geospatial import (
     create_geometry,
     get_hex_code,
@@ -21,6 +27,7 @@ from src.stc_unicef_cpi.utils.geospatial import (
 )
 
 from src.stc_unicef_cpi.data.get_speedtest_data import get_speedtest_url, get_speedtest_info
+
 
 def read_input_unicef(path_read):
     df = pd.read_csv(path_read)
@@ -44,7 +51,6 @@ def aggregate_dataset(df):
 def create_target_variable(country_code, lat, long, res):
     source = "../../../data/childpoverty_microdata_gps_21jun22.csv"
     df = read_input_unicef(source)
-    print(df)
     sub = select_country(df, country_code, lat, long)
     sub = get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
@@ -54,6 +60,20 @@ def create_target_variable(country_code, lat, long, res):
     return sub
 
 
+def preprocessed_tif_files(country, out_dir=c.int_data):
+    import rasterio
+    import rasterio.mask
+    g.create_folder(out_dir)
+    #net.netcdf_to_clipped_array(
+    #    "/Users/danielapintoveizaga/GitHub/stc_unicef_cpi/data/external/gdp_ppp_30.nc",
+    #    save_dir=out_dir, ctry_name=country
+    #    #f"{c.ext_data}/gdp_ppp_30.nc", save_dir=out_dir, ctry_name=country
+    #    )
+    for file in ['EC2019', '2019GDP']:
+        pg.clip_tif_to_ctry(
+            f"{c.ext_data}/*/*/2019/{file}.tif", out_dir, country
+            )
+    
 def append_predictor_variables(
     country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6
 ):
@@ -74,15 +94,15 @@ def append_predictor_variables(
     #sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
 #
     ## Download data if it does not exist
-    #path_data = "../../../data/"
-    #file_exists = os.path.exists(f"{path_data}conflict/GEDEvent_v22_1.csv")
-    #if file_exists:
-    #    pass
-    #else:
-    #    download_econ_data(path_data)
-#
+    file_exists = os.path.exists(f"{path_data}conflict/GEDEvent_v22_1.csv")
+    if file_exists:
+        pass
+    else:
+        download_econ_data()
+
     ## Critical Infrastructure
     #ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
+    clip_tif_to_ctry
     #ci = create_geometry(ci, "latitude", "longitude")
     #ci = get_hex_code(ci, "latitude", "longitude")
     #ci = aggregate_hexagon(ci, "fric", "cii", "mean")
@@ -112,13 +132,20 @@ def append_predictor_variables(
         download_econ_data(path_data)
     get_speedtest_info(url, name)
 
+    # Satellite Data
+
+    SatelliteImages(country).get_satellite_images()
+
+    
     ## Aggregate Data
     #dfs = [sub, cell, ci, cz, road]
     #sub = reduce(
     #    lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     #)
 
-append_predictor_variables()
+
+
+#append_predictor_variables()
 
 
 ## Health Sites
