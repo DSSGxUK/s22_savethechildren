@@ -38,6 +38,7 @@ res_area = {
     14: 0.0000063,
     15: 0.0000009,
 }
+
 # google earth engine parameters
 start_ee = '2010-01-01'
 end_ee = '2020-01-01'
@@ -46,4 +47,6 @@ folder_ee = 'gee'
 
 # base directory for data
 base_dir_data = '../../../data'
-econ_data = f'{base_dir_data}/econ'
+
+# external data
+ext_data = f'{base_dir_data}/external'

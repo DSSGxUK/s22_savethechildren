@@ -25,7 +25,7 @@ class KerasDataGenerator(keras.utils.Sequence):
     def __init__(
         self,
         hex_idxs: np.ndarray,
-        labels: np.ndarray,
+        # labels: np.ndarray,
         batch_size=32,
         dim=(16, 16),
         data_files: Union[List[str], List[Path]] = None,
@@ -41,7 +41,7 @@ class KerasDataGenerator(keras.utils.Sequence):
                 "dim must be a tuple of length 2, specifying height and width of extracted images"
             )
         self.batch_size = batch_size
-        self.labels = labels
+        # self.labels = labels
         self.hex_idxs = hex_idxs
         # self.idxs = np.arange(len(self.hex_idxs))
         data_files = list(map(Path, data_files))  # type: ignore
@@ -51,6 +51,7 @@ class KerasDataGenerator(keras.utils.Sequence):
         # matches the order of hex_idxs - this allows memory mapped
         # reading from disk
         self.np_files = [file for file in data_files if file.suffix == ".npy"]
+
         try:
             assert set(self.tif_files).union(set(self.np_files)) == set(data_files)
         except AssertionError:
@@ -79,16 +80,16 @@ class KerasDataGenerator(keras.utils.Sequence):
         but this means that if shuffle=False, the final (incomplete) batch
         of data will never be seen.
         """
-        return int(np.floor(len(self.hex_idxs) / self.batch_size))
+        return int(np.ceil(len(self.hex_idxs) / self.batch_size))
 
     def __getitem__(self, index):
         "Generate one batch of data"
         # Generate indexes of the batch
         idxs = self.idxs[index * self.batch_size : (index + 1) * self.batch_size]
         # Generate data
-        X, y = self.__data_generation(idxs)
+        X = self.__data_generation(idxs)
 
-        return X, y
+        return X
 
     def on_epoch_end(self):
         "Updates indexes after each epoch"
@@ -101,17 +102,24 @@ class KerasDataGenerator(keras.utils.Sequence):
         hex_idxs = self.hex_idxs[idxs]
         # Initialization
         X = np.empty((self.batch_size, *self.dim, self.n_channels))
-        y = np.empty((self.batch_size), dtype=self.labels.dtype)
+        # y = np.empty((self.batch_size), dtype=self.labels.dtype)
 
         # Generate data
         # by default in shape (image_idx,band,i,j), so permute to (idx,i,j,band)
         X = pg.extract_ims_from_hex_codes(
             self.tif_files, hex_idxs, width=self.dim[1], height=self.dim[0]
         ).transpose((0, 2, 3, 1))
-        y = self.labels[idxs]
+        # y = self.labels[idxs]
+
+        if np.isnan(np.sum(X)):
+            min = np.min(X[~np.isnan(X)])
+            if min < 0:
+                X = np.nan_to_num(X, nan=2 * min)
+            else:
+                X = np.nan_to_num(X, nan=-2 * min)
 
         # return X, keras.utils.to_categorical(y, num_classes=self.n_classes)
-        return X, y
+        return X  # , y
 
 
 def cv_split(
@@ -125,7 +133,6 @@ def cv_split(
     """Generate k folds on (fixed order) hex dataset - either
     fully random (normal), stratified by interval (stratified),
     or spatially (spatial)
-
     :param all_hex_idxs: Array of hex codes of dataset
     :type all_hex_idxs: np.ndarray of type int
     :param labels: corresponding target labels for these idxs
