@@ -5,7 +5,13 @@ import glob
 
 import src.stc_unicef_cpi.utils.constants as c
 
-from src.stc_unicef_cpi.utils.general import download_unzip, download_file, create_folder, unzip_file, prepend
+from src.stc_unicef_cpi.utils.general import (
+    download_unzip,
+    download_file,
+    create_folder,
+    unzip_file,
+    prepend
+)
 
 
 def get_data_from_calibrated_nighttime(url, out_dir, dir):
