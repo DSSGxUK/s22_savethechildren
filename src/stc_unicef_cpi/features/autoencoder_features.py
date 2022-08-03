@@ -9,17 +9,19 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
 import keras_tuner as kt
 from pyDRMetrics.pyDRMetrics import *
+from stc_unicef_cpi.data import cv_loaders as cvl
 
 random_state=0
 np.random.seed(random_state)
 
-def get_trained_autoencoder(input_data, validation_split, random_state,
-                            batch_size=[16, 32, 64, 128],
-                            learning_rate=[1e-2, 5e-3, 1e-3, 5e-4, 1e-4],
+def get_best_hyperparameters(input_data, validation_split, random_state,
+                            batch_size=[64, 128],
+                            learning_rate=[1e-2, 5e-3, 1e-3],
                             epochs=200, logdir="autoencoder",
                             project_name="tune_model", es_patience=5):
+  
   """
-  Get the trained model with tuned hyperparameters
+  Get the tuned hyperparameters for the model
 
   Inputs:
     input_data: image input of size (num of samples, width, height, bands);
@@ -33,8 +35,9 @@ def get_trained_autoencoder(input_data, validation_split, random_state,
     project_name: name of project
     es_patience: patience for early stopping
 
-  Outputs: trained keras sequential autoencoder model
+  Outputs: dictionary with best learning rate, batch size & epoch
   """
+  
   input_dims = input_data.shape
 
   class HyperModel(kt.HyperModel):
@@ -48,14 +51,18 @@ def get_trained_autoencoder(input_data, validation_split, random_state,
       model.add(Conv2D(16, (3, 3), activation='relu', padding='same', name='conv2'))
       model.add(MaxPooling2D((2, 2), padding='same', name='mp2'))
       model.add(Conv2D(8, (3, 3), activation='relu', padding='same', name='conv3'))
-      model.add(MaxPooling2D((2, 2), padding='same', name='Encoder_Output'))
-      
+      model.add(MaxPooling2D((2, 2), padding='same', name='mp3'))
       model.add(Conv2D(8, (3, 3), activation='relu', padding='same', name='conv4'))
-      model.add(UpSampling2D((2, 2), name='us1'))
-      model.add(Conv2D(16, (3, 3), activation='relu', padding='same', name='conv5'))
+      model.add(MaxPooling2D((1, 1), padding='same', name='Encoder_Output'))
+      
+      model.add(Conv2D(8, (3, 3), activation='relu', padding='same', name='conv5'))
+      model.add(UpSampling2D((1, 1), name='us1'))
+      model.add(Conv2D(8, (3, 3), activation='relu', padding='same', name='conv6'))
       model.add(UpSampling2D((2, 2), name='us2'))
-      model.add(Conv2D(32, (3, 3), activation='relu', padding='same', name='conv6'))
+      model.add(Conv2D(16, (3, 3), activation='relu', padding='same', name='conv7'))
       model.add(UpSampling2D((2, 2), name='us3'))
+      model.add(Conv2D(32, (3, 3), activation='relu', padding='same', name='conv8'))
+      model.add(UpSampling2D((2, 2), name='us4'))
       model.add(Conv2D(input_dims[-1], (3, 3), activation=None, padding='same', name='Decoder_Output'))
       
       hp_learning_rate = hp.Choice('learning_rate', values=learning_rate)
@@ -70,7 +77,6 @@ def get_trained_autoencoder(input_data, validation_split, random_state,
     def fit(self, hp, model, *args, **kwargs):
       return model.fit(*args,
                      batch_size=hp.Choice("batch_size", batch_size),
-                     epochs=epochs,
                      validation_split=validation_split,
                      callbacks=[EarlyStopping(monitor='val_loss', patience=es_patience), TensorBoard("/tmp/tb_logs")]
                      )
@@ -78,12 +84,11 @@ def get_trained_autoencoder(input_data, validation_split, random_state,
   tuner = kt.Hyperband(HyperModel(),
                      objective='val_loss',
                      factor=5,
-                     max_epochs=epochs,
                      overwrite=True,
                      directory=logdir,
                      project_name=project_name,
                      seed=random_state)
-  
+
   tuner.search(input_data, input_data)
 
   best_hps = tuner.get_best_hyperparameters()[0]
@@ -91,17 +96,106 @@ def get_trained_autoencoder(input_data, validation_split, random_state,
   Best LR: {best_hps.get('learning_rate')}
   Best Batch Size: {best_hps.get('batch_size')}.
   """)
+  
   model = tuner.hypermodel.build(best_hps)
-  history = model.fit(input_data, input_data, epochs=epochs, validation_split=validation_split)
+  history = model.fit(input_data, input_data, epochs=epochs,
+                      validation_split=validation_split,
+                     )
   
   val_loss_per_epoch = history.history['val_loss']
   best_epoch = val_loss_per_epoch.index(min(val_loss_per_epoch)) + 1
   print('Best epoch: ', str(best_epoch))
 
-  tuned_model = tuner.hypermodel.build(best_hps)
-  tuned_model.fit(input_data, input_data, epochs=best_epoch)
+  #tuned_model = tuner.hypermodel.build(best_hps)
+  #tuned_model.fit(input_data, input_data, epochs=best_epoch)
 
-  return tuned_model
+  hps = {
+      'learning rate': best_hps.get('learning_rate'),
+      'batch size': best_hps.get('batch_size'),
+      'epochs': best_epoch
+  }
+  return hps
+
+
+def get_trained_autoencoder(input_data, batch_size=64, epochs=190, learning_rate=0.001):
+  
+  """
+  Get the trained model using tuned hyperparameters
+
+  Inputs:
+    input_data: image input of size (num of samples, width, height, bands);
+                reshaped & imputed input of convert_tiffs_to_image_dataset
+    batch_size (optional): batch size for training
+    epochs (optional): number of epochs for training
+    learning_rate (optional): learning_rate for Adam
+
+  Outputs: Keras sequential model
+  """
+  
+  input_dims = input_data.shape
+
+  model = tensorflow.keras.Sequential()
+  
+  model.add(keras.Input(shape=input_dims[1:]))
+  model.add(Conv2D(32, (3, 3), activation='relu', padding='same', name='conv1'))
+  model.add(MaxPooling2D((2, 2), padding='same', name='mp1'))
+  model.add(Conv2D(16, (3, 3), activation='relu', padding='same', name='conv2'))
+  model.add(MaxPooling2D((2, 2), padding='same', name='mp2'))
+  model.add(Conv2D(8, (3, 3), activation='relu', padding='same', name='conv3'))
+  model.add(MaxPooling2D((2, 2), padding='same', name='mp3'))
+  model.add(Conv2D(8, (3, 3), activation='relu', padding='same', name='conv4'))
+  model.add(MaxPooling2D((1, 1), padding='same', name='Encoder_Output'))
+      
+  model.add(Conv2D(8, (3, 3), activation='relu', padding='same', name='conv5'))
+  model.add(UpSampling2D((1, 1), name='us1'))
+  model.add(Conv2D(8, (3, 3), activation='relu', padding='same', name='conv6'))
+  model.add(UpSampling2D((2, 2), name='us2'))
+  model.add(Conv2D(16, (3, 3), activation='relu', padding='same', name='conv7'))
+  model.add(UpSampling2D((2, 2), name='us3'))
+  model.add(Conv2D(32, (3, 3), activation='relu', padding='same', name='conv8'))
+  model.add(UpSampling2D((2, 2), name='us4'))
+  model.add(Conv2D(input_dims[-1], (3, 3), activation=None, padding='same', name='Decoder_Output'))
+     
+  model.compile(
+          optimizer=Adam(learning_rate=learning_rate),
+          loss=keras.losses.MeanSquaredError()
+          )
+  
+  model.fit(input_data, input_data,
+            batch_size=batch_size,
+            epochs=epochs)
+  
+  return model
+
+
+def get_encoded_features(trained_autoencoder, hex_codes, files, batch_size=4096):
+
+  """
+  Get encoded features in batches
+
+  Inputs:
+    trained_autoencoder: output of get_trained_autoencoder() or saved keras model
+    hex_codes: numpy array containing H3 hexagons for which to generate predictions
+    files: list of file paths for geotiffs; eg: output of glob.glob(tiff_file_directory)
+    batch_size: batch size for getting predictions
+
+  Outputs: numpy array of size (len(hex_codes), 32)
+  """
+  
+  intermediate_model = tensorflow.keras.models.Model(inputs=trained_autoencoder.input,
+                                                     outputs=trained_autoencoder.get_layer('Encoder_Output').output)
+  params = {'dim': (16, 16),
+           'hex_idxs': hex_codes,
+           'batch_size': batch_size,
+           'data_files': files,
+           'shuffle': False}
+  
+  pred_generator = cvl.KerasDataGenerator(**params)
+
+  encodings = intermediate_model.predict(pred_generator, use_multiprocessing=True, workers=6)
+
+  return encodings.reshape(encodings.shape[0], -1)
+
 
 def check_autoencoder_reconstruction(trained_autoencoder, input_data):
   
@@ -137,27 +231,25 @@ def check_autoencoder_reconstruction(trained_autoencoder, input_data):
   
   plt.show()
 
-def get_encoded_features(trained_autoencoder, input_data, get_encoding_eval=False):
+def get_encoding_metrics(original_data, encoded_features):
 
   """
-  Get encoded features from trained autoencoder
+  Get residual variance, AUC Trustworthiness & AUC Continuity for encodings
 
   Inputs:
-    trained_autoencoder: output of get_trained_autoencoder() or saved keras model
-    input_data: image input of size (num of samples, width, height, bands);
-                reshaped & imputed input of convert_tiffs_to_image_dataset
-    get_encoding_eval: bool variable to print metrics of encoded features
+    original_data: image input of size (n_samples, width, height, bands) or (n_samples, width*height*bands)
+    encoded_features: encoded features of size (n_samples, 32) or (n_samples, 2, 2, 8)
 
-  Outputs: 2D encoded feature array of size (num of samples, original width*original_height/8 )
+  Outputs: None
   """
-  intermediate_model = tensorflow.keras.models.Model(inputs=trained_autoencoder.input,
-                                                     outputs=trained_autoencoder.get_layer('Encoder_Output').output)
-  intermediate_prediction = intermediate_model.predict(input_data)
+  
+  if original_data.ndim > 2:
+    original_data = original_data.reshape(original_data.shape[0], -1)
+  
+  if encoded_features.ndim > 2:
+    encoded_features = encoded_features.reshape(encoded_features.shape[0], -1)
 
-  if get_encoding_eval:
-    drm = DRMetrics(input_data.reshape(input_data.shape[0], -1), intermediate_prediction.reshape(intermediate_prediction.shape[0], -1))
-    print("Residual Variance: ", str(drm.Vrs))
-    print("AUC Trustworthiness: ", str(drm.AUC_T))
-    print("AUC Continuity: ", str(drm.AUC_C))
-
-  return intermediate_prediction
+  drm = DRMetrics(original_data, encoded_features)
+  print("Residual Variance: ", str(drm.Vrs))
+  print("AUC Trustworthiness: ", str(drm.AUC_T))
+  print("AUC Continuity: ", str(drm.AUC_C))
