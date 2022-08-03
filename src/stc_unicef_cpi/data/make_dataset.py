@@ -61,19 +61,15 @@ def create_target_variable(country_code, lat, long, res):
 
 
 def preprocessed_tif_files(country, out_dir=c.int_data):
-    import rasterio
-    import rasterio.mask
     g.create_folder(out_dir)
-    #net.netcdf_to_clipped_array(
-    #    "/Users/danielapintoveizaga/GitHub/stc_unicef_cpi/data/external/gdp_ppp_30.nc",
-    #    save_dir=out_dir, ctry_name=country
-    #    #f"{c.ext_data}/gdp_ppp_30.nc", save_dir=out_dir, ctry_name=country
-    #    )
+    net.netcdf_to_clipped_array(
+        f"{c.ext_data}/gdp_ppp_30.nc", ctry_name=country, save_dir=out_dir
+        )
     for file in ['EC2019', '2019GDP']:
         pg.clip_tif_to_ctry(
-            f"{c.ext_data}/*/*/2019/{file}.tif", out_dir, country
+            f"{c.ext_data}/*/*/2019/{file}.tif", country, out_dir
             )
-    
+
 def append_predictor_variables(
     country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6
 ):

@@ -39,7 +39,7 @@ def print_tif_metadata(rioxarray_rio_obj, name=""):
     print(f"The metadata for {name} is:", rioxarray_rio_obj.attrs)
 
 
-def clip_tif_to_ctry(file_path, save_dir=None, ctry_name="Nigeria"):
+def clip_tif_to_ctry(file_path, ctry_name, save_dir=None):
     """Clip a GeoTIFF to a specified country boundary,
     and write a new file, with .
 
@@ -47,7 +47,7 @@ def clip_tif_to_ctry(file_path, save_dir=None, ctry_name="Nigeria"):
     :type file_path: _type_
     :param save_dir: _description_, defaults to None
     :type save_dir: _type_, optional
-    :param ctry_name: _description_, defaults to "Nigeria"
+    :param ctry_name: _description_
     :type ctry_name: str, optional
     :raises ValueError: _description_
     """

@@ -8,7 +8,7 @@ import rasterio.mask
 
 
 def netcdf_to_clipped_array(
-    file_path, *, save_dir=None, ctry_name="Nigeria", plot=False
+    file_path, *, ctry_name, save_dir=None, plot=False
 ):
     """Read netCDF file and return either array clipped to
     specified country, or a GeoTIFF clipped to this country
@@ -19,7 +19,7 @@ def netcdf_to_clipped_array(
     :type file_path: _type_
     :param save_dir: _description_, defaults to None
     :type save_dir: _type_, optional
-    :param ctry_name: _description_, defaults to "Nigeria"
+    :param ctry_name: _description_
     :type ctry_name: str, optional
     :param plot: _description_, defaults to True
     :type plot: bool, optional
@@ -32,7 +32,6 @@ def netcdf_to_clipped_array(
         if netf.crs is not None:
             # NB assumes that no CRS corresponds to EPSG:4326 (as standard)
             world = world.to_crs(netf.crs)
-
         ctry_shp = world[world.name == ctry_name].geometry
         print(
             f"Pixel scale in crs {netf.crs}: {netf.res}"
@@ -62,7 +61,7 @@ def netcdf_to_clipped_array(
         )
 
         with rasterio.open(
-            save_dir / (fname.rstrip(".nc") + ".tif"), "w", **out_meta
+            save_dir / (ctry_name.lower() + '_' + fname.rstrip(".nc") + ".tif"), "w", **out_meta
         ) as dest:
             dest.write(out_image)
     else:
