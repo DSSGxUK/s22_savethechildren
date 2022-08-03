@@ -16,7 +16,7 @@ from tensorflow import keras
 import stc_unicef_cpi.data.process_geotiff as pg
 
 
-class KerasDataGenerator(keras.utils.all_utils.Sequence):
+class KerasDataGenerator(keras.utils.Sequence):
     "Generates data for Keras"
 
     def __init__(
