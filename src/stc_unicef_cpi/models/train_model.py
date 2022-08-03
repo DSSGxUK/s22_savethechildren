@@ -3,13 +3,14 @@ import sys
 import warnings
 from pathlib import Path
 
+import joblib
 import mlflow
 import numpy as np
 import pandas as pd
 import swifter
 from flaml import AutoML
 from flaml.ml import sklearn_metric_loss_score
-from sklearn import set_config
+from sklearn import clone, set_config
 from sklearn.compose import (
     ColumnTransformer,
     make_column_selector,
@@ -24,8 +25,7 @@ from sklearn.multioutput import MultiOutputRegressor
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import (
     MinMaxScaler,
-    OneHotEncoder,
-    OrdinalEncoder,
+    PowerTransformer,
     RobustScaler,
     StandardScaler,
 )
@@ -172,7 +172,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save-model",
         action="store_true",
-        help="Save trained models (pickled), by default in a /models directory contained in same parent folder as args.data",
+        help="Save trained models (joblib pickled), by default in a /models directory contained in same parent folder as args.data",
     )
 
     try:
@@ -224,17 +224,28 @@ if __name__ == "__main__":
     if args.univ:
         # Remove country specific data - e.g. in case of Nigeria,
         # conflict and healthcare data, and FB connectivity data
-        # ('n_conflicts', 15)
-        # ('n_education', 19)
-        # ('n_health', 3)
-        # ('OSM_hospital', 6)
-        # ('OSM_school', 11)
-        # ('health_gv_osm', 6)
-        # ('school_gv_osm', 22)
-        pass
+        if args.country == "nigeria":
+            nga_spec_cols = [
+                "n_conflicts",
+                "n_education",
+                "n_health",
+                "OSM_hospital",
+                "OSM_school",
+                "health_gv_osm",
+                "school_gv_osm",
+                "estimate_dau",
+            ]
+            X = X.drop(nga_spec_cols, axis=1)
+        else:
+            print(
+                "NB no additional features exist for countries other than Nigeria, so no additional features are removed"
+            )
+
     if args.interpretable:
         # Remove auto-encoder features for more interpretable models
-        pass
+        auto_cols = [col for col in X.columns if "auto_" in col]
+        X = X.drop(auto_cols, axis=1)
+
     #### Select target variables
     if args.target != "all":
         if args.target == "av-severity":
@@ -257,7 +268,19 @@ if __name__ == "__main__":
     X_train, X_test, Y_train, Y_test = train_test_split(
         X, Y, test_size=args.test_size, random_state=42
     )
-    pipeline_settings = dict()
+    # target transforms
+    # choices = [None, "log", "power"]
+    if args.target_transform is not None:
+        if args.target_transform == "log":
+            Y_train = np.log(Y_train)
+            Y_test = np.log(Y_test)
+        elif args.target_transform == "power":
+            power_tf = PowerTransformer().fit(Y_train)
+            Y_train = power_tf.transform(Y_train)
+            Y_test = power_tf.transform(Y_test)
+        else:
+            raise ValueError("Invalid target transform")
+
     # specify KFold strategy
     # choices = ["normal", "stratified", "spatial"]
     if args.cv_type == "normal":
@@ -266,7 +289,10 @@ if __name__ == "__main__":
         kfold = StratifiedIntervalKFold(n_splits=args.nfolds, shuffle=True, n_cuts=5)
     elif args.cv_type == "spatial":
         kfold = HexSpatialKFold(n_splits=args.nfolds)
+    else:
+        raise ValueError("Invalid CV type")
 
+    pipeline_settings = dict()
     if args.model == "automl":
         model = AutoML()
         # automl_pipeline
@@ -277,6 +303,8 @@ if __name__ == "__main__":
             "estimator_list": ["xgboost", "catboost", "lgbm"],
             "log_file_name": "automl.log",  # flaml log file
             "seed": 42,  # random seed
+            "eval_method": "cv",
+            "split_type": kfold,
         }
         pipeline_settings = {
             f"automl__{key}": value for key, value in automl_settings.items()
@@ -355,8 +383,6 @@ if __name__ == "__main__":
     pipeline = Pipeline(
         [("imputer", imputer), ("standardiser", standardiser), ("model", model)]
     )
-    if args.target_transform is not None:
-        pass
 
     if args.log_run:
         MLFLOW_DIR = DATA_DIRECTORY.parent / "models" / "mlruns"
@@ -383,47 +409,79 @@ if __name__ == "__main__":
     if len(Y.shape) == 1:
         pipeline.fit(X_train, Y_train, **pipeline_settings)
     else:
-        for col_idx in range(Y_train.shape[1]):
+        pipelines = [clone(pipeline) for _ in range(Y.shape[1])]
+        for col_idx, pipeline in enumerate(pipelines):
             pipeline.fit(X_train, Y_train.values[:, col_idx], **pipeline_settings)
 
     if args.model == "automl":
         # get automl object back
-        automl = pipeline.steps[2][1]
-        # Get the best config and best learner
-        print("Best ML learner:", automl.best_estimator)
-        print("Best hyperparmeter config:", automl.best_config)
-        print(f"Best accuracy on validation data: {1 - automl.best_loss:.4g}")
-        print(
-            "Training duration of best run: {:.4g} s".format(
-                automl.best_config_train_time
+        if len(Y.shape) == 1:
+            pipelines = [pipeline]
+        for col_idx, pipeline in enumerate(pipelines):
+            automl = pipeline.steps[2][1]
+            # Get the best config and best learner
+            if len(Y.shape) == 1:
+                col = Y.name
+            else:
+                col = Y_train.columns[col_idx]
+            print(f"Best ML learner for {col}:", automl.best_estimator)
+            print("Best hyperparameter config:", automl.best_config)
+            print(f"Best accuracy on validation data: {1 - automl.best_loss:.4g}")
+            print(
+                "Training duration of best run: {:.4g} s".format(
+                    automl.best_config_train_time
+                )
             )
-        )
 
-        # plot basic feature importances
-        # plt.barh(automl.feature_names_in_, automl.feature_importances_)
+            # plot basic feature importances
+            # plt.barh(automl.feature_names_in_, automl.feature_importances_)
 
-        # compute different metrics on test set
-        y_pred = pipeline.predict(X_test)
-        y_test = Y_test.values[:, col_idx]
-        r2_val = 1 - sklearn_metric_loss_score("r2", y_pred, y_test)
-        print("r2", "=", r2_val)
-        mse_val = sklearn_metric_loss_score("mse", y_pred, y_test)
-        print("mse", "=", mse_val)
-        mae_val = sklearn_metric_loss_score("mae", y_pred, y_test)
-        print("mae", "=", mae_val)
-        if args.log_run:
-            # TODO: add tags for standardisation and imputation used etc.
-            mlflow.log_param(key="best_model", value=automl.best_estimator)
-            mlflow.log_params(automl.best_config)
-            mlflow.log_metric(key="r2_score", value=r2_val)
-            mlflow.log_metric(
-                key="rmse",
-                value=np.sqrt(mse_val),
-            )
-            mlflow.log_metric(
-                key="mae",
-                value=mae_val,
-            )
+            # compute different metrics on test set
+            y_pred = pipeline.predict(X_test)
+            if len(Y.shape) > 1:
+                y_test = Y_test.values[:, col_idx]
+            r2_val = 1 - sklearn_metric_loss_score("r2", y_pred, y_test)
+            print("r2", "=", r2_val)
+            mse_val = sklearn_metric_loss_score("mse", y_pred, y_test)
+            print("mse", "=", mse_val)
+            mae_val = sklearn_metric_loss_score("mae", y_pred, y_test)
+            print("mae", "=", mae_val)
+            if args.log_run:
+                mlflow.set_tags(
+                    {
+                        "cv_type": args.cv_type,
+                        "imputation": args.impute,
+                        "standardisation": args.standardise,
+                        "target_transform": args.target_transform,
+                        "interpretable": args.interpretable,
+                        "universal": args.univ,
+                    }
+                )
+                mlflow.log_param(key="best_model", value=automl.best_estimator)
+                mlflow.log_params(automl.best_config)
+                mlflow.log_metric(key="r2_score", value=r2_val)
+                mlflow.log_metric(
+                    key="rmse",
+                    value=np.sqrt(mse_val),
+                )
+                mlflow.log_metric(
+                    key="mae",
+                    value=mae_val,
+                )
+            if args.save_model:
+                if args.target != "all":
+                    with open(
+                        SAVE_DIRECTORY
+                        / f"{args.country}-{args.target}-{args.model}.pkl",
+                        "wb",
+                    ) as f:
+                        joblib.dump(pipeline, f)
+                else:
+                    with open(
+                        SAVE_DIRECTORY / f"{args.country}-{col}-{args.model}.pkl", "wb"
+                    ) as f:
+                        joblib.dump(pipeline, f)
+
     if args.log_run:
         mlflow.end_run()
         # Marina - two stage model as suggested by Lyudmila?
