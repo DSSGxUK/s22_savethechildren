@@ -77,6 +77,3 @@ def download_econ_data(out_dir=c.ext_data):
     # Commuting zones
     commuting_url = 'https://data.humdata.org/dataset/b7aaa3d7-cca2-4364-b7ce-afe3134194a2/resource/37c2353d-08a6-4cc2-8364-5fd9f42d6b64/download/data-for-good-at-meta-commuting-zones-july-2021.csv'
     download_file(commuting_url, f"{out_dir}/commuting_zones.csv")
-
-
-download_econ_data()

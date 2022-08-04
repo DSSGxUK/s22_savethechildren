@@ -1,22 +1,32 @@
 # -*- coding: utf-8 -*-
 import ee
-import src.stc_unicef_cpi.utils.constants as c
 
 
 class SatelliteImages():
     """Get Satellite Images From Google Earth Engine"""
 
-    def __init__(self, country, folder=c.folder_ee, res=c.res_ee, start=c.start_ee, end=c.end_ee):
-
+    def __init__(self, country, folder, res, start, end):
+        """Initialize class
+        :param country: country
+        :type country: str
+        :param folder: folder path
+        :type folder: str
+        :param res: resolution
+        :type res: int
+        :param start: starting date
+        :type start: str
+        :param end: ending date
+        :type end: str
+        """
         self.country = country
         self.folder = folder
         self.res = res
         self.start = start
         self.end = end
+        self.get_satellite_images()
 
     def get_country_boundaries(self):
         """Get countries boundaries"""
-
         countries = ee.FeatureCollection("FAO/GAUL/2015/level0").select("ADM0_NAME")
         ctry = countries.filter(ee.Filter.eq("ADM0_NAME", self.country))
         geo = ctry.geometry()
@@ -25,7 +35,6 @@ class SatelliteImages():
 
     def get_projection(self):
         """Get country projections downloaded image"""
-
         pop_tot = ee.Image('WorldPop/GP/100m/pop_age_sex/NGA_2020')
         proj = pop_tot.select('population').projection().getInfo()
 
@@ -47,7 +56,10 @@ class SatelliteImages():
         return config
 
     def export_drive(self, config):
-        """"""
+        """Export tiff file into drive
+        :param config: Configuration of output tiff
+        :type config: dictionary
+        """
         task = ee.batch.Export.image.toDrive(**config)
         task.start()
 
@@ -122,7 +134,6 @@ class SatelliteImages():
         return task
 
     def get_pollution_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_pollution'):
-
         def func_pio(m, ctry=ctry):
             collection = ee.ImageCollection('MODIS/006/MCD19A2_GRANULES').\
                 filterDate(start_date, end_date).filter(ee.Filter.calendarRange(m, m, 'month')).\
