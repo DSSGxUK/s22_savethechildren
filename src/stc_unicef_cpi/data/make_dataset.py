@@ -4,6 +4,10 @@ import geopandas as gpd
 import os.path
 import glob as glob
 import rioxarray as rxr
+import h3.api.numpy_int as h3
+import shapely.wkt
+
+from shapely import geometry
 import src.stc_unicef_cpi.utils.constants as c
 import src.stc_unicef_cpi.data.process_geotiff as pg
 import src.stc_unicef_cpi.utils.general as g
@@ -15,7 +19,7 @@ import src.stc_unicef_cpi.data.get_cell_tower_data as cell
 import src.stc_unicef_cpi.data.get_satellite_data as ge
 import src.stc_unicef_cpi.utils.geospatial as geo
 import src.stc_unicef_cpi.data.get_speedtest_data as speed
-import src.stc_unicef_cpi.data.stream_data as stream
+#import src.stc_unicef_cpi.data.stream_data as stream
 
 from functools import reduce, partial
 from datetime import date
@@ -134,6 +138,32 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     list(map(partial_func, cisi))
     p_r = f"{read_dir}/gee/cpi_poptotal_{country.lower()}_500.tif"
     pg.rxr_reproject_tiff_to_target(cisi[0], p_r, cisi[0], verbose=True)
+
+
+def commuting_zone(point, resolution):
+    geom = shapely.wkt.loads(point)
+    if geom.geom_type == 'MultiPolygon':
+        polygons = list(geom.geoms)
+    elif geom.geom_type == 'Polygon':
+        polygons = [geom]
+    else:
+        raise IOError('Shape is not a polygon.')
+    hexs = [h3.polyfill(geometry.mapping(polygon), resolution, geo_json_conformant=True) for polygon in polygons]
+    hexs = list(set([item for sublist in hexs for item in sublist]))
+    df = pd.DataFrame(hexs)
+    df.rename(columns={0:'hex_code'}, inplace=True)
+    df['geometry'] = point
+    return df
+
+
+def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
+    commuting = pd.read_csv(f"{read_dir}/commuting_zones.csv")
+    commuting = commuting[commuting['country'] == country]
+    comm = list(commuting['geometry'])
+    comm_zones = pd.concat(list(map(partial(commuting_zone, resolution=res), comm)))
+    comm_zones = comm_zones.merge(commuting, on='geometry', how='left')
+
+    return comm_zones
 
 
 def append_predictor_variables(
