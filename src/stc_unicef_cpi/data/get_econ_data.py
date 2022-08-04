@@ -33,7 +33,7 @@ def get_data_from_calibrated_nighttime(url, out_dir, dir):
     list(map(os.remove, files))
 
 
-def download_econ_data(out_dir=c.ext_data):
+def download_econ_data(out_dir):
     """Download economic data
     :param out_dir: path to output directory, defaults to c.econ_data
     :type out_dir: str, optional

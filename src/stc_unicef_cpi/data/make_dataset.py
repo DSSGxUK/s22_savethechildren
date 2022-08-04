@@ -15,6 +15,7 @@ import src.stc_unicef_cpi.data.get_cell_tower_data as cell
 import src.stc_unicef_cpi.data.get_satellite_data as ge
 import src.stc_unicef_cpi.utils.geospatial as geo
 import src.stc_unicef_cpi.data.get_speedtest_data as speed
+import src.stc_unicef_cpi.data.stream_data as stream
 
 from functools import reduce, partial
 from datetime import date
@@ -74,10 +75,10 @@ def create_target_variable(country_code, lat, long, res, read_dir=c.raw_data):
     source = f"{read_dir}/childpoverty_microdata_gps_21jun22.csv"
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
-    sub = get_hex_code(sub, lat, long, res)
+    sub = geo.get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
     sub = aggregate_dataset(sub)
-    sub = get_hex_centroid(sub, "hex_code")
+    sub = geo.get_hex_centroid(sub, "hex_code")
 
     return sub
 
@@ -136,7 +137,7 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
 
 
 def append_predictor_variables(
-    country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6
+    country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6, forced_download=True
 ):
     """append_predictor_variables _summary_
 
@@ -165,16 +166,12 @@ def append_predictor_variables(
     dat_scp = today.strftime("%d-%m-%Y")
     name_out = f"fb_{ctry_name}_res{res}_{dat_scp}.parquet"
 
+    stream.RunStreamer(country, force=forced_download)
+
     ## Facebook connectivity metrics
     connect_fb = get_facebook_estimates(ctry["hex_centroid"].values[0:900], name_out, res)
     #sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
 #
-    ## Download data if it does not exist
-    file_exists = os.path.exists(f"{path_data}conflict/GEDEvent_v22_1.csv")
-    if file_exists:
-        pass
-    else:
-        econ.download_econ_data()
 
     ## Critical Infrastructure
     #ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
@@ -201,15 +198,8 @@ def append_predictor_variables(
     # Speet Test
     url, name = get_speedtest_url(service_type='mobile', year=2021, q=4)
     file_exists = os.path.exists(f"{path_data}connectivity/GEDEvent_v22_1.csv")
-    if file_exists:
-        pass
-    else:
-        econ.download_econ_data(path_data)
+
     get_speedtest_info(url, name)
-
-    # Satellite Data
-
-    SatelliteImages(country).get_satellite_images()
 
     
     ## Aggregate Data

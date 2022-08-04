@@ -87,7 +87,7 @@ def delivery_estimate(account, lat, long, radius, opt):
     return row
 
 
-def get_facebook_estimates(coords, name_out, res):
+def get_facebook_estimates(coords, out_dir, name_out, res):
     """Get delivery estimates from a lists of coordinates
 
     :return:
@@ -104,7 +104,7 @@ def get_facebook_estimates(coords, name_out, res):
         except Exception as e:
             if e._api_error_code == 80004:
                 print(f"Too many calls!\nStopped at {i}, ({lat, long}).")
-                data.to_parquet(f"../../../data/{name_out}")
+                data.to_parquet(f"{out_dir}/{name_out}")
                 time.sleep(3800)
                 row = delivery_estimate(account, lat, long, radius, opt)
             else:
@@ -113,5 +113,5 @@ def get_facebook_estimates(coords, name_out, res):
                 row["lat"], row["long"] = lat, long
             data = data.append(row, ignore_index=True)
     data["hex_centroid"] = coords
-    data.to_parquet(f"../../../data/{name_out}")
+    data.to_parquet(f"{out_dir}/{name_out}")
     return data
