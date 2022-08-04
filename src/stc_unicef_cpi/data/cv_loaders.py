@@ -165,12 +165,13 @@ def cv_split(
         )
 
 
-class HexSpatialKFold(GroupKFold):
+class HexSpatialKFold(KFold):
     """NB lightly modified version of GroupKFold which just calculates spatial groups for hex codes"""
 
-    def __init__(self, n_splits=5, *, random_state=None):
+    def __init__(self, n_splits=5, *, random_state=None, hex_idx=None):
         super().__init__(n_splits=n_splits)
         self.random_state = random_state
+        self.hex_idx = hex_idx
 
     def _iter_test_indices(self, X, y, groups=None):
         if groups is None:
@@ -229,7 +230,7 @@ class HexSpatialKFold(GroupKFold):
         return c * r
 
     def get_even_clusters(self, X, n_clusters):
-        cluster_size = int(np.floor(len(X) / n_clusters))
+        cluster_size = int(np.ceil(len(X) / n_clusters))
         kmeans = KMeans(n_clusters, random_state=self.random_state)
         kmeans.fit(X)
         centers = kmeans.cluster_centers_
@@ -247,8 +248,49 @@ class HexSpatialKFold(GroupKFold):
             latlongs = np.array([h3.h3_to_geo(hex_code) for hex_code in X])
         else:
             # assume passing pandas df with columns named 'hex_code'
-            latlongs = np.array([h3.h3_to_geo(hex_code) for hex_code in X["hex_code"]])
+            try:
+                if self.hex_idx is None:
+                    latlongs = np.array(
+                        [h3.h3_to_geo(hex_code) for hex_code in X["hex_code"]]
+                    )
+                else:
+                    try:
+                        latlongs = np.array(
+                            [h3.h3_to_geo(hex_code) for hex_code in X[:, self.hex_idx]]
+                        )
+                    except TypeError:
+                        print(X[:5, self.hex_idx])
+                        raise ValueError(
+                            "Column indiciated not of suitable type - needs integer"
+                        )
+
+            except IndexError:
+                raise ValueError(
+                    "If X is a 2D array, must pass the relevant column index as hex_idx=... on init"
+                )
+
         return self.get_even_clusters(latlongs, self.n_splits)
+
+    def split(self, X, y=None, groups=None):
+        """Generate indices to split data into training and test set.
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training data, where `n_samples` is the number of samples
+            and `n_features` is the number of features.
+        y : array-like of shape (n_samples,), default=None
+            The target variable for supervised learning problems.
+        groups : array-like of shape (n_samples,)
+            Group labels for the samples used while splitting the dataset into
+            train/test set.
+        Yields
+        ------
+        train : ndarray
+            The training set indices for that split.
+        test : ndarray
+            The testing set indices for that split.
+        """
+        return super().split(X, y, groups)
 
 
 class StratifiedIntervalKFold(StratifiedKFold):

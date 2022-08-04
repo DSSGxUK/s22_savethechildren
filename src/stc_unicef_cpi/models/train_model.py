@@ -20,7 +20,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.experimental import enable_iterative_imputer
 from sklearn.impute import IterativeImputer, KNNImputer, SimpleImputer
 from sklearn.metrics import mean_squared_error, r2_score  # , log_loss
-from sklearn.model_selection import KFold, train_test_split
+from sklearn.model_selection import GroupKFold, KFold, train_test_split
 from sklearn.multioutput import MultiOutputRegressor
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import (
@@ -42,7 +42,7 @@ warnings.filterwarnings("ignore")
 if __name__ == "__main__":
     ### Argument and global variables
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
-    DATA_DIRECTORY = Path("../../../data")
+    DATA_DIRECTORY = Path("../../../data/processed")
     parser.add_argument(
         "-d",
         "--data",
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     # TODO: link w Dani's data generating pipeline
     # - Either load clean dataset, or pass data directory with all data
     # files necessary to produce clean data
-    if args.cp2nbr:
+    if args.copy_to_nbrs:
         # Load all NGA data (including expanded data)
         # TODO: include option to run on expanded dataset
         raise NotImplementedError("Not yet implemented")
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     start_idx = XY.columns.tolist().index("LATNUM")
     X = XY.iloc[:, start_idx:].copy()
 
-    if args.univ:
+    if args.universal_data_only:
         # Remove country specific data - e.g. in case of Nigeria,
         # conflict and healthcare data, and FB connectivity data
         if args.country == "nigeria":
@@ -268,6 +268,24 @@ if __name__ == "__main__":
     X_train, X_test, Y_train, Y_test = train_test_split(
         X, Y, test_size=args.test_size, random_state=42
     )
+    # specify KFold strategy
+    # choices = ["normal", "stratified", "spatial"]
+    if args.cv_type == "normal":
+        kfold = KFold(n_splits=args.nfolds, shuffle=True)
+    elif args.cv_type == "stratified":
+        kfold = StratifiedIntervalKFold(n_splits=args.nfolds, shuffle=True, n_cuts=5)
+    elif args.cv_type == "spatial":
+        # print(X.iloc[:,-1].head())
+        kfold = GroupKFold(n_splits=args.nfolds)
+        spatial_groups = HexSpatialKFold(n_splits=args.nfolds).get_spatial_groups(
+            XY["hex_code"].loc[X_train.index]
+        )
+        try:
+            assert len(spatial_groups) == len(X_train)
+        except AssertionError:
+            print(spatial_groups.shape, X_train.shape)
+    else:
+        raise ValueError("Invalid CV type")
     # target transforms
     # choices = [None, "log", "power"]
     if args.target_transform is not None:
@@ -281,17 +299,6 @@ if __name__ == "__main__":
         else:
             raise ValueError("Invalid target transform")
 
-    # specify KFold strategy
-    # choices = ["normal", "stratified", "spatial"]
-    if args.cv_type == "normal":
-        kfold = KFold(n_splits=args.nfolds, shuffle=True)
-    elif args.cv_type == "stratified":
-        kfold = StratifiedIntervalKFold(n_splits=args.nfolds, shuffle=True, n_cuts=5)
-    elif args.cv_type == "spatial":
-        kfold = HexSpatialKFold(n_splits=args.nfolds)
-    else:
-        raise ValueError("Invalid CV type")
-
     pipeline_settings = dict()
     if args.model == "automl":
         model = AutoML()
@@ -300,14 +307,19 @@ if __name__ == "__main__":
             "time_budget": 60,  # total running time in seconds
             "metric": "mse",  # primary metrics for regression can be chosen from: ['mae','mse','r2']
             "task": "regression",  # task type
-            "estimator_list": ["xgboost", "catboost", "lgbm"],
+            "estimator_list": [
+                "xgboost",
+                "lgbm",
+                # "catboost", # for some reason in flaml code, failing for spatial CV
+            ],
             "log_file_name": "automl.log",  # flaml log file
             "seed": 42,  # random seed
             "eval_method": "cv",
             "split_type": kfold,
+            "groups": spatial_groups if args.cv_type == "spatial" else None,
         }
         pipeline_settings = {
-            f"automl__{key}": value for key, value in automl_settings.items()
+            f"model__{key}": value for key, value in automl_settings.items()
         }
     else:
         raise NotImplementedError("Model not implemented")
@@ -350,11 +362,7 @@ if __name__ == "__main__":
             add_indicator=add_indicator,
         )
     # as only commuting_zn is cat, just use constant imputation for this (only 5 missing records)
-    cat_tf = SimpleImputer(strategy="constant", fill_value="Unknown")
-    imputer = make_column_transformer(
-        (num_imputer, make_column_selector(dtype_include=np.number)),
-        (cat_tf, make_column_selector(dtype_exclude=np.number)),
-    )
+    cat_imputer = SimpleImputer(strategy="constant", fill_value="Unknown")
 
     set_config(display="diagram")
 
@@ -363,11 +371,11 @@ if __name__ == "__main__":
     if args.standardise is None:
         standardiser = None
     elif args.standardise == "standard":
-        num_tf = StandardScaler()
+        num_stand = StandardScaler()
     elif args.standardise == "minmax":
-        num_tf = MinMaxScaler()
+        num_stand = MinMaxScaler()
     elif args.standardise == "robust":
-        num_tf = RobustScaler()
+        num_stand = RobustScaler()
 
         # if cat_encoder == "ohe":
         # only real categorical column is commuting zone, so could do encoding here - however, interested really in GBMs, (LightGBM, XGBoost, CatBoost), all of which have
@@ -375,14 +383,19 @@ if __name__ == "__main__":
         # If was bigger problem, could e.g. try category-encoders lib, https://contrib.scikit-learn.org/category_encoders/index.html
         # cat_tf = OneHotEncoder(handle_unknown="infrequent_if_exist", min_frequency=5)
 
-    standardiser = make_column_transformer(
+    num_tf = Pipeline(steps=[("imputer", num_imputer), ("standardiser", num_stand)])
+    cat_tf = Pipeline(
+        steps=[
+            ("imputer", cat_imputer),
+            #  ("encoder", cat_enc)
+        ]
+    )
+    col_tf = make_column_transformer(
         (num_tf, make_column_selector(dtype_include=np.number)),
-        # (cat_tf, make_column_selector(dtype_exclude=np.number)),
+        (cat_tf, make_column_selector(dtype_exclude=np.number)),
     )
 
-    pipeline = Pipeline(
-        [("imputer", imputer), ("standardiser", standardiser), ("model", model)]
-    )
+    pipeline = Pipeline([("preprocessor", col_tf), ("model", model)])
 
     if args.log_run:
         MLFLOW_DIR = DATA_DIRECTORY.parent / "models" / "mlruns"
@@ -396,7 +409,7 @@ if __name__ == "__main__":
                 f"{args.country}-{args.target}-{args.model}"
             )
             # experiment = client.get_experiment(experiment_id)
-        except ValueError:
+        except:
             assert f"{args.country}-{args.target}-{args.model}" in [
                 exp.name for exp in client.list_experiments()
             ]
@@ -407,18 +420,27 @@ if __name__ == "__main__":
             ][0]
         mlflow.start_run(experiment_id=experiment_id)
     if len(Y.shape) == 1:
-        pipeline.fit(X_train, Y_train, **pipeline_settings)
+        pipeline.fit(
+            X_train.reset_index(drop=True),
+            Y_train.reset_index(drop=True),
+            **pipeline_settings,
+        )
     else:
         pipelines = [clone(pipeline) for _ in range(Y.shape[1])]
         for col_idx, pipeline in enumerate(pipelines):
-            pipeline.fit(X_train, Y_train.values[:, col_idx], **pipeline_settings)
+            col = Y_train.columns[col_idx]
+            pipeline.fit(
+                X_train.reset_index(drop=True),
+                Y_train.reset_index(drop=True)[col],
+                **pipeline_settings,
+            )
 
     if args.model == "automl":
         # get automl object back
         if len(Y.shape) == 1:
             pipelines = [pipeline]
         for col_idx, pipeline in enumerate(pipelines):
-            automl = pipeline.steps[2][1]
+            automl = pipeline.steps[1][1]
             # Get the best config and best learner
             if len(Y.shape) == 1:
                 col = Y.name
