@@ -4,38 +4,50 @@ import geopandas as gpd
 import os.path
 import glob as glob
 import rioxarray as rxr
-
-from functools import reduce, partial
-from datetime import date
-
 import src.stc_unicef_cpi.utils.constants as c
 import src.stc_unicef_cpi.data.process_geotiff as pg
 import src.stc_unicef_cpi.utils.general as g
 import src.stc_unicef_cpi.data.get_econ_data as econ
 import src.stc_unicef_cpi.data.process_netcdf as net
+import src.stc_unicef_cpi.data.get_facebook_data as fb
+import src.stc_unicef_cpi.data.get_osm_data as osm
+import src.stc_unicef_cpi.data.get_cell_tower_data as cell
+import src.stc_unicef_cpi.data.get_satellite_data as ge
+import src.stc_unicef_cpi.utils.geospatial as geo
+import src.stc_unicef_cpi.data.get_speedtest_data as speed
 
-from src.stc_unicef_cpi.data.get_facebook_data import get_facebook_estimates
-from src.stc_unicef_cpi.data.get_osm_data import get_road_density
-from src.stc_unicef_cpi.data.get_cell_tower_data import get_cell_data
-#from src.stc_unicef_cpi.data.get_satellite_data import SatelliteImages
-from src.stc_unicef_cpi.utils.geospatial import (
-    create_geometry,
-    get_hex_code,
-    get_hex_centroid,
-    get_hexes_for_ctry,
-    aggregate_hexagon,
-    get_lat_long,
-)
-
-from src.stc_unicef_cpi.data.get_speedtest_data import get_speedtest_url, get_speedtest_info
+from functools import reduce, partial
+from datetime import date
 
 
 def read_input_unicef(path_read):
+    """read_input_unicef _summary_
+
+    _extended_summary_
+
+    :param path_read: _description_
+    :type path_read: _type_
+    :return: _description_
+    :rtype: _type_
+    """
     df = pd.read_csv(path_read)
     return df
 
 
 def select_country(df, country_code, lat, long):
+    """Select country of interest
+
+    :param df: _description_
+    :type df: _type_
+    :param country_code: _description_
+    :type country_code: _type_
+    :param lat: _description_
+    :type lat: _type_
+    :param long: _description_
+    :type long: _type_
+    :return: _description_
+    :rtype: _type_
+    """
     df.columns = df.columns.str.lower()
     subset = df[df["countrycode"].str.strip() == country_code]
     subset.dropna(subset=[lat, long], inplace=True)
@@ -43,14 +55,23 @@ def select_country(df, country_code, lat, long):
 
 
 def aggregate_dataset(df):
+    """aggregate_dataset _summary_
+
+    _extended_summary_
+
+    :param df: _description_
+    :type df: _type_
+    :return: _description_
+    :rtype: _type_
+    """
 
     df = df.groupby(by=["hex_code"], as_index=False).mean()
 
     return df
 
 
-def create_target_variable(country_code, lat, long, res):
-    source = "../../../data/childpoverty_microdata_gps_21jun22.csv"
+def create_target_variable(country_code, lat, long, res, read_dir=c.raw_data):
+    source = f"{read_dir}/childpoverty_microdata_gps_21jun22.csv"
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
     sub = get_hex_code(sub, lat, long, res)
@@ -62,26 +83,38 @@ def create_target_variable(country_code, lat, long, res):
 
 
 def change_name_reproject_tiff(tiff, attributes, country, read_dir=c.ext_data):
+    """Rename attributes and reproject Tiff file
+    :param tiff: _description_
+    :type tiff: _type_
+    :param attributes: _description_
+    :type attributes: _type_
+    :param country: _description_
+    :type country: _type_
+    :param read_dir: _description_, defaults to c.ext_data
+    :type read_dir: _type_, optional
+    """
     with rxr.open_rasterio(tiff) as data:
         data.attrs["long_name"] = attributes
         data.rio.to_raster(tiff)
-        path_read = f"{read_dir}/gee/cpi_poptotal_{country.lower()}_500.tif"
-        pg.rxr_reproject_tiff_to_target(
-            tiff,
-            path_read,
-            tiff,
-            verbose=True
-        )
+        p_r = f"{read_dir}/gee/cpi_poptotal_{country.lower()}_500.tif"
+        pg.rxr_reproject_tiff_to_target(tiff, p_r, tiff, verbose=True)
 
 
-def preprocessed_tif_files(country, read_dir=c.ext_data, out_dir=c.int_data):
+def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
+    """Preprocess tiff files
+
+    :param country: _description_
+    :type country: _type_
+    :param read_dir: _description_, defaults to c.ext_data
+    :type read_dir: _type_, optional
+    :param out_dir: _description_, defaults to c.int_data
+    :type out_dir: _type_, optional
+    """
 
     g.create_folder(out_dir)
 
     # clip gdp ppp 30 arc sec
-    net.netcdf_to_clipped_array(
-        f"{read_dir}/gdp_ppp_30.nc", ctry_name=country, save_dir=out_dir
-        )
+    net.netcdf_to_clipped_array(f"{read_dir}/gdp_ppp_30.nc", ctry_name=country, save_dir=out_dir)
 
     # clip ec and gdp
     tifs = f"{read_dir}/*/*/2019/*.tif"
@@ -94,10 +127,32 @@ def preprocessed_tif_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     mapfunc = partial(change_name_reproject_tiff, country=country)
     list(map(mapfunc, econ_tiffs, attributes))
 
+    # critical infrastructure data
+    cisi = glob.glob(f"{read_dir}/*/*/010_degree/global.tif")
+    partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=out_dir)
+    list(map(partial_func, cisi))
+    p_r = f"{read_dir}/gee/cpi_poptotal_{country.lower()}_500.tif"
+    pg.rxr_reproject_tiff_to_target(cisi[0], p_r, cisi[0], verbose=True)
+
 
 def append_predictor_variables(
     country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6
 ):
+    """append_predictor_variables _summary_
+
+    _extended_summary_
+
+    :param country_code: _description_, defaults to "NGA"
+    :type country_code: str, optional
+    :param country: _description_, defaults to "Nigeria"
+    :type country: str, optional
+    :param lat: _description_, defaults to "latnum"
+    :type lat: str, optional
+    :param long: _description_, defaults to "longnum"
+    :type long: str, optional
+    :param res: _description_, defaults to 6
+    :type res: int, optional
+    """
     # TODO: Integrate satellite information to pipeline
     # TODO: Include threshold to pipeline
     sub = create_target_variable(country_code, lat, long, res)
