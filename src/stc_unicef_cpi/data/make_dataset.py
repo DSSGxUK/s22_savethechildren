@@ -61,36 +61,38 @@ def create_target_variable(country_code, lat, long, res):
     return sub
 
 
-def change_name_reproject(tiff, attributes):
+def change_name_reproject_tiff(tiff, attributes, country, read_dir=c.ext_data):
     with rxr.open_rasterio(tiff) as data:
         data.attrs["long_name"] = attributes
         data.rio.to_raster(tiff)
+        path_read = f"{read_dir}/gee/cpi_poptotal_{country.lower()}_500.tif"
         pg.rxr_reproject_tiff_to_target(
             tiff,
-            tiff,
+            path_read,
             tiff,
             verbose=True
         )
 
 
-def preprocessed_tif_files(country, out_dir=c.int_data):
+def preprocessed_tif_files(country, read_dir=c.ext_data, out_dir=c.int_data):
 
     g.create_folder(out_dir)
 
     # clip gdp ppp 30 arc sec
     net.netcdf_to_clipped_array(
-        f"{c.ext_data}/gdp_ppp_30.nc", ctry_name=country, save_dir=out_dir
+        f"{read_dir}/gdp_ppp_30.nc", ctry_name=country, save_dir=out_dir
         )
 
     # clip ec and gdp
-    tifs = f"{c.ext_data}/*/*/2019/*.tif"
+    tifs = f"{read_dir}/*/*/2019/*.tif"
     partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=out_dir)
     list(map(partial_func, glob.glob(tifs)))
 
     # reproject resolution + crs
     econ_tiffs = sorted(glob.glob(f"{out_dir}/{country.lower()}*.tif"))
     attributes = [["GDP_2019"], ["EC_2019"], ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"]]
-    list(map(change_name_reproject, econ_tiffs, attributes))
+    mapfunc = partial(change_name_reproject_tiff, country=country)
+    list(map(mapfunc, econ_tiffs, attributes))
 
 
 def append_predictor_variables(
@@ -117,7 +119,7 @@ def append_predictor_variables(
     if file_exists:
         pass
     else:
-        download_econ_data()
+        econ.download_econ_data()
 
     ## Critical Infrastructure
     #ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
