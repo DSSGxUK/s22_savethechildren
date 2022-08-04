@@ -3,6 +3,7 @@ import pandas as pd
 import geopandas as gpd
 import os.path
 import glob as glob
+import rioxarray as rxr
 
 from functools import reduce, partial
 from datetime import date
@@ -60,39 +61,37 @@ def create_target_variable(country_code, lat, long, res):
     return sub
 
 
+def change_name_reproject(tiff, attributes):
+    with rxr.open_rasterio(tiff) as data:
+        data.attrs["long_name"] = attributes
+        data.rio.to_raster(tiff)
+        pg.rxr_reproject_tiff_to_target(
+            tiff,
+            tiff,
+            tiff,
+            verbose=True
+        )
+
+
 def preprocessed_tif_files(country, out_dir=c.int_data):
 
     g.create_folder(out_dir)
+
     # clip gdp ppp 30 arc sec
     net.netcdf_to_clipped_array(
         f"{c.ext_data}/gdp_ppp_30.nc", ctry_name=country, save_dir=out_dir
         )
+
     # clip ec and gdp
     tifs = f"{c.ext_data}/*/*/2019/*.tif"
     partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=out_dir)
     list(map(partial_func, glob.glob(tifs)))
 
     # reproject resolution + crs
-    #econ_tiffs = glob.glob(str(econ_dir / "*.tif"))
-    #econ_tiffs
-    #for i, econ_tiff in enumerate(econ_tiffs):
-    #    with rxr.open_rasterio(econ_tiff) as data:
-    #        name = Path(econ_tiff).name
-    #        if "GDP_PPP" in name:
-    #            data.attrs["long_name"] = ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"]
-    #        elif "2019GDP" in name:
-    #            data.attrs["long_name"] = ["GDP_2019"]
-    #        elif "EC" in name:
-    #            data.attrs["long_name"] = ["EC_2019"]
-    #        data.rio.to_raster(econ_tiff)
-    #    pg.rxr_reproject_tiff_to_target(
-    #        econ_tiff,
-    #        glob.glob(str(tiff_dir / "*.tif"))[0],
-    #        tiff_dir / Path(econ_tiff).name,
-    #        verbose=True
-    #    )
+    econ_tiffs = sorted(glob.glob(f"{out_dir}/{country.lower()}*.tif"))
+    attributes = [["GDP_2019"], ["EC_2019"], ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"]]
+    list(map(change_name_reproject, econ_tiffs, attributes))
 
-preprocessed_tif_files(country='Senegal')
 
 def append_predictor_variables(
     country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6
@@ -122,7 +121,6 @@ def append_predictor_variables(
 
     ## Critical Infrastructure
     #ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
-    clip_tif_to_ctry
     #ci = create_geometry(ci, "latitude", "longitude")
     #ci = get_hex_code(ci, "latitude", "longitude")
     #ci = aggregate_hexagon(ci, "fric", "cii", "mean")
@@ -149,7 +147,7 @@ def append_predictor_variables(
     if file_exists:
         pass
     else:
-        download_econ_data(path_data)
+        econ.download_econ_data(path_data)
     get_speedtest_info(url, name)
 
     # Satellite Data
