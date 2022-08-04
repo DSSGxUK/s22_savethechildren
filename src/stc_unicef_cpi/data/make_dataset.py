@@ -5,9 +5,7 @@ import os.path
 import glob as glob
 import rioxarray as rxr
 import h3.api.numpy_int as h3
-import shapely.wkt
 
-from shapely import geometry
 import src.stc_unicef_cpi.utils.constants as c
 import src.stc_unicef_cpi.data.process_geotiff as pg
 import src.stc_unicef_cpi.utils.general as g
@@ -154,7 +152,8 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
 
 
 def append_features_to_hexes(
-    country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6, forced_download=True
+    country_code="NGA", country="Senegal", lat="latnum", long="longnum", res=6, forced_download=True,
+    read_dir=c.ext_data, save_dir=c.int_data
 ):
     """Append features to hexagons withing a country
 
@@ -191,45 +190,50 @@ def append_features_to_hexes(
     #stream.RunStreamer(country, force=forced_download)
 
     ## Facebook connectivity metrics
-    connect_fb = pd.read_parquet('fb_aud_' + country.lower() + '_' + res + '.parquet')
-    #sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
+    #connect_fb = pd.read_parquet('fb_aud_' + country.lower() + '_' + res + '.parquet')
+    #connect_fb = geo.get_hex_centroid(connect_fb)
+
+    # Conflict Zones
+    cz = pd.read_csv(f"{read_dir}/conflict/GEDEvent_v22_1.csv")
+    cz = cz[cz.country == country]
+    cz = geo.create_geometry(cz, "latitude", "longitude")
+    cz = geo.get_hex_code(cz, "latitude", "longitude", res)
+    cz = geo.aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
+
+    # Commuting zones
+    commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
 
     ## Critical Infrastructure
-    #ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
-    #ci = create_geometry(ci, "latitude", "longitude")
-    #ci = get_hex_code(ci, "latitude", "longitude")
-    #ci = aggregate_hexagon(ci, "fric", "cii", "mean")
-#
-    ## Conflict Zones
-    #cz = pd.read_csv(f"{path_data}conflict/GEDEvent_v22_1.csv")
-    #cz = cz[cz.country == country]
-    #cz = create_geometry(cz, "latitude", "longitude")
-    #cz = get_hex_code(cz, "latitude", "longitude")
-    #cz = aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
-#
+    file_cisi = f"{save_dir}/{country.lower()}_global.tif"
+    cis = pg.geotiff_to_df(file_cisi)
+    cis = geo.create_geometry(cis, "latitude", "longitude")
+    cis = geo.get_hex_code(cis, "latitude", "longitude", res)
+    cis = geo.aggregate_hexagon(cis, f"{country.lower()}_global", "csi", "mean")
+    # new = pg.agg_tif_to_df(ctry, file_cisi, rm_prefix=f'{country.lower()}_', verbose=True) 
+
+    # Road density
+    road = pd.read_csv(f"{read_dir}/road_density_{country.lower()}.csv")
+
     ## Open Cell Data
     #cell = get_cell_data(country)
     #cell = create_geometry(cell, "lat", "long")
     #cell = get_hex_code(cell, "lat", "long")
     #cell = aggregate_hexagon(cell, "cid", "cells", "count")
-#
-    ## Road density
-    #road = get_road_density(country, res)
 
-    # Speet Test
+    # Speed Test
     #url, name = get_speedtest_url(service_type='mobile', year=2021, q=4)
     #file_exists = os.path.exists(f"{path_data}connectivity/GEDEvent_v22_1.csv")
 #
     #get_speedtest_info(url, name)
 
-    # Commuting zones
-    commuting = preprocessed_commuting_zones(country, res, read_dir=c.ext_data)[c.cols_commuting]
 
     # Aggregate Data
-    dfs = [ctry, commuting]#, cell, ci, cz, road, commuting]
+    dfs = [ctry, commuting, cz, cis, road]#, connect_fb]#, cell, speed]
     sub = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
+
+    #return sub
 
 
 append_features_to_hexes()

@@ -116,7 +116,7 @@ def assign_cluster(
     return hexes
 
 
-def get_road_density(country="Nigeria", res=7):
+def get_road_density(country, res):
     hexes = get_hexes_for_ctry(country, res=2)
     coords = add_neighboring_hexagons(hexes)
     overpass_results = assign_road_length_to_hex(coords)
