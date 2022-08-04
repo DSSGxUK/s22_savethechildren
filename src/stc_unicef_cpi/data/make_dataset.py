@@ -140,38 +140,23 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     pg.rxr_reproject_tiff_to_target(cisi[0], p_r, cisi[0], verbose=True)
 
 
-def commuting_zone(point, resolution):
-    geom = shapely.wkt.loads(point)
-    if geom.geom_type == 'MultiPolygon':
-        polygons = list(geom.geoms)
-    elif geom.geom_type == 'Polygon':
-        polygons = [geom]
-    else:
-        raise IOError('Shape is not a polygon.')
-    hexs = [h3.polyfill(geometry.mapping(polygon), resolution, geo_json_conformant=True) for polygon in polygons]
-    hexs = list(set([item for sublist in hexs for item in sublist]))
-    df = pd.DataFrame(hexs)
-    df.rename(columns={0:'hex_code'}, inplace=True)
-    df['geometry'] = point
-    return df
-
-
 def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
+    """Preprocess commuting zones"""
     commuting = pd.read_csv(f"{read_dir}/commuting_zones.csv")
     commuting = commuting[commuting['country'] == country]
     comm = list(commuting['geometry'])
-    comm_zones = pd.concat(list(map(partial(commuting_zone, resolution=res), comm)))
+    comm_zones = pd.concat(list(map(partial(geo.hexes_poly, res=res), comm)))
     comm_zones = comm_zones.merge(commuting, on='geometry', how='left')
+    comm_zones = comm_zones.add_suffix('_commuting')
+    comm_zones.rename(columns={'hex_code_commuting': 'hex_code'}, inplace=True)
 
     return comm_zones
 
 
-def append_predictor_variables(
+def append_features_to_hexes(
     country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6, forced_download=True
 ):
-    """append_predictor_variables _summary_
-
-    _extended_summary_
+    """Append features to hexagons withing a country
 
     :param country_code: _description_, defaults to "NGA"
     :type country_code: str, optional
@@ -186,22 +171,28 @@ def append_predictor_variables(
     """
     # TODO: Integrate satellite information to pipeline
     # TODO: Include threshold to pipeline
-    sub = create_target_variable(country_code, lat, long, res)
-    # countries hexes
-    hexes = get_hexes_for_ctry(country, res)
-    ctry = pd.DataFrame(hexes, columns=['hex_code'])
-    ctry = get_hex_centroid(ctry, "hex_code")
-    ctry_name = country_code.lower()
-    today = date.today()
-    dat_scp = today.strftime("%d-%m-%Y")
-    name_out = f"fb_{ctry_name}_res{res}_{dat_scp}.parquet"
 
-    stream.RunStreamer(country, force=forced_download)
+    # Country hexes
+    hexes_ctry = geo.get_hexes_for_ctry(country, res)
+    ctry = pd.DataFrame(hexes_ctry, columns=['hex_code'])
+
+    # Training set
+    #sub = create_target_variable(country_code, lat, long, res)
+    # countries hexes
+    #hexes = get_hexes_for_ctry(country, res)
+    #ctry = pd.DataFrame(hexes, columns=['hex_code'])
+    #ctry = get_hex_centroid(ctry, "hex_code")
+    #ctry_name = country_code.lower()
+    #today = date.today()
+    #dat_scp = today.strftime("%d-%m-%Y")
+    #name_out = f"fb_{ctry_name}_res{res}_{dat_scp}.parquet"
+    
+    # Retrieve external data
+    #stream.RunStreamer(country, force=forced_download)
 
     ## Facebook connectivity metrics
-    connect_fb = get_facebook_estimates(ctry["hex_centroid"].values[0:900], name_out, res)
+    connect_fb = pd.read_parquet('fb_aud_' + country.lower() + '_' + res + '.parquet')
     #sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
-#
 
     ## Critical Infrastructure
     #ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
@@ -226,21 +217,22 @@ def append_predictor_variables(
     #road = get_road_density(country, res)
 
     # Speet Test
-    url, name = get_speedtest_url(service_type='mobile', year=2021, q=4)
-    file_exists = os.path.exists(f"{path_data}connectivity/GEDEvent_v22_1.csv")
+    #url, name = get_speedtest_url(service_type='mobile', year=2021, q=4)
+    #file_exists = os.path.exists(f"{path_data}connectivity/GEDEvent_v22_1.csv")
+#
+    #get_speedtest_info(url, name)
 
-    get_speedtest_info(url, name)
+    # Commuting zones
+    commuting = preprocessed_commuting_zones(country, res, read_dir=c.ext_data)[c.cols_commuting]
 
-    
-    ## Aggregate Data
-    #dfs = [sub, cell, ci, cz, road]
-    #sub = reduce(
-    #    lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
-    #)
+    # Aggregate Data
+    dfs = [ctry, commuting]#, cell, ci, cz, road, commuting]
+    sub = reduce(
+        lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
+    )
 
 
-
-#append_predictor_variables()
+append_features_to_hexes()
 
 
 ## Health Sites

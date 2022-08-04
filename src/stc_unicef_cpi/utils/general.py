@@ -5,6 +5,7 @@ import os
 import yaml
 import pandas as pd
 import glob
+import pprint
 
 from functools import wraps
 from time import time
@@ -38,6 +39,13 @@ def get_open_cell_credentials(creds_file):
     creds = read_yaml_file(creds_file)["open_cell"]
     token = creds["token"]
     return token
+
+
+class PrettyLog():
+    def __init__(self, obj):
+        self.obj = obj
+    def __repr__(self):
+        return pprint.pformat(self.obj)
 
 
 def download_file(url, name):

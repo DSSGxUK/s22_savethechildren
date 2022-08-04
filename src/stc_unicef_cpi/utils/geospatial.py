@@ -121,3 +121,34 @@ def get_poly_boundary(df, hex_code):
         Polygon(h3.h3_to_geo_boundary(x, geo_json=True)) for x in df[hex_code]
     ]
     return df
+
+
+def format_polygons(poly):
+    """Retrive type of polygon and convert to list"""
+    geom = shapely.wkt.loads(poly)
+    if geom.geom_type == 'MultiPolygon':
+        polygons = list(geom.geoms)
+    elif geom.geom_type == 'Polygon':
+        polygons = [geom]
+    else:
+        raise IOError('Shape is not a polygon.')
+    return polygons
+
+
+def hexes_poly(poly, res):
+    """Get dataframe with hexagons belonging to a polygon
+    :param poly: polygon
+    :type poly: polygon
+    :param res: resolution
+    :type res: int
+    :raises IOError: _description_
+    :return: _description_
+    :rtype: _type_
+    """
+    polygons = format_polygons(poly)
+    hexs = [h3.polyfill(geometry.mapping(polygon), res, geo_json_conformant=True) for polygon in polygons]
+    hexs = list(set([item for sublist in hexs for item in sublist]))
+    df = pd.DataFrame(hexs)
+    df.rename(columns={0:'hex_code'}, inplace=True)
+    df['geometry'] = poly
+    return df
