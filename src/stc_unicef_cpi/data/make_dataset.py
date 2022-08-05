@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import pandas as pd
 import geopandas as gpd
-import os.path
 import glob as glob
 import rioxarray as rxr
 import shapely.wkt
@@ -14,7 +13,6 @@ import src.stc_unicef_cpi.data.process_netcdf as net
 import src.stc_unicef_cpi.utils.geospatial as geo
 
 from functools import reduce, partial
-from datetime import date
 from src.stc_unicef_cpi.data.stream_data import RunStreamer
 
 
@@ -129,7 +127,7 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     # critical infrastructure data
     cisi = glob.glob(f"{read_dir}/*/*/010_degree/global.tif")
     partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=out_dir)
-    list(map(partial_func, cisi))
+    list(map(partial_func, cisi[0]))
     p_r = f"{read_dir}/gee/cpi_poptotal_{country.lower()}_500.tif"
     pg.rxr_reproject_tiff_to_target(cisi[0], p_r, cisi[0], verbose=True)
 
@@ -160,7 +158,7 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
 
 
 def append_features_to_hexes(
-    country, res, read_dir=c.ext_data, save_dir=c.int_data, force=False
+    country, res, force=False, audience=False, read_dir=c.ext_data, save_dir=c.int_data
 ):
     """Append features to hexagons withing a country
 
@@ -179,13 +177,17 @@ def append_features_to_hexes(
     # Country hexes
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
     ctry = pd.DataFrame(hexes_ctry, columns=['hex_code'])
-    
+
     # Retrieve external data
-    RunStreamer(country, res, force)
+    RunStreamer(country, res, force, audience)
 
     # Facebook connectivity metrics
-    #connect_fb = pd.read_parquet(f'fb_aud_{country.lower()}_res{res}.parquet')
-    #connect_fb = geo.get_hex_centroid(connect_fb)
+    if audience:
+        fb = pd.read_parquet(f'fb_aud_{country.lower()}_res{res}.parquet')
+        fb = geo.get_hex_centroid(fb)
+
+    # Preprocessed tiff files
+    preprocessed_tiff_files(country, read_dir, save_dir)
 
     # Conflict Zones
     cz = pd.read_csv(f"{read_dir}/conflict/GEDEvent_v22_1.csv")
@@ -197,14 +199,6 @@ def append_features_to_hexes(
     # Commuting zones
     commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
 
-    # Critical Infrastructure
-    file_cisi = f"{save_dir}/{country.lower()}_global.tif"
-    cis = pg.geotiff_to_df(file_cisi)
-    cis = geo.create_geometry(cis, "latitude", "longitude")
-    cis = geo.get_hex_code(cis, "latitude", "longitude", res)
-    cis = geo.aggregate_hexagon(cis, f"{country.lower()}_global", "csi", "mean")
-    #new = pg.agg_tif_to_df(ctry, file_cisi, rm_prefix=f'{country.lower()}_', verbose=True)
-
     # Road density
     road = pd.read_csv(f"{read_dir}/road_density_{country.lower()}_res{res}.csv")
 
@@ -212,13 +206,17 @@ def append_features_to_hexes(
     speed = pd.read_csv(f'{read_dir}/2021-10-01_performance_mobile_tiles.csv')
     speed = preprocessed_speed_test(speed, res, country)
 
-    ## Open Cell Data
+    # Critical Infrastructure
+    file_cisi = f"{save_dir}/{country.lower()}_global.tif"
+    ctry = pg.agg_tif_to_df(ctry, file_cisi, f'{country.lower()}_', verbose=True)
+
+    # Open Cell Data
     cell = create_geometry(cell, "lat", "long")
     #cell = get_hex_code(cell, "lat", "long")
     #cell = aggregate_hexagon(cell, "cid", "cells", "count")
 
     # Aggregate Data
-    dfs = [ctry, commuting, cz, cis, road, speed, cell] #, connect_fb]
+    dfs = [ctry, commuting, cz, road, speed, cell]
     hexes = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
@@ -233,12 +231,12 @@ def append_features_to_hexes(
     #    verbose=False,
     #)
     print(hexes)
-    
+
     return hexes
 
 
 append_features_to_hexes(
-    country='Senegal', res=6, read_dir=c.ext_data, save_dir=c.int_data
+    country='Senegal', res=7
 )
 
 

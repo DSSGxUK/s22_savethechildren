@@ -180,7 +180,7 @@ class OpenCellStreamer(StreamerObject):
 
 class RunStreamer(StreamerObject):
 
-    def __init__(self, country, res, force, read_path=c.ext_data, name_logger=c.str_log, audience=False):
+    def __init__(self, country, res, force, audience, read_path=c.ext_data, name_logger=c.str_log):
         super().__init__(country, force, read_path)
         self.name_logger = name_logger
         self.res = res
