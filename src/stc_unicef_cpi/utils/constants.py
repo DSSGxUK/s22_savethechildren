@@ -69,3 +69,6 @@ cols_commuting = [
     "win_roads_km_commuting",
     "area_commuting"
 ]
+
+# threshold
+cutoff = 30
