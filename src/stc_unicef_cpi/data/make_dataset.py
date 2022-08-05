@@ -4,25 +4,18 @@ import geopandas as gpd
 import os.path
 import glob as glob
 import rioxarray as rxr
-import h3.api.numpy_int as h3
 import shapely.wkt
+import numpy as np
 
-from shapely import geometry
 import src.stc_unicef_cpi.utils.constants as c
 import src.stc_unicef_cpi.data.process_geotiff as pg
 import src.stc_unicef_cpi.utils.general as g
-import src.stc_unicef_cpi.data.get_econ_data as econ
 import src.stc_unicef_cpi.data.process_netcdf as net
-import src.stc_unicef_cpi.data.get_facebook_data as fb
-import src.stc_unicef_cpi.data.get_osm_data as osm
-import src.stc_unicef_cpi.data.get_cell_tower_data as cell
-import src.stc_unicef_cpi.data.get_satellite_data as ge
 import src.stc_unicef_cpi.utils.geospatial as geo
-import src.stc_unicef_cpi.data.get_speedtest_data as speed
-#import src.stc_unicef_cpi.data.stream_data as stream
 
 from functools import reduce, partial
 from datetime import date
+from src.stc_unicef_cpi.data.stream_data import RunStreamer
 
 
 def read_input_unicef(path_read):
@@ -70,21 +63,22 @@ def aggregate_dataset(df):
     :rtype: _type_
     """
 
-    df = df.groupby(by=["hex_code"], as_index=False).mean()
+    df_mean = df.groupby(by=["hex_code"], as_index=False).mean()
+    df_count = df.groupby(by=["hex_code"], as_index=False).count()[['hex_code', 'survey']]
+    return df_mean, df_count
 
-    return df
 
-
-def create_target_variable(country_code, lat, long, res, read_dir=c.raw_data):
+def create_target_variable(country_code, res, lat, long, threshold, read_dir):
     source = f"{read_dir}/childpoverty_microdata_gps_21jun22.csv"
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
     sub = geo.get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
-    sub = aggregate_dataset(sub)
-    sub = geo.get_hex_centroid(sub, "hex_code")
-
-    return sub
+    sub_mean, sub_count = aggregate_dataset(sub)
+    sub_count = sub_count[sub_count.survey>=threshold]
+    survey = geo.get_hex_centroid(sub_mean, "hex_code")
+    survey_threshold = sub_count.merge(survey, how='left', on='hex_code')
+    return survey_threshold
 
 
 def change_name_reproject_tiff(tiff, attributes, country, read_dir=c.ext_data):
@@ -140,6 +134,18 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     pg.rxr_reproject_tiff_to_target(cisi[0], p_r, cisi[0], verbose=True)
 
 
+def preprocessed_speed_test(speed, res, country):
+    speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
+    speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
+    world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    speed = gpd.sjoin(speed, world[world.name == country], how="inner", op="intersects").reset_index(drop=True)
+    tmp = speed.geometry.swifter.apply(lambda x: pd.Series(np.array(x.centroid.coords.xy).flatten()))
+    speed[["long", "lat"]] = tmp
+    speed = geo.get_hex_code(speed, "lat", "long", res)
+    speed = speed[["hex_code", "avg_d_kbps", "avg_u_kbps"]].groupby("hex_code").mean().reset_index()
+    return speed
+
+
 def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
     """Preprocess commuting zones"""
     commuting = pd.read_csv(f"{read_dir}/commuting_zones.csv")
@@ -154,7 +160,7 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
 
 
 def append_features_to_hexes(
-    country_code="NGA", country="Nigeria", lat="latnum", long="longnum", res=6, forced_download=True
+    country, res, read_dir=c.ext_data, save_dir=c.int_data, force=False
 ):
     """Append features to hexagons withing a country
 
@@ -170,70 +176,86 @@ def append_features_to_hexes(
     :type res: int, optional
     """
     # TODO: Integrate satellite information to pipeline
-    # TODO: Include threshold to pipeline
-
     # Country hexes
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
     ctry = pd.DataFrame(hexes_ctry, columns=['hex_code'])
-
-    # Training set
-    #sub = create_target_variable(country_code, lat, long, res)
-    # countries hexes
-    #hexes = get_hexes_for_ctry(country, res)
-    #ctry = pd.DataFrame(hexes, columns=['hex_code'])
-    #ctry = get_hex_centroid(ctry, "hex_code")
-    #ctry_name = country_code.lower()
-    #today = date.today()
-    #dat_scp = today.strftime("%d-%m-%Y")
-    #name_out = f"fb_{ctry_name}_res{res}_{dat_scp}.parquet"
     
     # Retrieve external data
-    #stream.RunStreamer(country, force=forced_download)
+    RunStreamer(country, res, force)
 
-    ## Facebook connectivity metrics
-    connect_fb = pd.read_parquet('fb_aud_' + country.lower() + '_' + res + '.parquet')
-    #sub = sub.merge(connect_fb, on=["hex_centroid", "lat", "long"], how="left")
+    # Facebook connectivity metrics
+    #connect_fb = pd.read_parquet(f'fb_aud_{country.lower()}_res{res}.parquet')
+    #connect_fb = geo.get_hex_centroid(connect_fb)
 
-    ## Critical Infrastructure
-    #ci = geotiff_to_df(f"{path_data}infrastructure/CISI/010_degree/global.tif")
-    #ci = create_geometry(ci, "latitude", "longitude")
-    #ci = get_hex_code(ci, "latitude", "longitude")
-    #ci = aggregate_hexagon(ci, "fric", "cii", "mean")
-#
-    ## Conflict Zones
-    #cz = pd.read_csv(f"{path_data}conflict/GEDEvent_v22_1.csv")
-    #cz = cz[cz.country == country]
-    #cz = create_geometry(cz, "latitude", "longitude")
-    #cz = get_hex_code(cz, "latitude", "longitude")
-    #cz = aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
-#
-    ## Open Cell Data
-    #cell = get_cell_data(country)
-    #cell = create_geometry(cell, "lat", "long")
-    #cell = get_hex_code(cell, "lat", "long")
-    #cell = aggregate_hexagon(cell, "cid", "cells", "count")
-#
-    ## Road density
-    #road = get_road_density(country, res)
-
-    # Speet Test
-    #url, name = get_speedtest_url(service_type='mobile', year=2021, q=4)
-    #file_exists = os.path.exists(f"{path_data}connectivity/GEDEvent_v22_1.csv")
-#
-    #get_speedtest_info(url, name)
+    # Conflict Zones
+    cz = pd.read_csv(f"{read_dir}/conflict/GEDEvent_v22_1.csv")
+    cz = cz[cz.country == country]
+    cz = geo.create_geometry(cz, "latitude", "longitude")
+    cz = geo.get_hex_code(cz, "latitude", "longitude", res)
+    cz = geo.aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
 
     # Commuting zones
-    commuting = preprocessed_commuting_zones(country, res, read_dir=c.ext_data)[c.cols_commuting]
+    commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
+
+    # Critical Infrastructure
+    file_cisi = f"{save_dir}/{country.lower()}_global.tif"
+    cis = pg.geotiff_to_df(file_cisi)
+    cis = geo.create_geometry(cis, "latitude", "longitude")
+    cis = geo.get_hex_code(cis, "latitude", "longitude", res)
+    cis = geo.aggregate_hexagon(cis, f"{country.lower()}_global", "csi", "mean")
+    #new = pg.agg_tif_to_df(ctry, file_cisi, rm_prefix=f'{country.lower()}_', verbose=True)
+
+    # Road density
+    road = pd.read_csv(f"{read_dir}/road_density_{country.lower()}_res{res}.csv")
+
+    # Speed Test
+    speed = pd.read_csv(f'{read_dir}/2021-10-01_performance_mobile_tiles.csv')
+    speed = preprocessed_speed_test(speed, res, country)
+
+    ## Open Cell Data
+    cell = create_geometry(cell, "lat", "long")
+    #cell = get_hex_code(cell, "lat", "long")
+    #cell = aggregate_hexagon(cell, "cid", "cells", "count")
 
     # Aggregate Data
-    dfs = [ctry, commuting]#, cell, ci, cz, road, commuting]
-    sub = reduce(
+    dfs = [ctry, commuting, cz, cis, road, speed, cell] #, connect_fb]
+    hexes = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
 
+    #sub = pg.agg_tif_to_df(
+    #    sub,
+    #    glob.glob(f"{read_dir}/gee/*{country.lower()}*"),
+    #    rm_prefix="cpi",
+    #    agg_fn=np.mean,
+    #    max_records=int(1e5),
+    #    replace_old=True,
+    #    verbose=False,
+    #)
+    print(hexes)
+    
+    return hexes
 
-append_features_to_hexes()
 
+append_features_to_hexes(
+    country='Senegal', res=6, read_dir=c.ext_data, save_dir=c.int_data
+)
+
+
+def append_target_variable_to_hexes(
+    country_code,
+    country,
+    res,
+    lat="latnum",
+    long="longnum",
+    save_dir=c.int_data,
+    threshold=c.cutoff,
+    read_dir=c.raw_data
+):
+    train = create_target_variable(country_code, res, lat, long, threshold, read_dir)
+    complete = append_features_to_hexes(country, read_dir, save_dir)
+    complete = complete.merge(train, on='hex_code', how='left')
+    return complete
 
 ## Health Sites
 # hh = pd.read_csv("nga_health.csv")

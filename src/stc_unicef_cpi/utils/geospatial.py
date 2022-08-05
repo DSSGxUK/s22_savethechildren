@@ -2,10 +2,14 @@
 import geopandas as gpd
 import h3.api.numpy_int as h3
 import math
+import pandas as pd
+import shapely.wkt
 
 from shapely import wkt
 from pyproj import Geod
 from shapely.geometry.polygon import Polygon
+from shapely import geometry
+
 from src.stc_unicef_cpi.utils.constants import res_area
 
 
@@ -37,7 +41,7 @@ def get_lat_long(data, geo_col):
     return data
 
 
-def get_hex_centroid(data, hex_code):
+def get_hex_centroid(data, hex_code='hex_code'):
     """Get centroid of hexagon
     :param data: dataset
     :type data: dataframe

@@ -50,3 +50,25 @@ base_dir_data = '../../../data'
 
 # external data
 ext_data = f'{base_dir_data}/external'
+
+# interim data
+int_data = f'{base_dir_data}/interim'
+
+# raw data
+raw_data = f'{base_dir_data}/raw'
+
+# loggers
+str_log = 'data_streamer'
+
+# variables
+
+cols_commuting = [
+    "hex_code",
+    "name_commuting",
+    "win_population_commuting",
+    "win_roads_km_commuting",
+    "area_commuting"
+]
+
+# threshold
+cutoff = 30

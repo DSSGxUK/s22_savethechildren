@@ -15,6 +15,7 @@ from sklearn.utils import check_array, check_random_state
 from sklearn.utils.multiclass import type_of_target
 from sklearn.utils.validation import column_or_1d
 from tensorflow import keras
+from sklearn.preprocessing import StandardScaler
 
 import stc_unicef_cpi.data.process_geotiff as pg
 
@@ -110,6 +111,10 @@ class KerasDataGenerator(keras.utils.Sequence):
             self.tif_files, hex_idxs, width=self.dim[1], height=self.dim[0]
         ).transpose((0, 2, 3, 1))
         # y = self.labels[idxs]
+        
+        shape = X.shape
+        X = StandardScaler().fit_transform(X.reshape(X.shape[0], -1))
+        X = X.reshape(shape)
 
         if np.isnan(np.sum(X)):
             min = np.min(X[~np.isnan(X)])
