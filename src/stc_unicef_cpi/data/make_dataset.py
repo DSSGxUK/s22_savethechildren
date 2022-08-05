@@ -10,15 +10,12 @@ import numpy as np
 import src.stc_unicef_cpi.utils.constants as c
 import src.stc_unicef_cpi.data.process_geotiff as pg
 import src.stc_unicef_cpi.utils.general as g
-import src.stc_unicef_cpi.data.get_econ_data as econ
 import src.stc_unicef_cpi.data.process_netcdf as net
-import src.stc_unicef_cpi.data.get_cell_tower_data as cell
 import src.stc_unicef_cpi.utils.geospatial as geo
-
-#from src.stc_unicef_cpi.data.stream_data import RunStreamer
 
 from functools import reduce, partial
 from datetime import date
+from src.stc_unicef_cpi.data.stream_data import RunStreamer
 
 
 def read_input_unicef(path_read):
@@ -163,7 +160,7 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
 
 
 def append_features_to_hexes(
-    country, res, read_dir=c.ext_data, save_dir=c.int_data
+    country, res, read_dir=c.ext_data, save_dir=c.int_data, force=False
 ):
     """Append features to hexagons withing a country
 
@@ -184,7 +181,7 @@ def append_features_to_hexes(
     ctry = pd.DataFrame(hexes_ctry, columns=['hex_code'])
     
     # Retrieve external data
-    # RunStreamer(country, force=forced_download)
+    RunStreamer(country, res, force)
 
     # Facebook connectivity metrics
     #connect_fb = pd.read_parquet(f'fb_aud_{country.lower()}_res{res}.parquet')
@@ -206,7 +203,7 @@ def append_features_to_hexes(
     cis = geo.create_geometry(cis, "latitude", "longitude")
     cis = geo.get_hex_code(cis, "latitude", "longitude", res)
     cis = geo.aggregate_hexagon(cis, f"{country.lower()}_global", "csi", "mean")
-    # new = pg.agg_tif_to_df(ctry, file_cisi, rm_prefix=f'{country.lower()}_', verbose=True)
+    #new = pg.agg_tif_to_df(ctry, file_cisi, rm_prefix=f'{country.lower()}_', verbose=True)
 
     # Road density
     road = pd.read_csv(f"{read_dir}/road_density_{country.lower()}_res{res}.csv")
@@ -216,18 +213,28 @@ def append_features_to_hexes(
     speed = preprocessed_speed_test(speed, res, country)
 
     ## Open Cell Data
-    #cell = get_cell_data(country)
-    #cell = create_geometry(cell, "lat", "long")
+    cell = create_geometry(cell, "lat", "long")
     #cell = get_hex_code(cell, "lat", "long")
     #cell = aggregate_hexagon(cell, "cid", "cells", "count")
 
     # Aggregate Data
-    #dfs = [ctry, commuting, cz, cis, road, speed]#, connect_fb]#, cell]
-    #sub = reduce(
-    #    lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
-    #)
+    dfs = [ctry, commuting, cz, cis, road, speed, cell] #, connect_fb]
+    hexes = reduce(
+        lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
+    )
 
-    #return sub
+    #sub = pg.agg_tif_to_df(
+    #    sub,
+    #    glob.glob(f"{read_dir}/gee/*{country.lower()}*"),
+    #    rm_prefix="cpi",
+    #    agg_fn=np.mean,
+    #    max_records=int(1e5),
+    #    replace_old=True,
+    #    verbose=False,
+    #)
+    print(hexes)
+    
+    return hexes
 
 
 append_features_to_hexes(
