@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import ee
 
-
+# TODO: Fix pollution data retrieval
 class SatelliteImages():
     """Get Satellite Images From Google Earth Engine"""
 

@@ -16,10 +16,9 @@ import src.stc_unicef_cpi.data.get_speedtest_data as speed
 
 class StreamerObject():
 
-    def __init__(self, country, res, force, read_path):
+    def __init__(self, country, force, read_path):
         self.read_path = read_path
         self.country = country
-        self.res = res
         self.force = force
 
 
@@ -51,7 +50,7 @@ class GoogleEarthEngineStreamer(StreamerObject):
 
 
 class EconomicStreamer(StreamerObject):
-
+    """Stream economic variables if not downloaded"""
     def __init__(
         self,
         country,
@@ -82,8 +81,9 @@ class FacebookMarketingStreamer(StreamerObject):
     def __init__(
         self, country, force, read_path, res, logging
     ):
-        super().__init__(country, force, read_path, res)
+        super().__init__(country, force, read_path)
         self.logging = logging
+        self.res = res
         self.implement()
 
     def implement(self):
@@ -108,8 +108,9 @@ class RoadDensityStreamer(StreamerObject):
     def __init__(
         self, country, force, read_path, res, logging
     ):
-        super().__init__(country, force, read_path, res)
+        super().__init__(country, force, read_path)
         self.logging = logging
+        self.res = res
         self.implement()
 
     def implement(self):
@@ -131,42 +132,73 @@ class RoadDensityStreamer(StreamerObject):
 class SpeedTestStreamer(StreamerObject):
     """Stream data from Open Street Map"""
     def __init__(
-        self, country, force, read_path, logging
+        self, country, force, read_path, logging, service_type=c.serv_type, year=c.serv_year, q=c.serv_quart
     ):
         super().__init__(country, force, read_path)
         self.logging = logging
+        self.service_type = service_type
+        self.year = year
+        self.q = q
         self.implement()
 
     def implement(self):
-        file_name = 'road_density_' + self.country.lower() + '_res' + self.res + '.csv'
+        file_name = 'speed_test' + self.country.lower() + '_res' + '.csv'
         if self.force:
             self.logging.info(g.PrettyLog(f"Speed test data estimates for {self.country}..."))
-            url, name = speed.get_speedtest_url(service_type='mobile', year=2021, q=4)
+            url, name = speed.get_speedtest_url(self.service_type, self.year, self.q)
             speed.get_speedtest_info(url, name, self.read_path)
         else:
             if os.path.exists(f"{self.read_path}/{file_name}"):
                 self.logging.info(g.PrettyLog(f"No need to retrieve speed test data estimates! Estimates for {self.country} are already downloaded."))
             else:
                 self.logging.info(g.PrettyLog(f"Retrieving speed test data estimates for {self.country}..."))
-                rd = osm.get_road_density(self.country, self.res)
+                url, name = speed.get_speedtest_url(self.service_type, self.year, self.q)
+                speed.get_speedtest_info(url, name, self.read_path)
+
+
+class OpenCellStreamer(StreamerObject):
+    """Stream data from Open Street Map"""
+    def __init__(
+        self, country, force, read_path, logging, service_type=c.serv_type, year=c.serv_year, q=c.serv_quart
+    ):
+        super().__init__(country, force, read_path)
+        self.logging = logging
+        self.service_type = service_type
+        self.year = year
+        self.q = q
+        self.implement()
+
+    def implement(self):
+        file_name = 'speed_test' + self.country.lower() + '_res' + '.csv'
+        if self.force:
+            self.logging.info(g.PrettyLog(f"Speed test data estimates for {self.country}..."))
+            url, name = speed.get_speedtest_url(self.service_type, self.year, self.q)
+            speed.get_speedtest_info(url, name, self.read_path)
+        else:
+            if os.path.exists(f"{self.read_path}/{file_name}"):
+                self.logging.info(g.PrettyLog(f"No need to retrieve speed test data estimates! Estimates for {self.country} are already downloaded."))
+            else:
+                self.logging.info(g.PrettyLog(f"Retrieving speed test data estimates for {self.country}..."))
+                url, name = speed.get_speedtest_url(self.service_type, self.year, self.q)
+                speed.get_speedtest_info(url, name, self.read_path)
 
 
 class RunStreamer(StreamerObject):
 
     def __init__(self, country, res, force=False, read_path=c.ext_data, name_logger=c.str_log):
-        super().__init__(country, res, force, read_path)
+        super().__init__(country, force, read_path)
         self.name_logger = name_logger
+        self.res = res
         self.stream()
 
     def stream(self):
         logging.basicConfig(filename=f'{self.name_logger}.log', format='%(filename)s: %(message)s', level=logging.INFO)
         #GoogleEarthEngineStreamer(self.country, self.force, self.read_path, logging)
-        #FacebookMarketingStreamer(self.country, self.res, self.force, self.read_path, logging)
-        RoadDensityStreamer(self.country, self.res, self.force, self.read_path, logging)
-        SpeedTestStreamer(
-
+        #FacebookMarketingStreamer(self.country, self.force, self.read_path, self.res, logging)
+        RoadDensityStreamer(self.country, self.force, self.read_path, self.res, logging)
+        SpeedTestStreamer(self.country, self.force, self.read_path, logging)
         #EconomicStreamer(self.country, logging)
 
-# Open Cell
-# Speed Test
-RunStreamer(country='Senegal', res=7)
+# TODO: Include Open Cell Id Data
+
+RunStreamer(country='Senegal', res=6)

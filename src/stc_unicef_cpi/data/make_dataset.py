@@ -4,19 +4,16 @@ import geopandas as gpd
 import os.path
 import glob as glob
 import rioxarray as rxr
-import h3.api.numpy_int as h3
+import shapely.wkt
+import numpy as np
 
 import src.stc_unicef_cpi.utils.constants as c
 import src.stc_unicef_cpi.data.process_geotiff as pg
 import src.stc_unicef_cpi.utils.general as g
 import src.stc_unicef_cpi.data.get_econ_data as econ
 import src.stc_unicef_cpi.data.process_netcdf as net
-import src.stc_unicef_cpi.data.get_facebook_data as fb
-import src.stc_unicef_cpi.data.get_osm_data as osm
 import src.stc_unicef_cpi.data.get_cell_tower_data as cell
-import src.stc_unicef_cpi.data.get_satellite_data as ge
 import src.stc_unicef_cpi.utils.geospatial as geo
-import src.stc_unicef_cpi.data.get_speedtest_data as speed
 
 #from src.stc_unicef_cpi.data.stream_data import RunStreamer
 
@@ -140,6 +137,18 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     pg.rxr_reproject_tiff_to_target(cisi[0], p_r, cisi[0], verbose=True)
 
 
+def preprocessed_speed_test(speed, res, country):
+    speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
+    speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
+    world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    speed = gpd.sjoin(speed, world[world.name == country], how="inner", op="intersects").reset_index(drop=True)
+    tmp = speed.geometry.swifter.apply(lambda x: pd.Series(np.array(x.centroid.coords.xy).flatten()))
+    speed[["long", "lat"]] = tmp
+    speed = geo.get_hex_code(speed, "lat", "long", res)
+    speed = speed[["hex_code", "avg_d_kbps", "avg_u_kbps"]].groupby("hex_code").mean().reset_index()
+    return speed
+
+
 def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
     """Preprocess commuting zones"""
     commuting = pd.read_csv(f"{read_dir}/commuting_zones.csv")
@@ -202,38 +211,36 @@ def append_features_to_hexes(
     # Road density
     road = pd.read_csv(f"{read_dir}/road_density_{country.lower()}_res{res}.csv")
 
+    # Speed Test
+    speed = pd.read_csv(f'{read_dir}/2021-10-01_performance_mobile_tiles.csv')
+    speed = preprocessed_speed_test(speed, res, country)
+
     ## Open Cell Data
     #cell = get_cell_data(country)
     #cell = create_geometry(cell, "lat", "long")
     #cell = get_hex_code(cell, "lat", "long")
     #cell = aggregate_hexagon(cell, "cid", "cells", "count")
 
-    # Speed Test
-    #url, name = get_speedtest_url(service_type='mobile', year=2021, q=4)
-    #file_exists = os.path.exists(f"{read_dir}connectivity/GEDEvent_v22_1.csv")
-#
-    #get_speedtest_info(url, name)
-
-
     # Aggregate Data
-    dfs = [ctry, commuting, cz, cis, road]#, connect_fb]#, cell, speed]
-    sub = reduce(
-        lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
-    )
+    #dfs = [ctry, commuting, cz, cis, road, speed]#, connect_fb]#, cell]
+    #sub = reduce(
+    #    lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
+    #)
 
     #return sub
 
 
-#append_features_to_hexes()
+append_features_to_hexes(
+    country='Senegal', res=6, read_dir=c.ext_data, save_dir=c.int_data
+)
 
 
 def append_target_variable_to_hexes(
     country_code,
     country,
-    res
+    res,
     lat="latnum",
     long="longnum",
-    read_dir=c.ext_data,
     save_dir=c.int_data,
     threshold=c.cutoff,
     read_dir=c.raw_data
