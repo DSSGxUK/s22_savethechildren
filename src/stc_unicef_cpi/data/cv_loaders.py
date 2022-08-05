@@ -11,11 +11,11 @@ from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
 from sklearn.cluster import KMeans
 from sklearn.model_selection import GroupKFold, KFold, StratifiedKFold
+from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_array, check_random_state
 from sklearn.utils.multiclass import type_of_target
 from sklearn.utils.validation import column_or_1d
 from tensorflow import keras
-from sklearn.preprocessing import StandardScaler
 
 import stc_unicef_cpi.data.process_geotiff as pg
 
@@ -111,7 +111,7 @@ class KerasDataGenerator(keras.utils.Sequence):
             self.tif_files, hex_idxs, width=self.dim[1], height=self.dim[0]
         ).transpose((0, 2, 3, 1))
         # y = self.labels[idxs]
-        
+
         shape = X.shape
         X = StandardScaler().fit_transform(X.reshape(X.shape[0], -1))
         X = X.reshape(shape)
@@ -302,7 +302,9 @@ class HexSpatialKFold(KFold):
 
 
 class StratifiedIntervalKFold(StratifiedKFold):
-    """NB lightly edited version of stratified KFold where just creates class labels from intervals (to improve folds w inflated vals)"""
+    """NB lightly edited version of stratified KFold
+    - difference is just that class labels are generated using pd cut to make n_cuts even intervals
+    (to improve folds w inflated vals), rather than just using values themselves"""
 
     def __init__(self, n_splits=5, *, n_cuts=5, shuffle=False, random_state=None):
         super().__init__(n_splits=n_splits, shuffle=shuffle, random_state=random_state)
