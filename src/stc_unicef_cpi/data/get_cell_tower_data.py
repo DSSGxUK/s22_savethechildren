@@ -9,14 +9,12 @@ from bs4 import BeautifulSoup
 from src.stc_unicef_cpi.utils.general import (
     get_open_cell_credentials,
     create_folder,
-    read_csv_gzip,
+    read_csv_gzip
 )
 
 
 def get_opencell_url(country, token):
     """get_opencell_url _summary_
-
-    _extended_summary_
 
     :param country: _description_
     :type country: _type_
@@ -49,7 +47,7 @@ def get_opencell_url(country, token):
     return links
 
 
-def get_cell_data(country, save_path="../../../data/cell_data"):
+def get_cell_data(country, save_path):
     """get_cell_data _summary_
 
     _extended_summary_
