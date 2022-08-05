@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import ee
 
-# TODO: Fix pollution data retrieval
+
 class SatelliteImages():
     """Get Satellite Images From Google Earth Engine"""
 
@@ -134,11 +134,10 @@ class SatelliteImages():
         return task
 
     def get_pollution_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_pollution'):
-        def func_pio(m, ctry=ctry):
+        def func_pio(m):
             collection = ee.ImageCollection('MODIS/006/MCD19A2_GRANULES').\
                 filterDate(start_date, end_date).filter(ee.Filter.calendarRange(m, m, 'month')).\
-                filterBounds(ctry).select('Optical_Depth_047', 'Optical_Depth_055').mean().\
-                set('month', m)
+                filterBounds(ctry).select('Optical_Depth_047', 'Optical_Depth_055').mean().set('month', m)
             return collection
         months = ee.List.sequence(1, 12)
         pollution = ee.ImageCollection.fromImages(months.map(func_pio))
