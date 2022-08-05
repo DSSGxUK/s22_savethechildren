@@ -1,0 +1,4 @@
+# each entry corresponds to hyperparam as follows:
+# country cv_type target impute standardise target_transform interpretable universal_data_only copy_to_nbrs
+# with options
+# {all,nigeria,senegal} {normal,stratified,spatial} {all,health,nutrition} {None,mean,median,knn,linear,rf} {None,standard,minmax,robust} {None,log,power} {,-ip} {,-univ} {,-cp2nbr}
