@@ -1,5 +1,9 @@
 import glob
 import os
+from pathlib import Path
+from typing import List, Union
+
+import dask.dataframe as dd
 import geopandas as gpd
 import h3.api.numpy_int as h3
 import matplotlib.pyplot as plt
@@ -8,10 +12,6 @@ import pandas as pd
 import rasterio
 import rioxarray as rxr
 import swifter
-import dask.dataframe as dd
-
-from pathlib import Path
-from typing import List, Union
 from dask.distributed import Client, LocalCluster
 from pyproj import Transformer
 from rasterio.enums import Resampling
@@ -53,7 +53,7 @@ def clip_tif_to_ctry(file_path, ctry_name, save_dir=None):
     """
     fname = Path(file_path).name
     world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-    with rasterio.open(glob.glob(file_path)[0], "r", masked=True) as tif_file:
+    with rasterio.open(file_path, "r", masked=True) as tif_file:
         world = world.to_crs(tif_file.crs)
         ctry_shp = world[world.name == ctry_name].geometry
         out_image, out_transform = rasterio.mask.mask(tif_file, ctry_shp, crop=True)
@@ -70,12 +70,12 @@ def clip_tif_to_ctry(file_path, ctry_name, save_dir=None):
             }
         )
         fname = ctry_name + "_" + fname
-        with rasterio.open(
-            save_dir / (fname.lower()), "w", **out_meta
-        ) as dest:
+        with rasterio.open(save_dir / (fname.lower()), "w", **out_meta) as dest:
             dest.write(out_image)
     else:
-        raise ValueError("Must specify save_dir")
+        plt.imshow(out_image.squeeze())
+        plt.show()
+        # raise ValueError("Must specify save_dir")
 
 
 def rxr_reproject_tiff_to_target(
@@ -365,7 +365,7 @@ def agg_tif_to_df(
             tmp.drop(columns=["latitude", "longitude"], inplace=True)
             print("Done!")
             print("Aggregating within cells...")
-            tmp = tmp.groupby(by=["hex_code"], as_index=False).agg(
+            tmp = tmp.groupby(by=["hex_code"]).agg(
                 {col: agg_fn for col in tmp.columns if col != "hex_code"}
             )
         print("Joining to survey data...")

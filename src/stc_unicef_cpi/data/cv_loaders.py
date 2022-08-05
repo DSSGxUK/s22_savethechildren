@@ -166,7 +166,10 @@ def cv_split(
 
 
 class HexSpatialKFold(KFold):
-    """NB lightly modified version of GroupKFold which just calculates spatial groups for hex codes"""
+    """NB lightly modified version of GroupKFold
+    - new code takes hex codes passed and generates n_split suitable groups, rather than
+    requiring these to be passed along with X, y, as in original GroupKFold
+    """
 
     def __init__(self, n_splits=5, *, random_state=None, hex_idx=None):
         super().__init__(n_splits=n_splits)

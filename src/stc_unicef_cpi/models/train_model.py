@@ -4,9 +4,11 @@ import warnings
 from pathlib import Path
 
 import joblib
+import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
 import pandas as pd
+import seaborn as sns
 import swifter
 from flaml import AutoML
 from flaml.ml import sklearn_metric_loss_score
@@ -32,6 +34,7 @@ from sklearn.preprocessing import (
 from tqdm.auto import tqdm
 
 from stc_unicef_cpi.data.cv_loaders import HexSpatialKFold, StratifiedIntervalKFold
+from stc_unicef_cpi.features.build_features import boruta_shap_ftr_select
 from stc_unicef_cpi.utils.mlflow_utils import fetch_logged_data
 from stc_unicef_cpi.utils.scoring import mae
 
@@ -54,7 +57,7 @@ if __name__ == "__main__":
         "--clean-name",
         type=str,
         help="Name of clean dataset inside data directory",
-        default="clean_nga_w_autov1.csv",
+        default="new_auto_thr_clean_nga.csv",
     )
     parser.add_argument(
         "--country",
@@ -81,11 +84,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Use expanded dataset, where 'ground-truth' values are copied to neighbouring cells",
     )
+    # parser.add_argument(
+    #     "--aug_data", action="store_true", help="Augment data with group features"
+    # )
     parser.add_argument(
-        "--aug_data", action="store_true", help="Augment data with group features"
-    )
-    parser.add_argument(
-        "--subsel_data", action="store_true", help="Use feature subset selection"
+        "--ftr-impt",
+        action="store_true",
+        help="Investigate final model feature importance using BorutaShap",
     )
     parser.add_argument(
         "--prefix",
@@ -140,8 +145,10 @@ if __name__ == "__main__":
             "water",
             "av-severity",
             "av-prevalence",
+            "health",
+            "nutrition",
         ],
-        help="Target variable to use for training, default is all, choices are 'all' (train separate model for each of the following), 'av-severity' (average number of deprivations / child), 'av-prevalence' (average proportion of children with at least one deprivation), or proportion of children deprived in 'education', 'sanitation', 'housing', 'water'",
+        help="Target variable to use for training, default is all, choices are 'all' (train separate model for each of the following), 'av-severity' (average number of deprivations / child), 'av-prevalence' (average proportion of children with at least one deprivation), or proportion of children deprived in 'education', 'sanitation', 'housing', 'water'. May also pass 'health' or 'nutrition' but limited ground truth data increases model variance.",
     )
     parser.add_argument(
         "--impute",
@@ -173,6 +180,11 @@ if __name__ == "__main__":
         "--save-model",
         action="store_true",
         help="Save trained models (joblib pickled), by default in a /models directory contained in same parent folder as args.data",
+    )
+    parser.add_argument(
+        "--plot",
+        action="store_true",
+        help="Produce scatter plot(s) of predicted vs actual values on test set",
     )
 
     try:
@@ -253,9 +265,14 @@ if __name__ == "__main__":
         elif args.target == "av-prevalence":
             target_name = "deprived_sev"
         else:
+            if args.target in ["health", "nutrition"]:
+                warnings.warn(
+                    f"Target variable {args.target} has very minimal ground truth data - model extrapolation likely to be poor"
+                )
             target_name = f"dep_{args.target}_sev"
         Y = XY[target_name].copy()
     else:
+        # NB only evaluating on good idxs here, if want to do health / nutrition need to pass explicitly.
         good_idxs = ["housing", "water", "sanitation", "education"]
         Y = XY[
             list(map(lambda x: f"dep_{x}_sev", good_idxs))
@@ -397,6 +414,22 @@ if __name__ == "__main__":
 
     pipeline = Pipeline([("preprocessor", col_tf), ("model", model)])
 
+    if len(Y.shape) == 1:
+        pipeline.fit(
+            X_train.reset_index(drop=True),
+            Y_train.reset_index(drop=True),
+            **pipeline_settings,
+        )
+    else:
+        pipelines = [clone(pipeline) for _ in range(Y.shape[1])]
+        for col_idx, pipeline in enumerate(pipelines):
+            col = Y_train.columns[col_idx]
+            pipeline.fit(
+                X_train.reset_index(drop=True),
+                Y_train.reset_index(drop=True)[col],
+                **pipeline_settings,
+            )
+
     if args.log_run:
         MLFLOW_DIR = DATA_DIRECTORY.parent / "models" / "mlruns"
         MLFLOW_DIR.mkdir(exist_ok=True)
@@ -419,22 +452,6 @@ if __name__ == "__main__":
                 if exp.name == f"{args.country}-{args.target}-{args.model}"
             ][0]
         mlflow.start_run(experiment_id=experiment_id)
-    if len(Y.shape) == 1:
-        pipeline.fit(
-            X_train.reset_index(drop=True),
-            Y_train.reset_index(drop=True),
-            **pipeline_settings,
-        )
-    else:
-        pipelines = [clone(pipeline) for _ in range(Y.shape[1])]
-        for col_idx, pipeline in enumerate(pipelines):
-            col = Y_train.columns[col_idx]
-            pipeline.fit(
-                X_train.reset_index(drop=True),
-                Y_train.reset_index(drop=True)[col],
-                **pipeline_settings,
-            )
-
     if args.model == "automl":
         # get automl object back
         if len(Y.shape) == 1:
@@ -454,6 +471,23 @@ if __name__ == "__main__":
                     automl.best_config_train_time
                 )
             )
+            if args.ftr_impt:
+                y = Y.values[:, col_idx]
+                X_tf = pipeline.steps[0][1].transform(X)
+                ftr_subset = boruta_shap_ftr_select(
+                    X_tf,
+                    y,
+                    base_model=clone(automl.model.estimator),
+                    plot=True,
+                    n_trials=100,
+                    sample=False,
+                    train_or_test="test",
+                    normalize=True,
+                    verbose=True,
+                    incl_tentative=True,
+                )
+                print("Best ftr subset estimated to be")
+                print(ftr_subset)
 
             # plot basic feature importances
             # plt.barh(automl.feature_names_in_, automl.feature_importances_)
@@ -468,28 +502,63 @@ if __name__ == "__main__":
             print("mse", "=", mse_val)
             mae_val = sklearn_metric_loss_score("mae", y_pred, y_test)
             print("mae", "=", mae_val)
+
+            if args.plot:
+                fig, ax = plt.subplots(dpi=200)
+                sns.scatterplot(x=y_pred, y=y_test)
+                ax.set_title(
+                    f"{col}: R2 = {r2_val:.3f}, MSE = {mse_val:.3f}, MAE = {mae_val:.3f}"
+                )
+                ax.set_xlabel("Predicted value")
+                ax.set_ylabel("True value")
+                plt.show()
+                FIG_DIR = DATA_DIRECTORY.parent / "figures"
+                FIG_DIR.mkdir(exist_ok=True)
+                if not args.log_run:
+                    fig.savefig(
+                        FIG_DIR / f"{col}_{args.model}.png", bbox_inches="tight"
+                    )
+
             if args.log_run:
-                mlflow.set_tags(
-                    {
-                        "cv_type": args.cv_type,
-                        "imputation": args.impute,
-                        "standardisation": args.standardise,
-                        "target_transform": args.target_transform,
-                        "interpretable": args.interpretable,
-                        "universal": args.univ,
-                    }
-                )
-                mlflow.log_param(key="best_model", value=automl.best_estimator)
-                mlflow.log_params(automl.best_config)
-                mlflow.log_metric(key="r2_score", value=r2_val)
-                mlflow.log_metric(
-                    key="rmse",
-                    value=np.sqrt(mse_val),
-                )
-                mlflow.log_metric(
-                    key="mae",
-                    value=mae_val,
-                )
+                with mlflow.start_run(
+                    experiment_id=experiment_id, run_name=col, nested=True
+                ) as run:
+                    mlflow.set_tags(
+                        {
+                            "cv_type": args.cv_type,
+                            "imputation": args.impute,
+                            "standardisation": args.standardise,
+                            "target_transform": args.target_transform,
+                            "interpretable": args.interpretable,
+                            "universal": args.universal_data_only,
+                        }
+                    )
+                    mlflow.log_param(key="best_model", value=automl.best_estimator)
+                    mlflow.log_params(automl.best_config)
+                    mlflow.log_metric(key="r2_score", value=r2_val)
+                    mlflow.log_metric(
+                        key="rmse",
+                        value=np.sqrt(mse_val),
+                    )
+                    mlflow.log_metric(
+                        key="mae",
+                        value=mae_val,
+                    )
+                    if args.plot:
+                        mlflow.log_figure(fig, f"figures/{col}_{args.model}.png")
+                    if args.ftr_impt:
+                        with open(
+                            DATA_DIRECTORY.parent
+                            / "models"
+                            / f"{col}_{args.model}_ftr_subset.txt",
+                            "w",
+                        ) as f:
+                            f.write(str(ftr_subset))
+                        mlflow.log_artifact(
+                            DATA_DIRECTORY.parent
+                            / "models"
+                            / f"{col}_{args.model}_ftr_subset.txt"
+                        )
             if args.save_model:
                 if args.target != "all":
                     with open(
