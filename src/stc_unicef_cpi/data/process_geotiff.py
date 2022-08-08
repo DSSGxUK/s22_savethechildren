@@ -330,7 +330,7 @@ def agg_tif_to_df(
                     print(f"Using {ddf.npartitions} partitions")
                     ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
                         lambda row: h3.geo_to_h3(
-                            row["latitude"], row["longitude"], res=resolution
+                            row["latitude"], row["longitude"], resolution
                         ),
                         axis=1,
                         meta=(None, "int64"),
@@ -357,7 +357,7 @@ def agg_tif_to_df(
                     print(f"Using {ddf.npartitions} partitions")
                     ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
                         lambda row: h3.geo_to_h3(
-                            row["latitude"], row["longitude"], res=resolution
+                            row["latitude"], row["longitude"], resolution
                         ),
                         axis=1,
                         meta=(None, "int64"),
@@ -371,9 +371,7 @@ def agg_tif_to_df(
                     tmp = ddf.compute()
         else:
             tmp["hex_code"] = tmp[["latitude", "longitude"]].swifter.apply(
-                lambda row: h3.geo_to_h3(
-                    row["latitude"], row["longitude"], res=resolution
-                ),
+                lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], resolution),
                 axis=1,
             )
             tmp.drop(columns=["latitude", "longitude"], inplace=True)
