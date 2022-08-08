@@ -171,6 +171,7 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
     return comm_zones
 
 
+@g.timing
 def append_features_to_hexes(
     country, res, force=False, audience=False, read_dir=c.ext_data, save_dir=c.int_data
 ):
@@ -186,7 +187,6 @@ def append_features_to_hexes(
     :param res: _description_, defaults to 6
     :type res: int, optional
     """
-    # TODO: Integrate satellite information to pipeline
     # Country hexes
     #hexes_ctry = geo.get_hexes_for_ctry(country, res)
     #ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
@@ -218,10 +218,9 @@ def append_features_to_hexes(
 
     # Google Earth Engine
     gee_files = glob.glob(str(Path(read_dir) / "gee" / f"*_{country.lower()}*.tif"))
-    gee_files = ['../../../data/external/gee/cpi_pollution_nigeria_500.tif', '../../../data/external/gee/cpi_slope_nigeria_500.tif', '../../../data/external/gee/cpi_ghsl_nigeria_500.tif', '../../../data/external/gee/cpi_health_acc_nigeria_500.tif', '../../../data/external/gee/cpi_pdsi_nigeria_500.tif', '../../../data/external/gee/cpi_pollution_nigeria_500(1).tif', '../../../data/external/gee/cpi_preci_std_nigeria_500.tif', '../../../data/external/gee/cpi_nighttime_nigeria_500.tif', '../../../data/external/gee/cpi_ndwi_nigeria_500.tif', '../../../data/external/gee/cpi_evapo_trans_nigeria_500.tif', '../../../data/external/gee/cpi_precipi_acc_nigeria_500.tif', '../../../data/external/gee/cpi_cop_land_nigeria_500.tif', '../../../data/external/gee/cpi_preci_mean_nigeria_500.tif', '../../../data/external/gee/cpi_elevation_nigeria_500.tif', '../../../data/external/gee/cpi_ndvi_nigeria_500.tif']
     gee = list(map(pg.geotiff_to_df, gee_files))
     gee = reduce(
-        lambda left, right: pd.merge(left, right, on=["latitude", "longitude"], how="outter"), gee
+        lambda left, right: pd.merge(left, right, on=["latitude", "longitude"], how="outer"), gee
     )
 
     # Road density
