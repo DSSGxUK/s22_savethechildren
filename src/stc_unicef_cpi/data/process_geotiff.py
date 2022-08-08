@@ -246,6 +246,7 @@ def agg_tif_to_df(
     agg_fn=np.mean,
     max_records=int(1e5),
     replace_old=True,
+    resolution=7,
     verbose=False,
 ):
     """Pass df with hex_code column of numpy_int type h3 codes,
@@ -258,22 +259,28 @@ def agg_tif_to_df(
     resolution of the tiff file is lower than the resolution of
     the specified hexagons.
 
-    :param df: _description_
-    :type df: _type_
+    :param df: 'ground truth' dataframe to aggregate tiffs to,
+               with hex_code column at specified resolution
+    :type df: pd.DataFrame
     :param tiff_dir: Either directory containing .tifs, a
                      single .tif file, or a list of .tif
                      files to aggregate to given df
     :type tiff_dir: _type_
-    :param rm_prefix: _description_, defaults to "cpi"
+    :param rm_prefix: Prefix to remove from file string when naming variables,
+                      defaults to "cpi"
     :type rm_prefix: str, optional
-    :param agg_fn: _description_, defaults to np.mean
+    :param agg_fn: Function to use when aggregating tiff pixels within cells,
+                   defaults to np.mean
     :type agg_fn: _type_, optional
-    :param max_records: _description_, defaults to int(1e5)
-    :type max_records: _type_, optional
+    :param max_records: Max number of pixels in clipped tiff before using dask,
+                        defaults to int(1e5)
+    :type max_records: int, optional
     :param replace_old: Overwrite old columns if match new data,
                         defaults to True
     :type replace_old: bool, optional
-    :param verbose: _description_, defaults to False
+    :param resolution: Resolution level of h3 grid to use, defaults to 7
+    :type resolution: int, optional
+    :param verbose: Verbose output, defaults to False
     :type verbose: bool, optional
     :raises ValueError: _description_
     :return: _description_
@@ -322,7 +329,9 @@ def agg_tif_to_df(
                     )  # chunksize = max_records(?)
                     print(f"Using {ddf.npartitions} partitions")
                     ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
-                        lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7),
+                        lambda row: h3.geo_to_h3(
+                            row["latitude"], row["longitude"], resolution
+                        ),
                         axis=1,
                         meta=(None, "int64"),
                     )
@@ -347,7 +356,9 @@ def agg_tif_to_df(
                     )  # chunksize = max_records(?)
                     print(f"Using {ddf.npartitions} partitions")
                     ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
-                        lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7),
+                        lambda row: h3.geo_to_h3(
+                            row["latitude"], row["longitude"], resolution
+                        ),
                         axis=1,
                         meta=(None, "int64"),
                     )
@@ -360,7 +371,8 @@ def agg_tif_to_df(
                     tmp = ddf.compute()
         else:
             tmp["hex_code"] = tmp[["latitude", "longitude"]].swifter.apply(
-                lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], 7), axis=1
+                lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], resolution),
+                axis=1,
             )
             tmp.drop(columns=["latitude", "longitude"], inplace=True)
             print("Done!")
