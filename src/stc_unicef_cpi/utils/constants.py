@@ -72,3 +72,8 @@ cols_commuting = [
 
 # threshold
 cutoff = 30
+
+# speedtest params
+serv_type = 'mobile'
+serv_year = 2021
+serv_quart = 4
