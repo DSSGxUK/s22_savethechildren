@@ -1,7 +1,6 @@
 import argparse
 import glob as glob
 import sys
-from functools import partial, reduce
 
 import geopandas as gpd
 import numpy as np
@@ -9,19 +8,20 @@ import pandas as pd
 import rioxarray as rxr
 import shapely.wkt
 
-import stc_unicef_cpi.data.process_geotiff as pg
-import stc_unicef_cpi.data.process_netcdf as net
-import stc_unicef_cpi.utils.constants as c
-import stc_unicef_cpi.utils.general as g
-import stc_unicef_cpi.utils.geospatial as geo
-from stc_unicef_cpi.data.stream_data import RunStreamer
+import src.stc_unicef_cpi.data.process_geotiff as pg
+import src.stc_unicef_cpi.data.process_netcdf as net
+import src.stc_unicef_cpi.utils.constants as c
+import src.stc_unicef_cpi.utils.general as g
+import src.stc_unicef_cpi.utils.geospatial as geo
+
+from src.stc_unicef_cpi.data.stream_data import RunStreamer
+from pathlib import Path
+from functools import partial, reduce
 
 
 def read_input_unicef(path_read):
     """read_input_unicef _summary_
-
     _extended_summary_
-
     :param path_read: _description_
     :type path_read: _type_
     :return: _description_
@@ -33,7 +33,6 @@ def read_input_unicef(path_read):
 
 def select_country(df, country_code, lat, long):
     """Select country of interest
-
     :param df: _description_
     :type df: _type_
     :param country_code: _description_
@@ -53,9 +52,7 @@ def select_country(df, country_code, lat, long):
 
 def aggregate_dataset(df):
     """aggregate_dataset _summary_
-
     _extended_summary_
-
     :param df: _description_
     :type df: _type_
     :return: _description_
@@ -102,7 +99,6 @@ def change_name_reproject_tiff(tiff, attributes, country, read_dir=c.ext_data):
 
 def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     """Preprocess tiff files
-
     :param country: _description_
     :type country: _type_
     :param read_dir: _description_, defaults to c.ext_data
@@ -179,7 +175,6 @@ def append_features_to_hexes(
     country, res, force=False, audience=False, read_dir=c.ext_data, save_dir=c.int_data
 ):
     """Append features to hexagons withing a country
-
     :param country_code: _description_, defaults to "NGA"
     :type country_code: str, optional
     :param country: _description_, defaults to "Nigeria"
@@ -193,64 +188,62 @@ def append_features_to_hexes(
     """
     # TODO: Integrate satellite information to pipeline
     # Country hexes
-    hexes_ctry = geo.get_hexes_for_ctry(country, res)
-    ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
+    #hexes_ctry = geo.get_hexes_for_ctry(country, res)
+    #ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
     # Retrieve external data
-    RunStreamer(country, res, force, audience)
+    #RunStreamer(country, res, force, audience)
 
     # Facebook connectivity metrics
-    if audience:
-        fb = pd.read_parquet(f"fb_aud_{country.lower()}_res{res}.parquet")
-        fb = geo.get_hex_centroid(fb)
+    #if audience:
+    #    fb = pd.read_parquet(Path(read_dir) / f"fb_aud_{country.lower()}_res{res}.parquet")
+    #    fb = geo.get_hex_centroid(fb)
 
     # Preprocessed tiff files
-    preprocessed_tiff_files(country, read_dir, save_dir)
+    #preprocessed_tiff_files(country, read_dir, save_dir)
 
     # Conflict Zones
-    cz = pd.read_csv(f"{read_dir}/conflict/GEDEvent_v22_1.csv")
-    cz = cz[cz.country == country]
-    cz = geo.create_geometry(cz, "latitude", "longitude")
-    cz = geo.get_hex_code(cz, "latitude", "longitude", res)
-    cz = geo.aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
+    #cz = pd.read_csv(Path(read_dir) / "conflict/GEDEvent_v22_1.csv")
+    #cz = cz[cz.country == country]
+    #cz = geo.create_geometry(cz, "latitude", "longitude")
+    #cz = geo.get_hex_code(cz, "latitude", "longitude", res)
+    #cz = geo.aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
 
     # Commuting zones
-    commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
+    #commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
+
+    # Economic data
+    #file_cisi = f"{save_dir}/{country.lower()}_global.tif"
+    #ctry = pg.agg_tif_to_df(ctry, file_cisi, f"{country.lower()}_", verbose=True)
+
+    # Google Earth Engine
+    gee_files = glob.glob(str(Path(read_dir) / "gee" / f"*_{country.lower()}*.tif"))
+    gee_files = ['../../../data/external/gee/cpi_pollution_nigeria_500.tif', '../../../data/external/gee/cpi_slope_nigeria_500.tif', '../../../data/external/gee/cpi_ghsl_nigeria_500.tif', '../../../data/external/gee/cpi_health_acc_nigeria_500.tif', '../../../data/external/gee/cpi_pdsi_nigeria_500.tif', '../../../data/external/gee/cpi_pollution_nigeria_500(1).tif', '../../../data/external/gee/cpi_preci_std_nigeria_500.tif', '../../../data/external/gee/cpi_nighttime_nigeria_500.tif', '../../../data/external/gee/cpi_ndwi_nigeria_500.tif', '../../../data/external/gee/cpi_evapo_trans_nigeria_500.tif', '../../../data/external/gee/cpi_precipi_acc_nigeria_500.tif', '../../../data/external/gee/cpi_cop_land_nigeria_500.tif', '../../../data/external/gee/cpi_preci_mean_nigeria_500.tif', '../../../data/external/gee/cpi_elevation_nigeria_500.tif', '../../../data/external/gee/cpi_ndvi_nigeria_500.tif']
+    gee = list(map(pg.geotiff_to_df, gee_files))
+    gee = reduce(
+        lambda left, right: pd.merge(left, right, on=["latitude", "longitude"], how="outter"), gee
+    )
 
     # Road density
-    road = pd.read_csv(f"{read_dir}/road_density_{country.lower()}_res{res}.csv")
+    #road = pd.read_csv(Path(read_dir) / f"road_density_{country.lower()}_res{res}.csv")
 
     # Speed Test
-    speed = pd.read_csv(f"{read_dir}/2021-10-01_performance_mobile_tiles.csv")
-    speed = preprocessed_speed_test(speed, res, country)
+    #speed = pd.read_csv(Path(read_dir) / "2021-10-01_performance_mobile_tiles.csv")
 
-    # Critical Infrastructure
-    file_cisi = f"{save_dir}/{country.lower()}_global.tif"
-    ctry = pg.agg_tif_to_df(ctry, file_cisi, f"{country.lower()}_", verbose=True)
+    #speed = preprocessed_speed_test(speed, res, country)
 
     # Open Cell Data
-    cell = geo.create_geometry(cell, "lat", "long")
+    # cell = geo.create_geometry(cell, "lat", "long")
     # cell = get_hex_code(cell, "lat", "long")
     # cell = aggregate_hexagon(cell, "cid", "cells", "count")
 
     # Aggregate Data
-    dfs = [ctry, commuting, cz, road, speed, cell]
-    hexes = reduce(
-        lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
-    )
+    #dfs = [ctry, commuting, cz, road, speed, cell]
+    #hexes = reduce(
+    #    lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
+    #)
 
-    # sub = pg.agg_tif_to_df(
-    #    sub,
-    #    glob.glob(f"{read_dir}/gee/*{country.lower()}*"),
-    #    rm_prefix="cpi",
-    #    agg_fn=np.mean,
-    #    max_records=int(1e5),
-    #    replace_old=True,
-    #    verbose=False,
-    # )
-    print(hexes)
-
-    return hexes
+    #return hexes
 
 
 def append_target_variable_to_hexes(
@@ -304,3 +297,4 @@ if __name__ == "__main__":
 # edu = get_lat_long(edu, "geometry")
 # edu = get_hex_code(edu, "lat", "long")
 # edu = aggregate_hexagon(edu, "geometry", "n_education", "count")
+
