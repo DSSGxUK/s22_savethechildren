@@ -1,16 +1,14 @@
-# -*- coding: utf-8 -*-
 """Download econ and facilities data"""
-import os
 import glob
+import os
 
-import src.stc_unicef_cpi.utils.constants as c
-
-from src.stc_unicef_cpi.utils.general import (
-    download_unzip,
-    download_file,
+import stc_unicef_cpi.utils.constants as c
+from stc_unicef_cpi.utils.general import (
     create_folder,
+    download_file,
+    download_unzip,
+    prepend,
     unzip_file,
-    prepend
 )
 
 
@@ -63,7 +61,7 @@ def download_econ_data(out_dir):
 
     # Global 1 km × 1 km gridded revised real gross domestic product
     gdp_url = "https://figshare.com/ndownloader/files/31456837"
-    get_data_from_calibrated_nighttime(gdp_url, out_dir, 'real_gdp')
+    get_data_from_calibrated_nighttime(gdp_url, out_dir, "real_gdp")
 
     # GDP per capita given in 2011 international US dollars
     # 30 arc-second resolution for time steps 1990, 2000, and 2015
@@ -72,8 +70,8 @@ def download_econ_data(out_dir):
 
     # Global 1 km × 1 km gridded revised electricity consumption
     ec_url = "https://figshare.com/ndownloader/files/31456843"
-    get_data_from_calibrated_nighttime(ec_url, out_dir, 'elec_cons')
+    get_data_from_calibrated_nighttime(ec_url, out_dir, "elec_cons")
 
     # Commuting zones
-    commuting_url = 'https://data.humdata.org/dataset/b7aaa3d7-cca2-4364-b7ce-afe3134194a2/resource/37c2353d-08a6-4cc2-8364-5fd9f42d6b64/download/data-for-good-at-meta-commuting-zones-july-2021.csv'
+    commuting_url = "https://data.humdata.org/dataset/b7aaa3d7-cca2-4364-b7ce-afe3134194a2/resource/37c2353d-08a6-4cc2-8364-5fd9f42d6b64/download/data-for-good-at-meta-commuting-zones-july-2021.csv"
     download_file(commuting_url, f"{out_dir}/commuting_zones.csv")

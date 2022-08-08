@@ -1,14 +1,14 @@
 """GET DELIVERY ESTIMATES FROM FACEBOOK MARKETING API"""
 
 import time
-import pandas as pd
 
+import pandas as pd
 from facebook_business.adobjects.adaccount import AdAccount
 from facebook_business.api import FacebookAdsApi
 
-from src.stc_unicef_cpi.utils.constants import opt
-from src.stc_unicef_cpi.utils.general import get_facebook_credentials
-from src.stc_unicef_cpi.utils.geospatial import get_hex_radius
+from stc_unicef_cpi.utils.constants import opt
+from stc_unicef_cpi.utils.general import get_facebook_credentials
+from stc_unicef_cpi.utils.geospatial import get_hex_radius
 
 
 def fb_api_init(token, id):

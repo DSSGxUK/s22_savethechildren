@@ -1,15 +1,15 @@
 """GET CELL TOWER DATA FROM OPEN CELL ID"""
 
-import pandas as pd
-import requests
 import glob
 
+import pandas as pd
+import requests  # type: ignore
 from bs4 import BeautifulSoup
 
-from src.stc_unicef_cpi.utils.general import (
-    get_open_cell_credentials,
+from stc_unicef_cpi.utils.general import (
     create_folder,
-    read_csv_gzip
+    get_open_cell_credentials,
+    read_csv_gzip,
 )
 
 

@@ -307,7 +307,14 @@ def agg_tif_to_df(
         title = Path(fname).name.lstrip(rm_prefix).rstrip(".tif")
         print(f"Working with {title}: {i+1}/{len(tif_files)}...")
         # Convert to dataframe
-        tmp = geotiff_to_df(fname, verbose=verbose)
+        try:
+            tmp = geotiff_to_df(fname, verbose=verbose)
+        except:
+            tmp = geotiff_to_df(
+                fname,
+                spec_band_names=["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"],
+                verbose=verbose,
+            )
         print("Converted to dataframe!")
         if verbose:
             print("Dataframe info:")

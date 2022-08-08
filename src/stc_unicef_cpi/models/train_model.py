@@ -134,6 +134,13 @@ if __name__ == "__main__":
         help="Type of CV to use, default is normal, choices are normal (fully random), stratified and spatial",
     )
     parser.add_argument(
+        "--eval-split-type",
+        type=str,
+        default="normal",
+        choices=["normal", "stratified", "spatial"],
+        help="Method to split test from training set, default is normal, choices are normal (fully random), stratified and spatial",
+    )
+    parser.add_argument(
         "--target",
         type=str,
         default="all",
@@ -153,22 +160,22 @@ if __name__ == "__main__":
     parser.add_argument(
         "--impute",
         type=str,
-        default=None,
-        choices=[None, "mean", "median", "knn", "linear", "rf"],
+        default="none",
+        choices=["none", "mean", "median", "knn", "linear", "rf"],
         help="Impute missing values prior to training, or leave as nan (default option)",
     )
     parser.add_argument(
         "--standardise",
         type=str,
-        default=None,
-        choices=[None, "standard", "minmax", "robust"],
+        default="none",
+        choices=["none", "standard", "minmax", "robust"],
         help="Standardise feature data prior to fitting model, options are None (default, leave raw), standard (z-score), minmax (min-max normalisation to limit to 0-1 range), or robust (median and quantile version of z-score)",
     )
     parser.add_argument(
         "--target-transform",
         type=str,
-        default=None,
-        choices=[None, "log", "power"],
+        default="none",
+        choices=["none", "log", "power"],
         help="Transform target variable(s) prior to fitting model - choices of None (default, leave raw), 'log', 'power' (Yeo-Johnson)",
     )
     parser.add_argument(
@@ -282,9 +289,47 @@ if __name__ == "__main__":
     categorical_features = X.select_dtypes(exclude=[np.number]).columns
     X[categorical_features] = X[categorical_features].astype("category")
 
-    X_train, X_test, Y_train, Y_test = train_test_split(
-        X, Y, test_size=args.test_size, random_state=42
-    )
+    # generate train / test split
+    # choices = ["normal", "stratified", "spatial"]
+    if args.eval_split_type == "normal":
+        X_train, X_test, Y_train, Y_test = train_test_split(
+            X, Y, test_size=args.test_size, random_state=42
+        )
+    elif args.eval_split_type == "stratified":
+        if len(Y.shape) == 1:
+            train_idxs, test_idxs = next(
+                StratifiedIntervalKFold(
+                    n_splits=int(1 / args.test_size), random_state=42
+                ).split(X, Y)
+            )
+            X_train, Y_train = X[train_idxs], Y[train_idxs]
+            X_test, Y_test = X[test_idxs], Y[test_idxs]
+        else:
+            # must generate split for each column separately
+            strat_X_train = {}
+            strat_Y_train = {}
+            strat_X_test = {}
+            strat_Y_test = {}
+            for col_idx in range(Y.shape[1]):
+                train_idxs, test_idxs = next(
+                    StratifiedIntervalKFold(
+                        n_splits=int(1 / args.test_size), random_state=42
+                    ).split(X, Y.iloc[:, col_idx])
+                )
+                X_train, y_train = X[train_idxs], Y.iloc[:, col_idx][train_idxs]
+                X_test, y_test = X[test_idxs], Y.iloc[:, col_idx][test_idxs]
+                strat_X_train[col_idx] = X_train
+                strat_Y_train[col_idx] = y_train
+                strat_X_test[col_idx] = X_test
+                strat_Y_test[col_idx] = y_test
+    elif args.eval_split_type == "spatial":
+        train_idxs, test_idxs = next(
+            HexSpatialKFold(n_splits=int(1 / args.test_size), random_state=42).split(
+                X, Y
+            )
+        )
+        X_train, Y_train = X[train_idxs], Y[train_idxs]
+        X_test, Y_test = X[test_idxs], Y[test_idxs]
     # specify KFold strategy
     # choices = ["normal", "stratified", "spatial"]
     if args.cv_type == "normal":
@@ -321,13 +366,15 @@ if __name__ == "__main__":
         model = AutoML()
         # automl_pipeline
         automl_settings = {
-            "time_budget": 60,  # total running time in seconds
+            "time_budget": 300,  # total running time in seconds for each target
             "metric": "mse",  # primary metrics for regression can be chosen from: ['mae','mse','r2']
             "task": "regression",  # task type
             "estimator_list": [
                 "xgboost",
                 "lgbm",
                 # "catboost", # for some reason in flaml code, failing for spatial CV
+                "rf",
+                "extra_tree",
             ],
             "log_file_name": "automl.log",  # flaml log file
             "seed": 42,  # random seed
@@ -398,7 +445,7 @@ if __name__ == "__main__":
         # only real categorical column is commuting zone, so could do encoding here - however, interested really in GBMs, (LightGBM, XGBoost, CatBoost), all of which have
         # native support for categorical columns, so can neglect
         # If was bigger problem, could e.g. try category-encoders lib, https://contrib.scikit-learn.org/category_encoders/index.html
-        # cat_tf = OneHotEncoder(handle_unknown="infrequent_if_exist", min_frequency=5)
+        # cat_enc = OneHotEncoder(handle_unknown="infrequent_if_exist", min_frequency=5)
 
     num_tf = Pipeline(steps=[("imputer", num_imputer), ("standardiser", num_stand)])
     cat_tf = Pipeline(
@@ -423,10 +470,15 @@ if __name__ == "__main__":
     else:
         pipelines = [clone(pipeline) for _ in range(Y.shape[1])]
         for col_idx, pipeline in enumerate(pipelines):
-            col = Y_train.columns[col_idx]
+            col = Y.columns[col_idx]
+            if args.eval_split_type == "stratified":
+                X_train = strat_X_train[col_idx]
+                y_train = strat_Y_train[col_idx]
+            else:
+                y_train = Y_train[col]
             pipeline.fit(
                 X_train.reset_index(drop=True),
-                Y_train.reset_index(drop=True)[col],
+                y_train.reset_index(drop=True),
                 **pipeline_settings,
             )
 
@@ -462,7 +514,7 @@ if __name__ == "__main__":
             if len(Y.shape) == 1:
                 col = Y.name
             else:
-                col = Y_train.columns[col_idx]
+                col = Y.columns[col_idx]
             print(f"Best ML learner for {col}:", automl.best_estimator)
             print("Best hyperparameter config:", automl.best_config)
             print(f"Best accuracy on validation data: {1 - automl.best_loss:.4g}")
@@ -472,8 +524,37 @@ if __name__ == "__main__":
                 )
             )
             if args.ftr_impt:
-                y = Y.values[:, col_idx]
-                X_tf = pipeline.steps[0][1].transform(X)
+                if len(Y.shape) > 1:
+                    y = Y.iloc[:, col_idx]
+                else:
+                    y = Y
+                ftr_names = pipeline[:-1].get_feature_names_out()
+                ftr_names = [
+                    name.split("__")[1] if "__" in name else name for name in ftr_names
+                ]
+
+                X_tf = pd.DataFrame(
+                    pipeline[:-1].transform(X), columns=ftr_names, index=X.index
+                )
+                # ordinal encode categorical columns so fit method always works
+                # but leave as type category so rest works out
+                categorical_features = X_tf.select_dtypes(exclude=[np.number]).columns
+                try:
+                    X_tf[categorical_features] = pd.concat(
+                        [
+                            X_tf[cat_col].astype("category").cat.codes
+                            for cat_col in categorical_features
+                        ],
+                        axis=1,
+                    ).astype("category")
+                except:
+                    print(X_tf.columns)
+                print(
+                    X_tf[
+                        [col for col in X_tf.columns if "commuting_zone" in col]
+                    ].head()
+                )
+                # pipeline.steps[0][1].transform(X)
                 ftr_subset = boruta_shap_ftr_select(
                     X_tf,
                     y,
@@ -493,9 +574,13 @@ if __name__ == "__main__":
             # plt.barh(automl.feature_names_in_, automl.feature_importances_)
 
             # compute different metrics on test set
-            y_pred = pipeline.predict(X_test)
             if len(Y.shape) > 1:
-                y_test = Y_test.values[:, col_idx]
+                if args.eval_split_type == "stratified":
+                    X_test = strat_X_test[col_idx]
+                    y_test = strat_Y_test[col_idx]
+                else:
+                    y_test = Y_test.values[:, col_idx]
+            y_pred = pipeline.predict(X_test)
             r2_val = 1 - sklearn_metric_loss_score("r2", y_pred, y_test)
             print("r2", "=", r2_val)
             mse_val = sklearn_metric_loss_score("mse", y_pred, y_test)

@@ -1,23 +1,22 @@
-# -*- coding: utf-8 -*-
-import wget
-import zipfile
-import os
-import yaml
-import pandas as pd
 import glob
+import os
 import pprint
-
+import zipfile
 from functools import wraps
 from time import time
 
-from src.stc_unicef_cpi.utils.constants import open_cell_colnames
+import pandas as pd
+import wget
+import yaml  # type: ignore
+
+from stc_unicef_cpi.utils.constants import open_cell_colnames
 
 
 def read_yaml_file(yaml_file):
     """Load yaml configurations"""
     config = None
     try:
-        with open(yaml_file, "r") as f:
+        with open(yaml_file) as f:
             config = yaml.safe_load(f)
     except:
         raise FileNotFoundError("Couldn't load the file")
@@ -41,9 +40,10 @@ def get_open_cell_credentials(creds_file):
     return token
 
 
-class PrettyLog():
+class PrettyLog:
     def __init__(self, obj):
         self.obj = obj
+
     def __repr__(self):
         return pprint.pformat(self.obj)
 
@@ -101,7 +101,7 @@ def prepend(list, str):
     :param str: string to prepend to each element
     :type str: str
     """
-    str += '{0}'
+    str += "{0}"
     list = [str.format(element) for element in list]
 
     return list
@@ -113,7 +113,11 @@ def timing(f):
         ts = time()
         result = f(*args, **kw)
         te = time()
-        print("func:%r args:[%r, %r] took: %2.4f sec" % (f.__name__, args, kw, te - ts))
+        print(
+            "func:{!r} args:[{!r}, {!r}] took: {:2.4f} sec".format(
+                f.__name__, args, kw, te - ts
+            )
+        )
         return result
 
     return wrap

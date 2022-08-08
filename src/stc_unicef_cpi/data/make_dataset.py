@@ -1,19 +1,20 @@
-# -*- coding: utf-8 -*-
-import pandas as pd
-import geopandas as gpd
+import argparse
 import glob as glob
+import sys
+from functools import partial, reduce
+
+import geopandas as gpd
+import numpy as np
+import pandas as pd
 import rioxarray as rxr
 import shapely.wkt
-import numpy as np
 
-import src.stc_unicef_cpi.utils.constants as c
-import src.stc_unicef_cpi.data.process_geotiff as pg
-import src.stc_unicef_cpi.utils.general as g
-import src.stc_unicef_cpi.data.process_netcdf as net
-import src.stc_unicef_cpi.utils.geospatial as geo
-
-from functools import reduce, partial
-from src.stc_unicef_cpi.data.stream_data import RunStreamer
+import stc_unicef_cpi.data.process_geotiff as pg
+import stc_unicef_cpi.data.process_netcdf as net
+import stc_unicef_cpi.utils.constants as c
+import stc_unicef_cpi.utils.general as g
+import stc_unicef_cpi.utils.geospatial as geo
+from stc_unicef_cpi.data.stream_data import RunStreamer
 
 
 def read_input_unicef(path_read):
@@ -62,7 +63,9 @@ def aggregate_dataset(df):
     """
 
     df_mean = df.groupby(by=["hex_code"], as_index=False).mean()
-    df_count = df.groupby(by=["hex_code"], as_index=False).count()[['hex_code', 'survey']]
+    df_count = df.groupby(by=["hex_code"], as_index=False).count()[
+        ["hex_code", "survey"]
+    ]
     return df_mean, df_count
 
 
@@ -73,9 +76,9 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
     sub = geo.get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
     sub_mean, sub_count = aggregate_dataset(sub)
-    sub_count = sub_count[sub_count.survey>=threshold]
+    sub_count = sub_count[sub_count.survey >= threshold]
     survey = geo.get_hex_centroid(sub_mean, "hex_code")
-    survey_threshold = sub_count.merge(survey, how='left', on='hex_code')
+    survey_threshold = sub_count.merge(survey, how="left", on="hex_code")
     return survey_threshold
 
 
@@ -111,7 +114,9 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     g.create_folder(out_dir)
 
     # clip gdp ppp 30 arc sec
-    net.netcdf_to_clipped_array(f"{read_dir}/gdp_ppp_30.nc", ctry_name=country, save_dir=out_dir)
+    net.netcdf_to_clipped_array(
+        f"{read_dir}/gdp_ppp_30.nc", ctry_name=country, save_dir=out_dir
+    )
 
     # clip ec and gdp
     tifs = f"{read_dir}/*/*/2019/*.tif"
@@ -120,7 +125,11 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
 
     # reproject resolution + crs
     econ_tiffs = sorted(glob.glob(f"{out_dir}/{country.lower()}*.tif"))
-    attributes = [["GDP_2019"], ["EC_2019"], ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"]]
+    attributes = [
+        ["GDP_2019"],
+        ["EC_2019"],
+        ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"],
+    ]
     mapfunc = partial(change_name_reproject_tiff, country=country)
     list(map(mapfunc, econ_tiffs, attributes))
 
@@ -136,23 +145,32 @@ def preprocessed_speed_test(speed, res, country):
     speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
     speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
     world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-    speed = gpd.sjoin(speed, world[world.name == country], how="inner", op="intersects").reset_index(drop=True)
-    tmp = speed.geometry.swifter.apply(lambda x: pd.Series(np.array(x.centroid.coords.xy).flatten()))
+    speed = gpd.sjoin(
+        speed, world[world.name == country], how="inner", op="intersects"
+    ).reset_index(drop=True)
+    tmp = speed.geometry.swifter.apply(
+        lambda x: pd.Series(np.array(x.centroid.coords.xy).flatten())
+    )
     speed[["long", "lat"]] = tmp
     speed = geo.get_hex_code(speed, "lat", "long", res)
-    speed = speed[["hex_code", "avg_d_kbps", "avg_u_kbps"]].groupby("hex_code").mean().reset_index()
+    speed = (
+        speed[["hex_code", "avg_d_kbps", "avg_u_kbps"]]
+        .groupby("hex_code")
+        .mean()
+        .reset_index()
+    )
     return speed
 
 
 def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
     """Preprocess commuting zones"""
     commuting = pd.read_csv(f"{read_dir}/commuting_zones.csv")
-    commuting = commuting[commuting['country'] == country]
-    comm = list(commuting['geometry'])
+    commuting = commuting[commuting["country"] == country]
+    comm = list(commuting["geometry"])
     comm_zones = pd.concat(list(map(partial(geo.hexes_poly, res=res), comm)))
-    comm_zones = comm_zones.merge(commuting, on='geometry', how='left')
-    comm_zones = comm_zones.add_suffix('_commuting')
-    comm_zones.rename(columns={'hex_code_commuting': 'hex_code'}, inplace=True)
+    comm_zones = comm_zones.merge(commuting, on="geometry", how="left")
+    comm_zones = comm_zones.add_suffix("_commuting")
+    comm_zones.rename(columns={"hex_code_commuting": "hex_code"}, inplace=True)
 
     return comm_zones
 
@@ -176,14 +194,14 @@ def append_features_to_hexes(
     # TODO: Integrate satellite information to pipeline
     # Country hexes
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
-    ctry = pd.DataFrame(hexes_ctry, columns=['hex_code'])
+    ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
     # Retrieve external data
     RunStreamer(country, res, force, audience)
 
     # Facebook connectivity metrics
     if audience:
-        fb = pd.read_parquet(f'fb_aud_{country.lower()}_res{res}.parquet')
+        fb = pd.read_parquet(f"fb_aud_{country.lower()}_res{res}.parquet")
         fb = geo.get_hex_centroid(fb)
 
     # Preprocessed tiff files
@@ -203,17 +221,17 @@ def append_features_to_hexes(
     road = pd.read_csv(f"{read_dir}/road_density_{country.lower()}_res{res}.csv")
 
     # Speed Test
-    speed = pd.read_csv(f'{read_dir}/2021-10-01_performance_mobile_tiles.csv')
+    speed = pd.read_csv(f"{read_dir}/2021-10-01_performance_mobile_tiles.csv")
     speed = preprocessed_speed_test(speed, res, country)
 
     # Critical Infrastructure
     file_cisi = f"{save_dir}/{country.lower()}_global.tif"
-    ctry = pg.agg_tif_to_df(ctry, file_cisi, f'{country.lower()}_', verbose=True)
+    ctry = pg.agg_tif_to_df(ctry, file_cisi, f"{country.lower()}_", verbose=True)
 
     # Open Cell Data
-    cell = create_geometry(cell, "lat", "long")
-    #cell = get_hex_code(cell, "lat", "long")
-    #cell = aggregate_hexagon(cell, "cid", "cells", "count")
+    cell = geo.create_geometry(cell, "lat", "long")
+    # cell = get_hex_code(cell, "lat", "long")
+    # cell = aggregate_hexagon(cell, "cid", "cells", "count")
 
     # Aggregate Data
     dfs = [ctry, commuting, cz, road, speed, cell]
@@ -221,7 +239,7 @@ def append_features_to_hexes(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
 
-    #sub = pg.agg_tif_to_df(
+    # sub = pg.agg_tif_to_df(
     #    sub,
     #    glob.glob(f"{read_dir}/gee/*{country.lower()}*"),
     #    rm_prefix="cpi",
@@ -229,15 +247,10 @@ def append_features_to_hexes(
     #    max_records=int(1e5),
     #    replace_old=True,
     #    verbose=False,
-    #)
+    # )
     print(hexes)
 
     return hexes
-
-
-append_features_to_hexes(
-    country='Senegal', res=7
-)
 
 
 def append_target_variable_to_hexes(
@@ -248,13 +261,36 @@ def append_target_variable_to_hexes(
     long="longnum",
     save_dir=c.int_data,
     threshold=c.cutoff,
-    read_dir=c.raw_data
+    read_dir=c.raw_data,
 ):
     train = create_target_variable(country_code, res, lat, long, threshold, read_dir)
     complete = append_features_to_hexes(country, read_dir, save_dir)
-    complete = complete.merge(train, on='hex_code', how='left')
+    complete = complete.merge(train, on="hex_code", how="left")
     return complete
 
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
+    parser.add_argument(
+        "-c",
+        "--country",
+        type=str,
+        help="Country to make dataset for, default is Nigeria",
+        default="Nigeria",
+    )
+    parser.add_argument(
+        "-r",
+        "--resolution",
+        type=int,
+        help="H3 resolution level, default is 7",
+        default=7,
+    )
+    try:
+        args = parser.parse_args()
+    except argparse.ArgumentError:
+        parser.print_help()
+        sys.exit(0)
+    append_features_to_hexes(country=args.country, res=args.resolution)
 ## Health Sites
 # hh = pd.read_csv("nga_health.csv")
 # hh = hh[~hh.X.isna()]

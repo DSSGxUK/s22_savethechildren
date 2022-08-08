@@ -1,17 +1,16 @@
-# -*- coding: utf-8 -*
-import pandas as pd
-import h3.api.numpy_int as h3
-import requests
 import time
-
-from shapely import wkt
 from io import StringIO
 
-from src.stc_unicef_cpi.utils.geospatial import (
-    get_poly_boundary,
-    get_hexes_for_ctry,
+import h3.api.numpy_int as h3
+import pandas as pd
+import requests  # type: ignore
+from shapely import wkt
+
+from stc_unicef_cpi.utils.geospatial import (
     get_area_polygon,
     get_hex_code,
+    get_hexes_for_ctry,
+    get_poly_boundary,
 )
 
 

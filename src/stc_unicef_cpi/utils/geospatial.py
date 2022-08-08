@@ -1,16 +1,14 @@
-# -*- coding: utf-8 -*-
+import math
+
 import geopandas as gpd
 import h3.api.numpy_int as h3
-import math
 import pandas as pd
 import shapely.wkt
-
-from shapely import wkt
 from pyproj import Geod
+from shapely import geometry, wkt
 from shapely.geometry.polygon import Polygon
-from shapely import geometry
 
-from src.stc_unicef_cpi.utils.constants import res_area
+from stc_unicef_cpi.utils.constants import res_area
 
 
 def get_hex_radius(res):
@@ -41,7 +39,7 @@ def get_lat_long(data, geo_col):
     return data
 
 
-def get_hex_centroid(data, hex_code='hex_code'):
+def get_hex_centroid(data, hex_code="hex_code"):
     """Get centroid of hexagon
     :param data: dataset
     :type data: dataframe
@@ -130,12 +128,12 @@ def get_poly_boundary(df, hex_code):
 def format_polygons(poly):
     """Retrive type of polygon and convert to list"""
     geom = shapely.wkt.loads(poly)
-    if geom.geom_type == 'MultiPolygon':
+    if geom.geom_type == "MultiPolygon":
         polygons = list(geom.geoms)
-    elif geom.geom_type == 'Polygon':
+    elif geom.geom_type == "Polygon":
         polygons = [geom]
     else:
-        raise IOError('Shape is not a polygon.')
+        raise OSError("Shape is not a polygon.")
     return polygons
 
 
@@ -150,9 +148,12 @@ def hexes_poly(poly, res):
     :rtype: _type_
     """
     polygons = format_polygons(poly)
-    hexs = [h3.polyfill(geometry.mapping(polygon), res, geo_json_conformant=True) for polygon in polygons]
-    hexs = list(set([item for sublist in hexs for item in sublist]))
+    hexs = [
+        h3.polyfill(geometry.mapping(polygon), res, geo_json_conformant=True)
+        for polygon in polygons
+    ]
+    hexs = list({item for sublist in hexs for item in sublist})
     df = pd.DataFrame(hexs)
-    df.rename(columns={0:'hex_code'}, inplace=True)
-    df['geometry'] = poly
+    df.rename(columns={0: "hex_code"}, inplace=True)
+    df["geometry"] = poly
     return df
