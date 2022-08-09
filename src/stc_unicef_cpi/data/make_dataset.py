@@ -47,7 +47,7 @@ def select_country(df, country_code, lat, long):
     :rtype: _type_
     """
     df.columns = df.columns.str.lower()
-    subset = df[df["countrycode"].str.strip() == country_code]
+    subset = df[df["countrycode"].str.strip() == country_code].copy()
     subset.dropna(subset=[lat, long], inplace=True)
     return subset
 
@@ -215,11 +215,26 @@ def append_features_to_hexes(
 
     logger.info("Starting process...")
 
+<<<<<<< HEAD
+=======
+    # Country hexes
+    logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
+    hexes_ctry = geo.get_hexes_for_ctry(country, res)
+    ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
+
+>>>>>>> cad6b9492e8ca15b940c1140f6d18b127f9ea6c8
     # Retrieve external data
     print(
         f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
     )
-    RunStreamer(country, res, force, audience)
+    RunStreamer(
+        country,
+        res,
+        force,
+        audience,
+        read_path=c.ext_data,
+        name_logger=c.str_log,
+    )
     logger.info("Finished data retrieval.")
     logger.info(
         f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee."
@@ -227,9 +242,13 @@ def append_features_to_hexes(
     time.sleep(100)
 
     # Country hexes
+<<<<<<< HEAD
     logger.info(
         f"Retrieving hexagons for {country} at resolution {res}."
         )
+=======
+    logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
+>>>>>>> cad6b9492e8ca15b940c1140f6d18b127f9ea6c8
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
     ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 

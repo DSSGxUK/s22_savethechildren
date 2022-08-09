@@ -1,4 +1,5 @@
 import argparse
+import pickle
 import sys
 import warnings
 from pathlib import Path
@@ -152,10 +153,13 @@ if __name__ == "__main__":
             "water",
             "av-severity",
             "av-prevalence",
+            "av-2-prevalence",
             "health",
             "nutrition",
+            "av-3-prevalence",
+            "av-4-prevalence",
         ],
-        help="Target variable to use for training, default is all, choices are 'all' (train separate model for each of the following), 'av-severity' (average number of deprivations / child), 'av-prevalence' (average proportion of children with at least one deprivation), or proportion of children deprived in 'education', 'sanitation', 'housing', 'water'. May also pass 'health' or 'nutrition' but limited ground truth data increases model variance.",
+        help="Target variable to use for training, default is all, choices are 'all' (train separate model for each of the following), 'av-severity' (average number of deprivations / child), 'av-prevalence' (average proportion of children with at least one deprivation), 'av-2-prevalence' (average proportion of children with at least two deprivations), proportion of children deprived in 'education', 'sanitation', 'housing', 'water'. May also pass 'health' or 'nutrition' but limited ground truth data increases model variance. Similarly may pass 'av-3-prevalence' or 'av-4-prevalence', but ~50pc of cell data is exactly zero for 3, and ~80pc for 4, so again causes modelling issues.",
     )
     parser.add_argument(
         "--impute",
@@ -187,6 +191,11 @@ if __name__ == "__main__":
         "--save-model",
         action="store_true",
         help="Save trained models (joblib pickled), by default in a /models directory contained in same parent folder as args.data",
+    )
+    parser.add_argument(
+        "--automl-warm-start",
+        action="store_true",
+        help="When possible, use best model configuration found from previous runs to initialise hyperparameter search for each model.",
     )
     parser.add_argument(
         "--plot",
@@ -271,6 +280,12 @@ if __name__ == "__main__":
             target_name = "sumpoor_sev"
         elif args.target == "av-prevalence":
             target_name = "deprived_sev"
+        elif args.target == "av-2-prevalence":
+            target_name = "dep_2_or_more_sev"
+        elif args.target == "av-3-prevalence":
+            target_name = "dep_3_or_more_sev"
+        elif args.target == "av-4-prevalence":
+            target_name = "dep_4_or_more_sev"
         else:
             if args.target in ["health", "nutrition"]:
                 warnings.warn(
@@ -280,7 +295,7 @@ if __name__ == "__main__":
         Y = XY[target_name].copy()
     else:
         # NB only evaluating on good idxs here, if want to do health / nutrition need to pass explicitly.
-        good_idxs = ["housing", "water", "sanitation", "education"]
+        good_idxs = ["housing", "water", "sanitation", "education", "2_or_more"]
         Y = XY[
             list(map(lambda x: f"dep_{x}_sev", good_idxs))
             + ["sumpoor_sev", "deprived_sev"]
@@ -461,7 +476,17 @@ if __name__ == "__main__":
 
     pipeline = Pipeline([("preprocessor", col_tf), ("model", model)])
 
+    univ_data = "univ" if args.universal_data_only else "all"
+    ip_data = "ip" if args.interpretable else "nip"
     if len(Y.shape) == 1:
+        pipeline_desc = f"best_cfg-{args.country}-{args.target}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+        if args.automl_warm_start:
+            try:
+                with open(DATA_DIRECTORY.parent / "models" / pipeline_desc, "rb") as f:
+                    start_pts = pickle.load(f)  # type: ignore
+            except FileNotFoundError:
+                print("No warm start available.")
+        pipeline_settings["model__starting_points"] = start_pts
         pipeline.fit(
             X_train.reset_index(drop=True),
             Y_train.reset_index(drop=True),
@@ -471,6 +496,15 @@ if __name__ == "__main__":
         pipelines = [clone(pipeline) for _ in range(Y.shape[1])]
         for col_idx, pipeline in enumerate(pipelines):
             col = Y.columns[col_idx]
+            if args.automl_warm_start:
+                try:
+                    pipeline_desc = f"best_cfg-{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+                    with open(
+                        DATA_DIRECTORY.parent / "models" / pipeline_desc, "rb"
+                    ) as f:
+                        start_pts = pickle.load(f)  # type: ignore
+                except FileNotFoundError:
+                    print("No warm start available.")
             if args.eval_split_type == "stratified":
                 X_train = strat_X_train[col_idx]
                 y_train = strat_Y_train[col_idx]
@@ -646,17 +680,24 @@ if __name__ == "__main__":
                         )
             if args.save_model:
                 if args.target != "all":
+                    model_desc = f"{args.country}-{args.target}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}"
+                    pipeline_desc = f"best_cfg-{model_desc}.pkl"
                     with open(
-                        SAVE_DIRECTORY
-                        / f"{args.country}-{args.target}-{args.model}.pkl",
+                        SAVE_DIRECTORY / f"{model_desc}.pkl",
                         "wb",
                     ) as f:
                         joblib.dump(pipeline, f)
+                    with open(SAVE_DIRECTORY / pipeline_desc, "wb") as f:
+                        pickle.dump(automl.best_config_per_estimator, f)
                 else:
-                    with open(
-                        SAVE_DIRECTORY / f"{args.country}-{col}-{args.model}.pkl", "wb"
-                    ) as f:
+                    # TODO: change model save description
+                    model_desc = f"{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}"
+                    pipeline_desc = f"best_cfg-{model_desc}.pkl"
+                    with open(SAVE_DIRECTORY / f"{model_desc}.pkl", "wb") as f:
                         joblib.dump(pipeline, f)
+
+                    with open(SAVE_DIRECTORY / pipeline_desc, "wb") as f:
+                        pickle.dump(automl.best_config_per_estimator, f)
 
     if args.log_run:
         mlflow.end_run()

@@ -2,12 +2,12 @@ import glob
 import os
 import pprint
 import zipfile
-import pandas as pd
-import wget
-import yaml
-
 from functools import wraps
 from time import time
+
+import pandas as pd
+import wget
+import yaml  # type: ignore
 
 from stc_unicef_cpi.utils.constants import open_cell_colnames
 

@@ -3,7 +3,9 @@ import glob as glob
 import logging
 import os
 import warnings
+
 import pandas as pd
+from rich import pretty, print
 
 import stc_unicef_cpi.data.get_cell_tower_data as cell
 import stc_unicef_cpi.data.get_econ_data as econ
@@ -14,12 +16,12 @@ import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
 
-from rich import print, pretty
-
 try:
     import stc_unicef_cpi.data.get_facebook_data as fb
 except:
-    warnings.warn(" -- Necessary modules for FB data not found - assuming this is not used")
+    warnings.warn(
+        " -- Necessary modules for FB data not found - assuming this is not used"
+    )
 
 
 class StreamerObject:
@@ -27,6 +29,7 @@ class StreamerObject:
         self.read_path = read_path
         self.country = country
         self.force = force
+
 
 @g.timing
 class GoogleEarthEngineStreamer(StreamerObject):
@@ -70,18 +73,21 @@ class GoogleEarthEngineStreamer(StreamerObject):
                 )
             else:
                 self.logging.info(
-                    g.PrettyLog(f" -- Downloading satellite images of {self.country}...")
+                    g.PrettyLog(
+                        f" -- Downloading satellite images of {self.country}..."
+                    )
                 )
                 ge.SatelliteImages(
                     self.country, self.folder, self.res, self.start, self.end
                 )
 
+
 @g.timing
 class EconomicStreamer(StreamerObject):
     """Stream economic variables if not downloaded"""
 
-    def __init__(self, country, read_path, force, logging):
-        super().__init__(country, read_path, force)
+    def __init__(self, country, force, read_path, logging):
+        super().__init__(country, force, read_path)
         self.logging = logging
         self.implement()
 
@@ -102,7 +108,9 @@ class EconomicStreamer(StreamerObject):
                     )
                 )
             else:
-                self.logging.info(f" -- Downloading economic data for {self.country}...")
+                self.logging.info(
+                    f" -- Downloading economic data for {self.country}..."
+                )
                 econ.download_econ_data(self.read_path)
 
 
@@ -135,9 +143,12 @@ class FacebookMarketingStreamer(StreamerObject):
                 )
             else:
                 self.logging.info(
-                    g.PrettyLog(f" -- Dowloading audience estimates for {self.country}...")
+                    g.PrettyLog(
+                        f" -- Dowloading audience estimates for {self.country}..."
+                    )
                 )
                 fb.get_facebook_estimates(coords, self.read_path, file_name, self.res)
+
 
 @g.timing
 class RoadDensityStreamer(StreamerObject):
@@ -155,7 +166,9 @@ class RoadDensityStreamer(StreamerObject):
         )
         if self.force:
             self.logging.info(
-                g.PrettyLog(f" -- Retrieving road density estimates for {self.country}...")
+                g.PrettyLog(
+                    f" -- Retrieving road density estimates for {self.country}..."
+                )
             )
             rd = osm.get_road_density(self.country, self.res)
             rd.to_csv(f"{self.read_path}/{file_name}", index=False)
@@ -175,6 +188,7 @@ class RoadDensityStreamer(StreamerObject):
                 rd = osm.get_road_density(self.country, self.res)
                 print(rd)
                 rd.to_csv(f"{self.read_path}/{file_name}", index=False)
+
 
 @g.timing
 class SpeedTestStreamer(StreamerObject):
@@ -249,7 +263,9 @@ class OpenCellStreamer(StreamerObject):
                 )
             else:
                 self.logging.info(
-                    g.PrettyLog(f" -- Retrieving open cell id data for {self.country}...")
+                    g.PrettyLog(
+                        f" -- Retrieving open cell id data for {self.country}..."
+                    )
                 )
                 cell.get_cell_data(self.country, self.read_path)
 
@@ -271,11 +287,14 @@ class RunStreamer(StreamerObject):
             format="%(filename)s: %(message)s",
             level=logging.INFO,
         )
+
         pretty.install()
         print(f" -- Retrieving google earth engine images for {self.country}...")
         GoogleEarthEngineStreamer(self.country, self.force, self.read_path, logging)
 
-        print(f" -- Retrieving road density estimates for {self.country}... This might take a while...")
+        print(
+            f" -- Retrieving road density estimates for {self.country}... This might take a while..."
+        )
         RoadDensityStreamer(self.country, self.force, self.read_path, self.res, logging)
 
         print(f" -- Retrieving speed test estimates for {self.country}...")
@@ -283,7 +302,7 @@ class RunStreamer(StreamerObject):
 
         print(f" -- Retrieving economic data for {self.country}...")
         EconomicStreamer(self.country, self.force, self.read_path, logging)
-    
+
         print(f" -- Retrieving cell tower data for {self.country}...")
         OpenCellStreamer(self.country, self.force, self.read_path, logging)
         if self.audience:
