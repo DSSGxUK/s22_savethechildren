@@ -122,10 +122,11 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     # reproject resolution + crs
     print("Reprojecting resolution & determining crs")
     econ_tiffs = sorted(glob.glob(str(Path(read_dir) / f"{country.lower()}_*.tif")))
+    econ_tiffs = [ele for ele in econ_tiffs if "africa" not in ele]
     attributes = [
-        ["GDP_2019"],
-        ["EC_2019"],
-        ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"]
+        ["gdp_2019"],
+        ["ec_2019"],
+        ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"]
     ]
     mapfunc = partial(change_name_reproject_tiff, country=country)
     list(map(mapfunc, econ_tiffs, attributes))
