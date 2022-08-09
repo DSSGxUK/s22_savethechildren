@@ -3,18 +3,19 @@ import glob as glob
 import logging
 import os
 import warnings
-
 import pandas as pd
-from rich import pretty, print
 
 import stc_unicef_cpi.data.get_cell_tower_data as cell
 import stc_unicef_cpi.data.get_econ_data as econ
 import stc_unicef_cpi.data.get_osm_data as osm
 import stc_unicef_cpi.data.get_satellite_data as ge
 import stc_unicef_cpi.data.get_speedtest_data as speed
+import stc_unicef_cpi.data.get_facebook_data as fb
 import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
+
+from rich import pretty, print
 
 try:
     import stc_unicef_cpi.data.get_facebook_data as fb
@@ -305,6 +306,7 @@ class RunStreamer(StreamerObject):
 
         print(f" -- Retrieving cell tower data for {self.country}...")
         OpenCellStreamer(self.country, self.force, self.read_path, logging)
+
         if self.audience:
             print(f" -- Retrieving facebook data for {self.country}...")
             FacebookMarketingStreamer(

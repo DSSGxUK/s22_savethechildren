@@ -215,14 +215,6 @@ def append_features_to_hexes(
 
     logger.info("Starting process...")
 
-<<<<<<< HEAD
-=======
-    # Country hexes
-    logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
-    hexes_ctry = geo.get_hexes_for_ctry(country, res)
-    ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
-
->>>>>>> cad6b9492e8ca15b940c1140f6d18b127f9ea6c8
     # Retrieve external data
     print(
         f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
@@ -242,13 +234,7 @@ def append_features_to_hexes(
     time.sleep(100)
 
     # Country hexes
-<<<<<<< HEAD
-    logger.info(
-        f"Retrieving hexagons for {country} at resolution {res}."
-        )
-=======
     logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
->>>>>>> cad6b9492e8ca15b940c1140f6d18b127f9ea6c8
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
     ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
@@ -416,7 +402,7 @@ if __name__ == "__main__":
     )
 
     # TODO: add autoencoder features
-
+    
 ## Health Sites
 # hh = pd.read_csv("nga_health.csv")
 # hh = hh[~hh.X.isna()]
