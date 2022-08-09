@@ -96,6 +96,7 @@ def change_name_reproject_tiff(tiff, attribute, country, read_dir=c.ext_data, ou
         pg.rxr_reproject_tiff_to_target(tiff, p_r, Path(out_dir) / fname, verbose=True)
 
 
+@g.timing
 def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     """Preprocess tiff files
     :param country: _description_
@@ -139,6 +140,7 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     pg.rxr_reproject_tiff_to_target(cisi_ctry, p_r, Path(out_dir) / fname, verbose=True)
 
 
+@g.timing
 def preprocessed_speed_test(speed, res, country):
     speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
     speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
@@ -160,6 +162,7 @@ def preprocessed_speed_test(speed, res, country):
     return speed
 
 
+@g.timing
 def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
     """Preprocess commuting zones"""
     commuting = pd.read_csv(Path(read_dir) / "commuting_zones.csv")
@@ -215,15 +218,16 @@ def append_features_to_hexes(
 
     # Facebook connectivity metrics
     if audience:
-        logger.info(f'Collecting audience estimates for {country} at resolution {res}.')
+        logger.info(f'Collecting audience estimates for {country} at resolution {res}...')
         fb = pd.read_parquet(Path(read_dir) / f"fb_aud_{country.lower()}_res{res}.parquet")
         fb = geo.get_hex_centroid(fb)
 
     # Preprocessed tiff files
-    logger.info(f'Collecting audience estimates for {country} at resolution {res}.')
+    logger.info(f'Preprocessing tiff files from {read_dir} and saving to {save_dir}..')
     preprocessed_tiff_files(country, read_dir, save_dir)
 
     # Conflict Zones
+    logger.info("Reading and computing conflict zone estimates...")
     cz = pd.read_csv(Path(read_dir) / "conflict/GEDEvent_v22_1.csv")
     cz = cz[cz.country == country]
     cz = geo.create_geometry(cz, "latitude", "longitude")
@@ -231,9 +235,11 @@ def append_features_to_hexes(
     cz = geo.aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
 
     # Commuting zones
+    logger.info("Reading and computing commuting zone estimates...")
     commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
 
     # Economic data
+    logger.info("Retrieving features from economic tif files...")
     econ_files = glob.glob(str(Path(save_dir) / f"{country.lower()}*.tif"))
     econ_files = [ele for ele in econ_files if "ppp" not in ele]
     econ = list(map(pg.geotiff_to_df, econ_files))
@@ -245,6 +251,7 @@ def append_features_to_hexes(
     econ = econ.merge(ppp, on=["latitude", "longitude"], how="outer")
 
     # Google Earth Engine
+    logger.info("Retrieving features from google earth engine tif files...")
     gee_files = glob.glob(str(Path(read_dir) / "gee" / f"*_{country.lower()}*.tif"))
     gee = list(map(pg.geotiff_to_df, gee_files))
     gee = reduce(
@@ -252,34 +259,40 @@ def append_features_to_hexes(
     )
 
     # Join GEE with Econ
+    logger.info("Merging and aggregating features from tiff files to hexagons...")
     images = gee.merge(econ, on=["latitude", "longitude"], how="outer")
     images = geo.create_geometry(images, "latitude", "longitude")
-    images = geo.get_hex_code(images, "latitude", "longitude")
+    images = geo.get_hex_code(images, "latitude", "longitude", res)
     images = images.groupby("hex_code").mean().reset_index(drop=True)
     images = images.drop(["latitude", "longitude"], axis=1)
     print(images)
     # Road density
+    logger.info("Reading road density estimates...")
     road = pd.read_csv(Path(read_dir) / f"road_density_{country.lower()}_res{res}.csv")
 
     # Speed Test
+    logger.info("Reading speed test estimates...")
     speed = pd.read_csv(Path(read_dir) / "2021-10-01_performance_mobile_tiles.csv")
-
     speed = preprocessed_speed_test(speed, res, country)
 
     # Open Cell Data
+    logger.info("Reading open cell data...")
+    cell = pd.read_csv(glob.glob(str(Path(read_dir) / f"{country.lower()}_*gz.tmp"))[0])
     cell = geo.create_geometry(cell, "lat", "long")
-    cell = geo.get_hex_code(cell, "lat", "long")
+    cell = geo.get_hex_code(cell, "lat", "long", res)
     cell = geo.aggregate_hexagon(cell, "cid", "cells", "count")
 
     # Aggregate Data
+    logger.info("Merging and aggregating features all features")
     dfs = [ctry, commuting, cz, road, speed, cell, images]
     hexes = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
+    logger.info('Finishing process...')
     print(hexes)
     return hexes
 
-
+@g.timing
 def append_target_variable_to_hexes(
     country_code,
     country,
