@@ -69,6 +69,9 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
     source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
+    # Create variables for two or more deprivations
+    for k in range(2, 5):
+        sub[f"dep_{k}_or_more_sev"] = np.where(sub['sumpoor_sev'] >= k, 1, 0)
     sub = geo.get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
     sub_mean, sub_count = aggregate_dataset(sub)
@@ -215,7 +218,7 @@ def append_features_to_hexes(
     logger.info(
         f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
     )
-    RunStreamer(country, res, force, audience)
+    #RunStreamer(country, res, force, audience)
     logger.info('Finished data retrieval.')
     logger.info(
         f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee."
@@ -327,6 +330,7 @@ def append_target_variable_to_hexes(
 
 
 if __name__ == "__main__":
+    
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
     parser.add_argument(
         "-cc",
@@ -335,6 +339,7 @@ if __name__ == "__main__":
         help="Country code to make dataset for, default is NGA",
         default="NGA",
     )
+
     parser.add_argument(
         "-c",
         "--country",
@@ -342,6 +347,7 @@ if __name__ == "__main__":
         help="Country to make dataset for, default is Nigeria",
         default="Nigeria",
     )
+
     parser.add_argument(
         "-r",
         "--resolution",
@@ -349,11 +355,13 @@ if __name__ == "__main__":
         help="H3 resolution level, default is 7",
         default=7,
     )
+
     try:
         args = parser.parse_args()
     except argparse.ArgumentError:
         parser.print_help()
         sys.exit(0)
+
     append_target_variable_to_hexes(
         country_code=args.country_code,
         country=args.country,
