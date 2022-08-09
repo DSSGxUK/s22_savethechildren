@@ -267,11 +267,11 @@ class RunStreamer(StreamerObject):
             format="%(filename)s: %(message)s",
             level=logging.INFO,
         )
-        GoogleEarthEngineStreamer(self.country, self.force, self.read_path, logging)
-        RoadDensityStreamer(self.country, self.force, self.read_path, self.res, logging)
-        SpeedTestStreamer(self.country, self.force, self.read_path, logging)
+        #GoogleEarthEngineStreamer(self.country, self.force, self.read_path, logging)
+        #RoadDensityStreamer(self.country, self.force, self.read_path, self.res, logging)
+        #SpeedTestStreamer(self.country, self.force, self.read_path, logging)
         EconomicStreamer(self.country, self.force, self.read_path, logging)
-        OpenCellStreamer(self.country, self.force, self.read_path, logging)
+        #OpenCellStreamer(self.country, self.force, self.read_path, logging)
         if self.audience:
             FacebookMarketingStreamer(
                 self.country, self.force, self.read_path, self.res, logging
