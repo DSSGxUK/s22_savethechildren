@@ -169,14 +169,14 @@ if __name__ == "__main__":
         type=str,
         default="none",
         choices=["none", "standard", "minmax", "robust"],
-        help="Standardise feature data prior to fitting model, options are None (default, leave raw), standard (z-score), minmax (min-max normalisation to limit to 0-1 range), or robust (median and quantile version of z-score)",
+        help="Standardise feature data prior to fitting model, options are none (default, leave raw), standard (z-score), minmax (min-max normalisation to limit to 0-1 range), or robust (median and quantile version of z-score)",
     )
     parser.add_argument(
         "--target-transform",
         type=str,
         default="none",
         choices=["none", "log", "power"],
-        help="Transform target variable(s) prior to fitting model - choices of None (default, leave raw), 'log', 'power' (Yeo-Johnson)",
+        help="Transform target variable(s) prior to fitting model - choices of none (default, leave raw), 'log', 'power' (Yeo-Johnson)",
     )
     parser.add_argument(
         "--log-run",
@@ -349,8 +349,8 @@ if __name__ == "__main__":
     else:
         raise ValueError("Invalid CV type")
     # target transforms
-    # choices = [None, "log", "power"]
-    if args.target_transform is not None:
+    # choices = ["none", "log", "power"]
+    if args.target_transform != "none":
         if args.target_transform == "log":
             Y_train = np.log(Y_train)
             Y_test = np.log(Y_test)
@@ -389,7 +389,7 @@ if __name__ == "__main__":
         raise NotImplementedError("Model not implemented")
 
     # imputer setup
-    # choices = [None, "mean", "median", "knn", "linear", "rf"]
+    # choices = ["none", "mean", "median", "knn", "linear", "rf"]
     # NB these imputers will be applied to all features, but other than
     # ('discrete_classification-proba_mean', 84)
     # ('GDP_PPP_2015', 282)
@@ -402,7 +402,7 @@ if __name__ == "__main__":
     # there aren't substantial amounts of missing data for other features (max of 14 records in clean dataset)
     # optionally add an indicator feature which marks imputed records
     add_indicator = True
-    if args.impute is None:
+    if args.impute == "none":
         num_imputer = None
     elif args.impute == "mean":
         # default strategy is mean
@@ -431,8 +431,8 @@ if __name__ == "__main__":
     set_config(display="diagram")
 
     # feature standardisation setup
-    # choices = [None, "standard", "minmax", "robust"]
-    if args.standardise is None:
+    # choices = ["none", "standard", "minmax", "robust"]
+    if args.standardise == "none":
         standardiser = None
     elif args.standardise == "standard":
         num_stand = StandardScaler()
