@@ -118,19 +118,19 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     """
     g.create_folder(out_dir)
     # clip gdp ppp 30 arc sec
-    print("Clipping gdp pp 30 arc sec")
+    print(" -- Clipping gdp pp 30 arc sec")
     net.netcdf_to_clipped_array(
         Path(read_dir) / "gdp_ppp_30.nc", ctry_name=country, save_dir=read_dir
     )
 
     # clip ec and gdp
-    print("Clipping ec and gdp")
+    print(" -- Clipping ec and gdp")
     tifs = glob.glob(str(Path(read_dir) / "*" / "*" / "2019" / "*.tif"))
     partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=read_dir)
     list(map(partial_func, tifs))
 
     # reproject resolution + crs
-    print("Reprojecting resolution & determining crs")
+    print(" -- Reprojecting resolution & determining crs")
     econ_tiffs = sorted(glob.glob(str(Path(read_dir) / f"{country.lower()}_*.tif")))
     econ_tiffs = [ele for ele in econ_tiffs if "africa" not in ele]
     attributes = [
@@ -142,7 +142,7 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     list(map(mapfunc, econ_tiffs, attributes))
 
     # critical infrastructure data
-    print("Reprojecting critical infrastructure data")
+    print(" -- Reprojecting critical infrastructure data")
     cisi = glob.glob(str(Path(read_dir) / "*" / "*" / "010_degree" / "africa.tif"))[0]
     pg.clip_tif_to_ctry(cisi, ctry_name=country, save_dir=read_dir)
     p_r = Path(read_dir) / "gee" / f"cpi_poptotal_{country.lower()}_500.tif"
@@ -219,7 +219,7 @@ def append_features_to_hexes(
     ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
     # Retrieve external data
-    logger.info(
+    print(
         f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
     )
     RunStreamer(
@@ -235,6 +235,11 @@ def append_features_to_hexes(
         f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee."
     )
     time.sleep(100)
+
+    # Country hexes
+    logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
+    hexes_ctry = geo.get_hexes_for_ctry(country, res)
+    ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
     # Facebook connectivity metrics
     if audience:

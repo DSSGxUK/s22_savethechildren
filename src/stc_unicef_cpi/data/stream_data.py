@@ -5,6 +5,7 @@ import os
 import warnings
 
 import pandas as pd
+from rich import pretty, print
 
 import stc_unicef_cpi.data.get_cell_tower_data as cell
 import stc_unicef_cpi.data.get_econ_data as econ
@@ -18,7 +19,9 @@ import stc_unicef_cpi.utils.geospatial as geo
 try:
     import stc_unicef_cpi.data.get_facebook_data as fb
 except:
-    warnings.warn("Necessary modules for FB data not found - assuming this is not used")
+    warnings.warn(
+        " -- Necessary modules for FB data not found - assuming this is not used"
+    )
 
 
 class StreamerObject:
@@ -28,6 +31,7 @@ class StreamerObject:
         self.force = force
 
 
+@g.timing
 class GoogleEarthEngineStreamer(StreamerObject):
     """Stream data from Google Earth Engine (GEE)"""
 
@@ -54,7 +58,7 @@ class GoogleEarthEngineStreamer(StreamerObject):
     def implement(self):
         if self.force:
             self.logging.info(
-                g.PrettyLog(f"Dowloading satellite images of {self.country}...")
+                g.PrettyLog(f" -- Dowloading satellite images of {self.country}...")
             )
             ge.SatelliteImages(
                 self.country, self.folder, self.res, self.start, self.end
@@ -63,23 +67,26 @@ class GoogleEarthEngineStreamer(StreamerObject):
             file_name = "cpi_poptotal_" + self.country.lower() + "_500.tif"
             if os.path.exists(self.wd + file_name):
                 self.logging.info(
-                    g.PrettyLog(
-                        f"No need to download Google Earth Engine data! Satellite images of {self.country} are already downloaded."
+                    print(
+                        f" -- No need to download Google Earth Engine data! Satellite images of {self.country} are already downloaded."
                     )
                 )
             else:
                 self.logging.info(
-                    g.PrettyLog(f"Downloading satellite images of {self.country}...")
+                    g.PrettyLog(
+                        f" -- Downloading satellite images of {self.country}..."
+                    )
                 )
                 ge.SatelliteImages(
                     self.country, self.folder, self.res, self.start, self.end
                 )
 
 
+@g.timing
 class EconomicStreamer(StreamerObject):
     """Stream economic variables if not downloaded"""
 
-    def __init__(self, country, logging, read_path, force):
+    def __init__(self, country, force, read_path, logging):
         super().__init__(country, force, read_path)
         self.logging = logging
         self.implement()
@@ -88,19 +95,22 @@ class EconomicStreamer(StreamerObject):
 
         if self.force:
             self.logging.info(
-                g.PrettyLog(f"Downloading economic data for {self.country}...")
+                g.PrettyLog(f" -- Downloading economic data for {self.country}...")
             )
+            print(self.read_path)
             econ.download_econ_data(self.read_path)
         else:
             file_name = "gdp_ppp_30.nc"
             if os.path.exists(self.read_path + file_name):
                 self.logging.info(
-                    g.PrettyLog(
-                        f"No need to download economic data! Economic data for {self.country} is already downloaded."
+                    print(
+                        f" -- No need to download economic data! Economic data for {self.country} is already downloaded."
                     )
                 )
             else:
-                self.logging.info(f"Downloading economic data for {self.country}...")
+                self.logging.info(
+                    f" -- Downloading economic data for {self.country}..."
+                )
                 econ.download_econ_data(self.read_path)
 
 
@@ -120,24 +130,27 @@ class FacebookMarketingStreamer(StreamerObject):
         file_name = "fb_aud_" + self.country.lower() + "_res" + self.res + ".parquet"
         if self.force:
             self.logging.info(
-                g.PrettyLog(f"Retrieving audience estimates for {self.country}...")
+                g.PrettyLog(f" -- Retrieving audience estimates for {self.country}...")
             )
             fb.get_facebook_estimates(coords, self.read_path, file_name, self.res)
 
         else:
             if os.path.exists(f"{self.read_path}/{file_name}"):
                 self.logging.info(
-                    g.PrettyLog(
-                        f"No need to retrieve audience estimates! Estimates for {self.country} are already downloaded."
+                    print(
+                        f" -- No need to retrieve audience estimates! Estimates for {self.country} are already downloaded."
                     )
                 )
             else:
                 self.logging.info(
-                    g.PrettyLog(f"Dowloading audience estimates for {self.country}...")
+                    g.PrettyLog(
+                        f" -- Dowloading audience estimates for {self.country}..."
+                    )
                 )
                 fb.get_facebook_estimates(coords, self.read_path, file_name, self.res)
 
 
+@g.timing
 class RoadDensityStreamer(StreamerObject):
     """Stream data from Open Street Map"""
 
@@ -153,21 +166,23 @@ class RoadDensityStreamer(StreamerObject):
         )
         if self.force:
             self.logging.info(
-                g.PrettyLog(f"Retrieving road density estimates for {self.country}...")
+                g.PrettyLog(
+                    f" -- Retrieving road density estimates for {self.country}..."
+                )
             )
             rd = osm.get_road_density(self.country, self.res)
             rd.to_csv(f"{self.read_path}/{file_name}", index=False)
         else:
             if os.path.exists(f"{self.read_path}/{file_name}"):
                 self.logging.info(
-                    g.PrettyLog(
-                        f"No need to retrieve road density estimates! Estimates for {self.country} are already downloaded."
+                    print(
+                        f" -- No need to retrieve road density estimates! Estimates for {self.country} are already downloaded."
                     )
                 )
             else:
                 self.logging.info(
                     g.PrettyLog(
-                        f"Retrieving road density estimates for {self.country}..."
+                        f" -- Retrieving road density estimates for {self.country}..."
                     )
                 )
                 rd = osm.get_road_density(self.country, self.res)
@@ -175,6 +190,7 @@ class RoadDensityStreamer(StreamerObject):
                 rd.to_csv(f"{self.read_path}/{file_name}", index=False)
 
 
+@g.timing
 class SpeedTestStreamer(StreamerObject):
     """Stream data from Open Street Map"""
 
@@ -199,21 +215,21 @@ class SpeedTestStreamer(StreamerObject):
         file_name = "2021-10-01_performance_mobile_tiles.csv"
         if self.force:
             self.logging.info(
-                g.PrettyLog(f"Speed test data estimates for {self.country}...")
+                g.PrettyLog(f" -- Speed test data estimates for {self.country}...")
             )
             url, name = speed.get_speedtest_url(self.service_type, self.year, self.q)
             speed.get_speedtest_info(url, name, self.read_path)
         else:
             if os.path.exists(f"{self.read_path}/{file_name}"):
                 self.logging.info(
-                    g.PrettyLog(
-                        f"No need to retrieve speed test data estimates! Estimates for {self.country} are already downloaded."
+                    print(
+                        f" -- No need to retrieve speed test data estimates! Estimates for {self.country} are already downloaded."
                     )
                 )
             else:
                 self.logging.info(
                     g.PrettyLog(
-                        f"Retrieving speed test data estimates for {self.country}..."
+                        f" -- Retrieving speed test data estimates for {self.country}..."
                     )
                 )
                 url, name = speed.get_speedtest_url(
@@ -222,6 +238,7 @@ class SpeedTestStreamer(StreamerObject):
                 speed.get_speedtest_info(url, name, self.read_path)
 
 
+@g.timing
 class OpenCellStreamer(StreamerObject):
     """Stream data from Open Street Map"""
 
@@ -234,23 +251,26 @@ class OpenCellStreamer(StreamerObject):
         file_name = f"{self.country.lower()}_*.csv.gz.tmp"
         if self.force:
             self.logging.info(
-                g.PrettyLog(f"Retrieving open cell id data for {self.country}...")
+                g.PrettyLog(f" -- Retrieving open cell id data for {self.country}...")
             )
             cell.get_cell_data(self.country, self.read_path)
         else:
             if glob.glob(f"{self.read_path}/{file_name}"):
                 self.logging.info(
-                    g.PrettyLog(
-                        f"No need to retrieve pen cell id data! Estimates for {self.country} are already downloaded."
+                    print(
+                        f" -- No need to retrieve pen cell id data! Estimates for {self.country} are already downloaded."
                     )
                 )
             else:
                 self.logging.info(
-                    g.PrettyLog(f"Retrieving open cell id data for {self.country}...")
+                    g.PrettyLog(
+                        f" -- Retrieving open cell id data for {self.country}..."
+                    )
                 )
                 cell.get_cell_data(self.country, self.read_path)
 
 
+@g.timing
 class RunStreamer(StreamerObject):
     def __init__(
         self, country, res, force, audience, read_path=c.ext_data, name_logger=c.str_log
@@ -267,12 +287,26 @@ class RunStreamer(StreamerObject):
             format="%(filename)s: %(message)s",
             level=logging.INFO,
         )
-        # GoogleEarthEngineStreamer(self.country, self.force, self.read_path, logging)
-        # RoadDensityStreamer(self.country, self.force, self.read_path, self.res, logging)
-        # SpeedTestStreamer(self.country, self.force, self.read_path, logging)
-        EconomicStreamer(self.country, logging, self.read_path, self.force)
-        # OpenCellStreamer(self.country, self.force, self.read_path, logging)
+
+        pretty.install()
+        print(f" -- Retrieving google earth engine images for {self.country}...")
+        GoogleEarthEngineStreamer(self.country, self.force, self.read_path, logging)
+
+        print(
+            f" -- Retrieving road density estimates for {self.country}... This might take a while..."
+        )
+        RoadDensityStreamer(self.country, self.force, self.read_path, self.res, logging)
+
+        print(f" -- Retrieving speed test estimates for {self.country}...")
+        SpeedTestStreamer(self.country, self.force, self.read_path, logging)
+
+        print(f" -- Retrieving economic data for {self.country}...")
+        EconomicStreamer(self.country, self.force, self.read_path, logging)
+
+        print(f" -- Retrieving cell tower data for {self.country}...")
+        OpenCellStreamer(self.country, self.force, self.read_path, logging)
         if self.audience:
+            print(f" -- Retrieving facebook data for {self.country}...")
             FacebookMarketingStreamer(
                 self.country, self.force, self.read_path, self.res, logging
             )
