@@ -218,7 +218,7 @@ def append_features_to_hexes(
     logger.info(
         f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
     )
-    #RunStreamer(country, res, force, audience)
+    RunStreamer(country, res, force, audience)
     logger.info('Finished data retrieval.')
     logger.info(
         f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee."
