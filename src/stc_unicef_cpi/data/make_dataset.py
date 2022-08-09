@@ -2,6 +2,7 @@ import argparse
 import glob as glob
 import sys
 import logging
+import time
 
 import geopandas as gpd
 import numpy as np
@@ -213,9 +214,13 @@ def append_features_to_hexes(
     # Retrieve external data
     logger.info(
         f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
-        )
-    # RunStreamer(country, res, force, audience)
-    logger.info(f'Finished data retrieval.')
+    )
+    RunStreamer(country, res, force, audience)
+    logger.info('Finished data retrieval.')
+    logger.info(
+        f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee."
+    )
+    time.sleep(100)
 
     # Facebook connectivity metrics
     if audience:
@@ -264,7 +269,7 @@ def append_features_to_hexes(
     images = gee.merge(econ, on=["latitude", "longitude"], how="outer")
     images = geo.create_geometry(images, "latitude", "longitude")
     images = geo.get_hex_code(images, "latitude", "longitude", res)
-    images = images.groupby("hex_code").mean().reset_index(drop=True)
+    images = images.groupby("hex_code").mean().reset_index()
     images = images.drop(["latitude", "longitude"], axis=1)
 
     # Road density
@@ -317,7 +322,7 @@ def append_target_variable_to_hexes(
     complete = complete.merge(train, on="hex_code", how="left")
     print(f"Saving dataset to {save_dir}")
     complete.to_csv(Path(save_dir) / f"hexes_{country.lower()}_res{res}_thres{threshold}.csv", index=False)
-    print(f"Done!")
+    print("Done!")
     return complete
 
 
