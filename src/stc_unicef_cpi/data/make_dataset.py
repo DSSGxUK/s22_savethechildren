@@ -3,9 +3,6 @@ import glob as glob
 import logging
 import sys
 import time
-from functools import partial, reduce
-from pathlib import Path
-
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -17,6 +14,11 @@ import stc_unicef_cpi.data.process_netcdf as net
 import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
+
+
+from functools import partial, reduce
+from pathlib import Path
+
 from stc_unicef_cpi.data.stream_data import RunStreamer
 
 
@@ -69,7 +71,7 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
         source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
     except FileNotFoundError:
         raise ValueError(
-            "Must have raw survey data available in '../../../data/raw/childpoverty_microdata_gps_21jun22.csv'"
+            f"Must have raw survey data available in {read_dir}"
         )
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
@@ -207,20 +209,12 @@ def append_features_to_hexes(
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter("%(asctime)s:%(name)s:%(message)s")
-    file_handler = logging.FileHandler("make_dataset.log")
+    file_handler = logging.FileHandler(c.dataset_log)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
     logger.info("Starting process...")
 
-<<<<<<< HEAD
-=======
-    # Country hexes
-    logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
-    hexes_ctry = geo.get_hexes_for_ctry(country, res)
-    ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
-
->>>>>>> 88f121da0b22c88c4b6d75d476cadb06023f7b67
     # Retrieve external data
     print(
         f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
@@ -234,7 +228,7 @@ def append_features_to_hexes(
 
     # Country hexes
     logger.info(
-        f'Retrieving hexagons for {country} at resolution {res}.'
+        f"Retrieving hexagons for {country} at resolution {res}."
         )
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
     ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
@@ -342,17 +336,6 @@ def append_target_variable_to_hexes(
     read_dir_target=c.raw_data,
     read_dir=c.ext_data,
 ):
-<<<<<<< HEAD
-    print(f" -- Creating target variable...only available for certain hexagons in {country}")
-    train = create_target_variable(country_code, res, lat, long, threshold, read_dir_target)
-    print(f" -- Appending  features to all hexagons in {country}. This step might take a while...~20 minutes")
-    complete = append_features_to_hexes(country, res, force, audience, read_dir, save_dir)
-    print(f" -- Merging target variable to hexagons in {country}")
-    complete = complete.merge(train, on="hex_code", how="left")
-    print(f" -- Saving dataset to {save_dir}")
-    complete.to_csv(Path(save_dir) / f"hexes_{country.lower()}_res{res}_thres{threshold}.csv", index=False)
-    print(" -- Done!")
-=======
     print(
         f"Creating target variable...only available for certain hexagons in {country}"
     )
@@ -373,7 +356,6 @@ def append_target_variable_to_hexes(
         index=False,
     )
     print("Done!")
->>>>>>> 88f121da0b22c88c4b6d75d476cadb06023f7b67
     return complete
 
 
@@ -414,8 +396,7 @@ if __name__ == "__main__":
         country_code=args.country_code, country=args.country, res=args.resolution
     )
 
-    # add in autoencoder ftrs
-
+    # TODO: add autoencoder features
 
 ## Health Sites
 # hh = pd.read_csv("nga_health.csv")
