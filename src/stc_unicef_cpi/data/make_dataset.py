@@ -1,6 +1,7 @@
 import argparse
 import glob as glob
 import sys
+import logging
 
 import geopandas as gpd
 import numpy as np
@@ -79,7 +80,7 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
     return survey_threshold
 
 
-def change_name_reproject_tiff(tiff, attributes, country, read_dir=c.ext_data, out_dir=c.int_data):
+def change_name_reproject_tiff(tiff, attribute, country, read_dir=c.ext_data, out_dir=c.int_data):
     """Rename attributes and reproject Tiff file
     :param tiff: _description_
     :type tiff: _type_
@@ -92,7 +93,7 @@ def change_name_reproject_tiff(tiff, attributes, country, read_dir=c.ext_data, o
     """
     with rxr.open_rasterio(tiff) as data:
         fname = Path(tiff).name
-        data.attrs["long_name"] = attributes
+        data.attrs["long_name"] = attribute
         data.rio.to_raster(tiff)
         p_r = Path(read_dir) / "gee" / f"cpi_poptotal_{country.lower()}_500.tif"
         pg.rxr_reproject_tiff_to_target(tiff, p_r, Path(out_dir) / fname, verbose=True)
@@ -122,11 +123,10 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
 
     # reproject resolution + crs
     econ_tiffs = sorted(glob.glob(str(Path(read_dir) / f"{country.lower()}_*.tif")))
-    print(econ_tiffs)
     attributes = [
         ["GDP_2019"],
         ["EC_2019"],
-        ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"],
+        ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"]
     ]
     mapfunc = partial(change_name_reproject_tiff, country=country)
     list(map(mapfunc, econ_tiffs, attributes))
@@ -137,6 +137,7 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     #list(map(partial_func, cisi[0]))
     #p_r = f"{read_dir}/gee/cpi_poptotal_{country.lower()}_500.tif"
     #pg.rxr_reproject_tiff_to_target(cisi[0], p_r, cisi[0], verbose=True)
+
 
 
 def preprocessed_speed_test(speed, res, country):
@@ -189,20 +190,39 @@ def append_features_to_hexes(
     :param res: _description_, defaults to 6
     :type res: int, optional
     """
+    # Setting up logger
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s:%(name)s:%(message)s')
+    file_handler = logging.FileHandler('make_dataset.log')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    logger.info('Starting process...')
+
     # Country hexes
-    #hexes_ctry = geo.get_hexes_for_ctry(country, res)
-    #ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
+    logger.info(
+        f'Retrieving hexagons for {country} at resolution {res}.'
+        )
+    hexes_ctry = geo.get_hexes_for_ctry(country, res)
+    ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
     # Retrieve external data
-    #RunStreamer(country, res, force, audience)
+    logger.info(
+        f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
+        )
+    # RunStreamer(country, res, force, audience)
+    logger.info(f'Finished data retrieval.')
 
     # Facebook connectivity metrics
-    #if audience:
-    #    fb = pd.read_parquet(Path(read_dir) / f"fb_aud_{country.lower()}_res{res}.parquet")
-    #    fb = geo.get_hex_centroid(fb)
+    if audience:
+        logger.info(f'Collecting audience estimates for {country} at resolution {res}.')
+        fb = pd.read_parquet(Path(read_dir) / f"fb_aud_{country.lower()}_res{res}.parquet")
+        fb = geo.get_hex_centroid(fb)
 
     # Preprocessed tiff files
-    #preprocessed_tiff_files(country, read_dir, save_dir)
+    logger.info(f'Collecting audience estimates for {country} at resolution {res}.')
+    preprocessed_tiff_files(country, read_dir, save_dir)
 
     # Conflict Zones
     #cz = pd.read_csv(Path(read_dir) / "conflict/GEDEvent_v22_1.csv")
@@ -229,9 +249,12 @@ def append_features_to_hexes(
         lambda left, right: pd.merge(left, right, on=["latitude", "longitude"], how="outer"), gee
     )
 
+    # Join GEE with Econ
     images = gee.merge(econ, on=["latitude", "longitude"], how="outer")
     images = geo.create_geometry(images, "latitude", "longitude")
-    images = get_hex_code(images, "latitude", "longitude")
+    images = geo.get_hex_code(images, "latitude", "longitude")
+    images = images.groupby("hex_code").mean().reset_index(drop=True)
+    images = images.drop(["latitude", "longitude"], axis=1)
     print(images)
 
     # Road density
@@ -244,11 +267,11 @@ def append_features_to_hexes(
 
     # Open Cell Data
     # cell = geo.create_geometry(cell, "lat", "long")
-    # cell = get_hex_code(cell, "lat", "long")
-    # cell = aggregate_hexagon(cell, "cid", "cells", "count")
+    # cell = geo.get_hex_code(cell, "lat", "long")
+    # cell = geo.aggregate_hexagon(cell, "cid", "cells", "count")
 
     # Aggregate Data
-    #dfs = [ctry, commuting, cz, road, speed, cell]
+    #dfs = [ctry, commuting, cz, road, speed, cell, images]
     #hexes = reduce(
     #    lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     #)
