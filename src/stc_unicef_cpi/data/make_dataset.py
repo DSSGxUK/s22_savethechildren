@@ -45,7 +45,7 @@ def select_country(df, country_code, lat, long):
     :rtype: _type_
     """
     df.columns = df.columns.str.lower()
-    subset = df[df["countrycode"].str.strip() == country_code]
+    subset = df[df["countrycode"].str.strip() == country_code].copy()
     subset.dropna(subset=[lat, long], inplace=True)
     return subset
 
@@ -222,7 +222,14 @@ def append_features_to_hexes(
     logger.info(
         f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
     )
-    RunStreamer(country, res, force, audience)
+    RunStreamer(
+        country,
+        res,
+        force,
+        audience,
+        read_path=c.ext_data,
+        name_logger=c.str_log,
+    )
     logger.info("Finished data retrieval.")
     logger.info(
         f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee."
