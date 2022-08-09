@@ -71,7 +71,7 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
     sub = select_country(df, country_code, lat, long)
     # Create variables for two or more deprivations
     for k in range(2, 5):
-        sub[f"dep_{k}_or_more_sev"] = np.where(sub['sumpoor_sev'] >= k, 1, 0)
+        sub[f"dep_{k}_or_more_sev"] = sub['sumpoor_sev'] >= k
     sub = geo.get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
     sub_mean, sub_count = aggregate_dataset(sub)
@@ -330,7 +330,7 @@ def append_target_variable_to_hexes(
 
 
 if __name__ == "__main__":
-    
+
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
     parser.add_argument(
         "-cc",
