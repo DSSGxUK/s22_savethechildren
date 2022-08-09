@@ -27,7 +27,7 @@ def read_input_unicef(path_read):
     :return: _description_
     :rtype: _type_
     """
-    df = pd.read_csv(path_read)
+    df = pd.read_csv(path_read, low_memory=False)
     return df
 
 
@@ -166,7 +166,7 @@ def preprocessed_speed_test(speed, res, country):
 @g.timing
 def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
     """Preprocess commuting zones"""
-    commuting = pd.read_csv(Path(read_dir) / "commuting_zones.csv")
+    commuting = pd.read_csv(Path(read_dir) / "commuting_zones.csv", low_memory=False)
     commuting = commuting[commuting["country"] == country]
     comm = list(commuting["geometry"])
     comm_zones = pd.concat(list(map(partial(geo.hexes_poly, res=res), comm)))
@@ -305,10 +305,12 @@ def append_target_variable_to_hexes(
     long="longnum",
     save_dir=c.int_data,
     threshold=c.cutoff,
-    read_dir=c.raw_data,
+    read_dir_target=c.raw_data,
+    read_dir=c.ext_data,
+
 ):
     print(f"Creating target variable...only available for certain hexagons in {country}")
-    train = create_target_variable(country_code, res, lat, long, threshold, read_dir)
+    train = create_target_variable(country_code, res, lat, long, threshold, read_dir_target)
     print(f"Appending  features to all hexagons in {country}. This step might take a while...~20 minutes")
     complete = append_features_to_hexes(country, res, force, audience, read_dir, save_dir)
     print(f"Merging target variable to hexagons in {country}")
