@@ -1,7 +1,7 @@
 import argparse
 import glob as glob
 import sys
-from functools import partial, reduce
+import logging
 
 import geopandas as gpd
 import numpy as np
@@ -9,19 +9,20 @@ import pandas as pd
 import rioxarray as rxr
 import shapely.wkt
 
-import stc_unicef_cpi.data.process_geotiff as pg
-import stc_unicef_cpi.data.process_netcdf as net
-import stc_unicef_cpi.utils.constants as c
-import stc_unicef_cpi.utils.general as g
-import stc_unicef_cpi.utils.geospatial as geo
-from stc_unicef_cpi.data.stream_data import RunStreamer
+import src.stc_unicef_cpi.data.process_geotiff as pg
+import src.stc_unicef_cpi.data.process_netcdf as net
+import src.stc_unicef_cpi.utils.constants as c
+import src.stc_unicef_cpi.utils.general as g
+import src.stc_unicef_cpi.utils.geospatial as geo
+
+from src.stc_unicef_cpi.data.stream_data import RunStreamer
+from pathlib import Path
+from functools import partial, reduce
 
 
 def read_input_unicef(path_read):
     """read_input_unicef _summary_
-
     _extended_summary_
-
     :param path_read: _description_
     :type path_read: _type_
     :return: _description_
@@ -33,7 +34,6 @@ def read_input_unicef(path_read):
 
 def select_country(df, country_code, lat, long):
     """Select country of interest
-
     :param df: _description_
     :type df: _type_
     :param country_code: _description_
@@ -53,9 +53,7 @@ def select_country(df, country_code, lat, long):
 
 def aggregate_dataset(df):
     """aggregate_dataset _summary_
-
     _extended_summary_
-
     :param df: _description_
     :type df: _type_
     :return: _description_
@@ -70,7 +68,7 @@ def aggregate_dataset(df):
 
 
 def create_target_variable(country_code, res, lat, long, threshold, read_dir):
-    source = f"{read_dir}/childpoverty_microdata_gps_21jun22.csv"
+    source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
     sub = geo.get_hex_code(sub, lat, long, res)
@@ -82,7 +80,7 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
     return survey_threshold
 
 
-def change_name_reproject_tiff(tiff, attributes, country, read_dir=c.ext_data):
+def change_name_reproject_tiff(tiff, attribute, country, read_dir=c.ext_data, out_dir=c.int_data):
     """Rename attributes and reproject Tiff file
     :param tiff: _description_
     :type tiff: _type_
@@ -94,15 +92,15 @@ def change_name_reproject_tiff(tiff, attributes, country, read_dir=c.ext_data):
     :type read_dir: _type_, optional
     """
     with rxr.open_rasterio(tiff) as data:
-        data.attrs["long_name"] = attributes
+        fname = Path(tiff).name
+        data.attrs["long_name"] = attribute
         data.rio.to_raster(tiff)
-        p_r = f"{read_dir}/gee/cpi_poptotal_{country.lower()}_500.tif"
-        pg.rxr_reproject_tiff_to_target(tiff, p_r, tiff, verbose=True)
+        p_r = Path(read_dir) / "gee" / f"cpi_poptotal_{country.lower()}_500.tif"
+        pg.rxr_reproject_tiff_to_target(tiff, p_r, Path(out_dir) / fname, verbose=True)
 
 
 def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     """Preprocess tiff files
-
     :param country: _description_
     :type country: _type_
     :param read_dir: _description_, defaults to c.ext_data
@@ -115,30 +113,31 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
 
     # clip gdp ppp 30 arc sec
     net.netcdf_to_clipped_array(
-        f"{read_dir}/gdp_ppp_30.nc", ctry_name=country, save_dir=out_dir
+        Path(read_dir) / "gdp_ppp_30.nc", ctry_name=country, save_dir=read_dir
     )
 
     # clip ec and gdp
-    tifs = f"{read_dir}/*/*/2019/*.tif"
-    partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=out_dir)
-    list(map(partial_func, glob.glob(tifs)))
+    tifs = glob.glob(str(Path(read_dir) / "*" / "*" / "2019" / "*.tif"))
+    partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=read_dir)
+    list(map(partial_func, tifs))
 
     # reproject resolution + crs
-    econ_tiffs = sorted(glob.glob(f"{out_dir}/{country.lower()}*.tif"))
+    econ_tiffs = sorted(glob.glob(str(Path(read_dir) / f"{country.lower()}_*.tif")))
     attributes = [
         ["GDP_2019"],
         ["EC_2019"],
-        ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"],
+        ["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"]
     ]
     mapfunc = partial(change_name_reproject_tiff, country=country)
     list(map(mapfunc, econ_tiffs, attributes))
 
     # critical infrastructure data
-    cisi = glob.glob(f"{read_dir}/*/*/010_degree/global.tif")
-    partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=out_dir)
-    list(map(partial_func, cisi[0]))
-    p_r = f"{read_dir}/gee/cpi_poptotal_{country.lower()}_500.tif"
-    pg.rxr_reproject_tiff_to_target(cisi[0], p_r, cisi[0], verbose=True)
+    #cisi = glob.glob(f"{read_dir}/*/*/010_degree/global.tif")
+    #partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=out_dir)
+    #list(map(partial_func, cisi[0]))
+    #p_r = f"{read_dir}/gee/cpi_poptotal_{country.lower()}_500.tif"
+    #pg.rxr_reproject_tiff_to_target(cisi[0], p_r, cisi[0], verbose=True)
+
 
 
 def preprocessed_speed_test(speed, res, country):
@@ -164,7 +163,7 @@ def preprocessed_speed_test(speed, res, country):
 
 def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
     """Preprocess commuting zones"""
-    commuting = pd.read_csv(f"{read_dir}/commuting_zones.csv")
+    commuting = pd.read_csv(Path(read_dir) / "commuting_zones.csv")
     commuting = commuting[commuting["country"] == country]
     comm = list(commuting["geometry"])
     comm_zones = pd.concat(list(map(partial(geo.hexes_poly, res=res), comm)))
@@ -175,11 +174,11 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
     return comm_zones
 
 
+@g.timing
 def append_features_to_hexes(
     country, res, force=False, audience=False, read_dir=c.ext_data, save_dir=c.int_data
 ):
     """Append features to hexagons withing a country
-
     :param country_code: _description_, defaults to "NGA"
     :type country_code: str, optional
     :param country: _description_, defaults to "Nigeria"
@@ -191,66 +190,93 @@ def append_features_to_hexes(
     :param res: _description_, defaults to 6
     :type res: int, optional
     """
-    # TODO: Integrate satellite information to pipeline
+    # Setting up logger
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s:%(name)s:%(message)s')
+    file_handler = logging.FileHandler('make_dataset.log')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    logger.info('Starting process...')
+
     # Country hexes
+    logger.info(
+        f'Retrieving hexagons for {country} at resolution {res}.'
+        )
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
     ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
     # Retrieve external data
-    RunStreamer(country, res, force, audience)
+    logger.info(
+        f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
+        )
+    # RunStreamer(country, res, force, audience)
+    logger.info(f'Finished data retrieval.')
 
     # Facebook connectivity metrics
     if audience:
-        fb = pd.read_parquet(f"fb_aud_{country.lower()}_res{res}.parquet")
+        logger.info(f'Collecting audience estimates for {country} at resolution {res}.')
+        fb = pd.read_parquet(Path(read_dir) / f"fb_aud_{country.lower()}_res{res}.parquet")
         fb = geo.get_hex_centroid(fb)
 
     # Preprocessed tiff files
+    logger.info(f'Collecting audience estimates for {country} at resolution {res}.')
     preprocessed_tiff_files(country, read_dir, save_dir)
 
     # Conflict Zones
-    cz = pd.read_csv(f"{read_dir}/conflict/GEDEvent_v22_1.csv")
-    cz = cz[cz.country == country]
-    cz = geo.create_geometry(cz, "latitude", "longitude")
-    cz = geo.get_hex_code(cz, "latitude", "longitude", res)
-    cz = geo.aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
+    #cz = pd.read_csv(Path(read_dir) / "conflict/GEDEvent_v22_1.csv")
+    #cz = cz[cz.country == country]
+    #cz = geo.create_geometry(cz, "latitude", "longitude")
+    #cz = geo.get_hex_code(cz, "latitude", "longitude", res)
+    #cz = geo.aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
 
     # Commuting zones
-    commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
+    #commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
 
-    # Road density
-    road = pd.read_csv(f"{read_dir}/road_density_{country.lower()}_res{res}.csv")
-
-    # Speed Test
-    speed = pd.read_csv(f"{read_dir}/2021-10-01_performance_mobile_tiles.csv")
-    speed = preprocessed_speed_test(speed, res, country)
-
-    # Critical Infrastructure
-    file_cisi = f"{save_dir}/{country.lower()}_global.tif"
-    ctry = pg.agg_tif_to_df(ctry, file_cisi, f"{country.lower()}_", verbose=True)
-
-    # Open Cell Data
-    cell = geo.create_geometry(cell, "lat", "long")
-    # cell = get_hex_code(cell, "lat", "long")
-    # cell = aggregate_hexagon(cell, "cid", "cells", "count")
-
-    # Aggregate Data
-    dfs = [ctry, commuting, cz, road, speed, cell]
-    hexes = reduce(
-        lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
+    # Economic data
+    econ_files = glob.glob(str(Path(save_dir) / f"{country.lower()}*.tif"))
+    econ_files = ['../../../data/interim/nigeria_ec2019.tif', '../../../data/interim/nigeria_2019gdp.tif']
+    econ = list(map(pg.geotiff_to_df, econ_files))
+    econ = reduce(
+        lambda left, right: pd.merge(left, right, on=["latitude", "longitude"], how="outer"), econ
     )
 
-    # sub = pg.agg_tif_to_df(
-    #    sub,
-    #    glob.glob(f"{read_dir}/gee/*{country.lower()}*"),
-    #    rm_prefix="cpi",
-    #    agg_fn=np.mean,
-    #    max_records=int(1e5),
-    #    replace_old=True,
-    #    verbose=False,
-    # )
-    print(hexes)
+    # Google Earth Engine
+    gee_files = glob.glob(str(Path(read_dir) / "gee" / f"*_{country.lower()}*.tif"))
+    gee = list(map(pg.geotiff_to_df, gee_files))
+    gee = reduce(
+        lambda left, right: pd.merge(left, right, on=["latitude", "longitude"], how="outer"), gee
+    )
 
-    return hexes
+    # Join GEE with Econ
+    images = gee.merge(econ, on=["latitude", "longitude"], how="outer")
+    images = geo.create_geometry(images, "latitude", "longitude")
+    images = geo.get_hex_code(images, "latitude", "longitude")
+    images = images.groupby("hex_code").mean().reset_index(drop=True)
+    images = images.drop(["latitude", "longitude"], axis=1)
+    print(images)
+
+    # Road density
+    #road = pd.read_csv(Path(read_dir) / f"road_density_{country.lower()}_res{res}.csv")
+
+    # Speed Test
+    #speed = pd.read_csv(Path(read_dir) / "2021-10-01_performance_mobile_tiles.csv")
+
+    #speed = preprocessed_speed_test(speed, res, country)
+
+    # Open Cell Data
+    # cell = geo.create_geometry(cell, "lat", "long")
+    # cell = geo.get_hex_code(cell, "lat", "long")
+    # cell = geo.aggregate_hexagon(cell, "cid", "cells", "count")
+
+    # Aggregate Data
+    #dfs = [ctry, commuting, cz, road, speed, cell, images]
+    #hexes = reduce(
+    #    lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
+    #)
+
+    #return hexes
 
 
 def append_target_variable_to_hexes(
@@ -304,3 +330,4 @@ if __name__ == "__main__":
 # edu = get_lat_long(edu, "geometry")
 # edu = get_hex_code(edu, "lat", "long")
 # edu = aggregate_hexagon(edu, "geometry", "n_education", "count")
+
