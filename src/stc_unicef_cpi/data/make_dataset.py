@@ -1,8 +1,10 @@
 import argparse
 import glob as glob
-import sys
 import logging
+import sys
 import time
+from functools import partial, reduce
+from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
@@ -15,10 +17,7 @@ import stc_unicef_cpi.data.process_netcdf as net
 import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
-
 from stc_unicef_cpi.data.stream_data import RunStreamer
-from pathlib import Path
-from functools import partial, reduce
 
 
 def read_input_unicef(path_read):
@@ -66,12 +65,17 @@ def aggregate_dataset(df):
 
 
 def create_target_variable(country_code, res, lat, long, threshold, read_dir):
-    source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
+    try:
+        source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
+    except FileNotFoundError:
+        raise ValueError(
+            "Must have raw survey data available in '../../../data/raw/childpoverty_microdata_gps_21jun22.csv'"
+        )
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
     # Create variables for two or more deprivations
     for k in range(2, 5):
-        sub[f"dep_{k}_or_more_sev"] = sub['sumpoor_sev'] >= k
+        sub[f"dep_{k}_or_more_sev"] = sub["sumpoor_sev"] >= k
     sub = geo.get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
     sub_mean, sub_count = aggregate_dataset(sub)
@@ -81,7 +85,9 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
     return survey_threshold
 
 
-def change_name_reproject_tiff(tiff, attribute, country, read_dir=c.ext_data, out_dir=c.int_data):
+def change_name_reproject_tiff(
+    tiff, attribute, country, read_dir=c.ext_data, out_dir=c.int_data
+):
     """Rename attributes and reproject Tiff file
     :param tiff: _description_
     :type tiff: _type_
@@ -130,7 +136,7 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     attributes = [
         ["gdp_2019"],
         ["ec_2019"],
-        ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"]
+        ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"],
     ]
     mapfunc = partial(change_name_reproject_tiff, country=country)
     list(map(mapfunc, econ_tiffs, attributes))
@@ -200,19 +206,27 @@ def append_features_to_hexes(
     # Setting up logger
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(asctime)s:%(name)s:%(message)s')
-    file_handler = logging.FileHandler('make_dataset.log')
+    formatter = logging.Formatter("%(asctime)s:%(name)s:%(message)s")
+    file_handler = logging.FileHandler("make_dataset.log")
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
-    logger.info('Starting process...')
+    logger.info("Starting process...")
 
+<<<<<<< HEAD
+=======
+    # Country hexes
+    logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
+    hexes_ctry = geo.get_hexes_for_ctry(country, res)
+    ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
+
+>>>>>>> 88f121da0b22c88c4b6d75d476cadb06023f7b67
     # Retrieve external data
     print(
         f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
     )
     RunStreamer(country, res, force, audience)
-    logger.info('Finished data retrieval.')
+    logger.info("Finished data retrieval.")
     logger.info(
         f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee."
     )
@@ -227,12 +241,16 @@ def append_features_to_hexes(
 
     # Facebook connectivity metrics
     if audience:
-        logger.info(f'Collecting audience estimates for {country} at resolution {res}...')
-        fb = pd.read_parquet(Path(read_dir) / f"fb_aud_{country.lower()}_res{res}.parquet")
+        logger.info(
+            f"Collecting audience estimates for {country} at resolution {res}..."
+        )
+        fb = pd.read_parquet(
+            Path(read_dir) / f"fb_aud_{country.lower()}_res{res}.parquet"
+        )
         fb = geo.get_hex_centroid(fb)
 
     # Preprocessed tiff files
-    logger.info(f'Preprocessing tiff files from {read_dir} and saving to {save_dir}..')
+    logger.info(f"Preprocessing tiff files from {read_dir} and saving to {save_dir}..")
     preprocessed_tiff_files(country, read_dir, save_dir)
 
     # Conflict Zones
@@ -253,7 +271,10 @@ def append_features_to_hexes(
     econ_files = [ele for ele in econ_files if "ppp" not in ele]
     econ = list(map(pg.geotiff_to_df, econ_files))
     econ = reduce(
-        lambda left, right: pd.merge(left, right, on=["latitude", "longitude"], how="outer"), econ
+        lambda left, right: pd.merge(
+            left, right, on=["latitude", "longitude"], how="outer"
+        ),
+        econ,
     )
     ppp = glob.glob(str(Path(save_dir) / f"{country.lower()}*ppp*.tif"))[0]
     ppp = pg.geotiff_to_df(ppp, ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"])
@@ -264,7 +285,10 @@ def append_features_to_hexes(
     gee_files = glob.glob(str(Path(read_dir) / "gee" / f"*_{country.lower()}*.tif"))
     gee = list(map(pg.geotiff_to_df, gee_files))
     gee = reduce(
-        lambda left, right: pd.merge(left, right, on=["latitude", "longitude"], how="outer"), gee
+        lambda left, right: pd.merge(
+            left, right, on=["latitude", "longitude"], how="outer"
+        ),
+        gee,
     )
 
     # Join GEE with Econ
@@ -286,7 +310,9 @@ def append_features_to_hexes(
 
     # Open Cell Data
     logger.info("Reading open cell data...")
-    cell = g.read_csv_gzip(glob.glob(str(Path(read_dir) / f"{country.lower()}_*gz.tmp"))[0])
+    cell = g.read_csv_gzip(
+        glob.glob(str(Path(read_dir) / f"{country.lower()}_*gz.tmp"))[0]
+    )
     cell = geo.create_geometry(cell, "lat", "long")
     cell = geo.get_hex_code(cell, "lat", "long", res)
     cell = geo.aggregate_hexagon(cell, "cid", "cells", "count")
@@ -297,7 +323,7 @@ def append_features_to_hexes(
     hexes = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
-    logger.info('Finishing process...')
+    logger.info("Finishing process...")
 
     return hexes
 
@@ -315,8 +341,8 @@ def append_target_variable_to_hexes(
     threshold=c.cutoff,
     read_dir_target=c.raw_data,
     read_dir=c.ext_data,
-
 ):
+<<<<<<< HEAD
     print(f" -- Creating target variable...only available for certain hexagons in {country}")
     train = create_target_variable(country_code, res, lat, long, threshold, read_dir_target)
     print(f" -- Appending  features to all hexagons in {country}. This step might take a while...~20 minutes")
@@ -326,6 +352,28 @@ def append_target_variable_to_hexes(
     print(f" -- Saving dataset to {save_dir}")
     complete.to_csv(Path(save_dir) / f"hexes_{country.lower()}_res{res}_thres{threshold}.csv", index=False)
     print(" -- Done!")
+=======
+    print(
+        f"Creating target variable...only available for certain hexagons in {country}"
+    )
+    train = create_target_variable(
+        country_code, res, lat, long, threshold, read_dir_target
+    )
+    print(
+        f"Appending  features to all hexagons in {country}. This step might take a while...~20 minutes"
+    )
+    complete = append_features_to_hexes(
+        country, res, force, audience, read_dir, save_dir
+    )
+    print(f"Merging target variable to hexagons in {country}")
+    complete = complete.merge(train, on="hex_code", how="left")
+    print(f"Saving dataset to {save_dir}")
+    complete.to_csv(
+        Path(save_dir) / f"hexes_{country.lower()}_res{res}_thres{threshold}.csv",
+        index=False,
+    )
+    print("Done!")
+>>>>>>> 88f121da0b22c88c4b6d75d476cadb06023f7b67
     return complete
 
 
@@ -363,10 +411,10 @@ if __name__ == "__main__":
         sys.exit(0)
 
     append_target_variable_to_hexes(
-        country_code=args.country_code,
-        country=args.country,
-        res=args.resolution
+        country_code=args.country_code, country=args.country, res=args.resolution
     )
+
+    # add in autoencoder ftrs
 
 
 ## Health Sites
