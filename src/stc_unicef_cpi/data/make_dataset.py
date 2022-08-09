@@ -266,7 +266,7 @@ def append_features_to_hexes(
     images = geo.get_hex_code(images, "latitude", "longitude", res)
     images = images.groupby("hex_code").mean().reset_index(drop=True)
     images = images.drop(["latitude", "longitude"], axis=1)
-    print(images)
+
     # Road density
     logger.info("Reading road density estimates...")
     road = pd.read_csv(Path(read_dir) / f"road_density_{country.lower()}_res{res}.csv")
@@ -278,7 +278,7 @@ def append_features_to_hexes(
 
     # Open Cell Data
     logger.info("Reading open cell data...")
-    cell = pd.read_csv(glob.glob(str(Path(read_dir) / f"{country.lower()}_*gz.tmp"))[0])
+    cell = g.read_csv_gzip(glob.glob(str(Path(read_dir) / f"{country.lower()}_*gz.tmp"))[0])
     cell = geo.create_geometry(cell, "lat", "long")
     cell = geo.get_hex_code(cell, "lat", "long", res)
     cell = geo.aggregate_hexagon(cell, "cid", "cells", "count")
@@ -290,28 +290,44 @@ def append_features_to_hexes(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
     logger.info('Finishing process...')
-    print(hexes)
+
     return hexes
+
 
 @g.timing
 def append_target_variable_to_hexes(
     country_code,
     country,
     res,
+    force=False,
+    audience=False,
     lat="latnum",
     long="longnum",
     save_dir=c.int_data,
     threshold=c.cutoff,
     read_dir=c.raw_data,
 ):
+    print(f"Creating target variable...only available for certain hexagons in {country}")
     train = create_target_variable(country_code, res, lat, long, threshold, read_dir)
-    complete = append_features_to_hexes(country, read_dir, save_dir)
+    print(f"Appending  features to all hexagons in {country}. This step might take a while...~20 minutes")
+    complete = append_features_to_hexes(country, res, force, audience, read_dir, save_dir)
+    print(f"Merging target variable to hexagons in {country}")
     complete = complete.merge(train, on="hex_code", how="left")
+    print(f"Saving dataset to {save_dir}")
+    complete.to_csv(Path(save_dir) / f"hexes_{country.lower()}_res{res}_thres{threshold}.csv", index=False)
+    print(f"Done!")
     return complete
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
+    parser.add_argument(
+        "-cc",
+        "--country_code",
+        type=str,
+        help="Country code to make dataset for, default is NGA",
+        default="NGA",
+    )
     parser.add_argument(
         "-c",
         "--country",
@@ -331,7 +347,11 @@ if __name__ == "__main__":
     except argparse.ArgumentError:
         parser.print_help()
         sys.exit(0)
-    append_features_to_hexes(country=args.country, res=args.resolution)
+    append_target_variable_to_hexes(
+        country_code=args.country_code,
+        country=args.country,
+        res=args.resolution
+    )
 
 
 ## Health Sites
