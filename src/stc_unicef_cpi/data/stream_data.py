@@ -16,6 +16,7 @@ import stc_unicef_cpi.utils.geospatial as geo
 
 from rich import pretty, print
 from art import *
+from pathlib import Path
 
 
 class StreamerObject:
@@ -59,7 +60,7 @@ class GoogleEarthEngineStreamer(StreamerObject):
             )
         else:
             file_name = "cpi_poptotal_" + self.country.lower() + "_500.tif"
-            if os.path.exists(self.wd + file_name):
+            if os.path.exists(Path(self.wd) / file_name):
                 self.logging.info(
                     print(
                         f" -- No need to download Google Earth Engine data! Satellite images of {self.country} are already downloaded."
@@ -91,11 +92,10 @@ class EconomicStreamer(StreamerObject):
             self.logging.info(
                 g.PrettyLog(f" -- Downloading economic data for {self.country}...")
             )
-            print(self.read_path)
             econ.download_econ_data(self.read_path)
         else:
             file_name = "gdp_ppp_30.nc"
-            if os.path.exists(self.read_path + file_name):
+            if os.path.exists(Path(self.read_path) / file_name):
                 self.logging.info(
                     print(
                         f" -- No need to download economic data! Economic data for {self.country} is already downloaded."
@@ -165,7 +165,7 @@ class RoadDensityStreamer(StreamerObject):
                 )
             )
             rd = osm.get_road_density(self.country, self.res)
-            rd.to_csv(f"{self.read_path}/{file_name}", index=False)
+            rd.to_csv(Path(self.read_path) / file_name, index=False)
         else:
             if os.path.exists(f"{self.read_path}/{file_name}"):
                 self.logging.info(
@@ -182,7 +182,7 @@ class RoadDensityStreamer(StreamerObject):
                 print(art("coffee"))
                 rd = osm.get_road_density(self.country, self.res)
                 print(rd)
-                rd.to_csv(f"{self.read_path}/{file_name}", index=False)
+                rd.to_csv(Path(self.read_path) / file_name, index=False)
 
 
 @g.timing
@@ -215,7 +215,7 @@ class SpeedTestStreamer(StreamerObject):
             url, name = speed.get_speedtest_url(self.service_type, self.year, self.q)
             speed.get_speedtest_info(url, name, self.read_path)
         else:
-            if os.path.exists(f"{self.read_path}/connectivity/{file_name}"):
+            if os.path.exists(Path(self.read_path) / "connectivity" / file_name):
                 self.logging.info(
                     print(
                         f" -- No need to retrieve speed test data estimates! Estimates for {self.country} are already downloaded."
@@ -250,7 +250,7 @@ class OpenCellStreamer(StreamerObject):
             )
             cell.get_cell_data(self.country, self.read_path)
         else:
-            if glob.glob(f"{self.read_path}/{file_name}"):
+            if glob.glob(str(Path(self.read_path)/f"{file_name}")):
                 self.logging.info(
                     print(
                         f" -- No need to retrieve pen cell id data! Estimates for {self.country} are already downloaded."
