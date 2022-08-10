@@ -2,21 +2,28 @@
 import glob as glob
 import logging
 import os
+import warnings
+from pathlib import Path
+
 import pandas as pd
+from art import *
+from rich import pretty, print
 
 import stc_unicef_cpi.data.get_cell_tower_data as cell
 import stc_unicef_cpi.data.get_econ_data as econ
 import stc_unicef_cpi.data.get_osm_data as osm
 import stc_unicef_cpi.data.get_satellite_data as ge
 import stc_unicef_cpi.data.get_speedtest_data as speed
-import stc_unicef_cpi.data.get_facebook_data as fb
 import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
 
-from rich import pretty, print
-from art import *
-from pathlib import Path
+try:
+    import stc_unicef_cpi.data.get_facebook_data as fb
+except ModuleNotFoundError:
+    warnings.warn(
+        "Necessary dependencies for Facebook data not found - assuming do not desire these"
+    )
 
 
 class StreamerObject:
@@ -94,8 +101,19 @@ class EconomicStreamer(StreamerObject):
             )
             econ.download_econ_data(self.read_path)
         else:
-            file_name = "gdp_ppp_30.nc"
-            if os.path.exists(Path(self.read_path) / file_name):
+            file_names = [
+                "conflict",
+                "gdp_ppp_30.nc",
+                "real_gdp",
+                "elec_cons",
+                "commuting_zones.csv",
+            ]
+            if self.country == "Nigeria":
+                file_names += [
+                    "nga_education",
+                    "nga_health.csv",
+                ]
+            if all([(Path(self.read_path) / fname).exists() for fname in file_names]):
                 self.logging.info(
                     print(
                         f" -- No need to download economic data! Economic data for {self.country} is already downloaded."
@@ -250,10 +268,10 @@ class OpenCellStreamer(StreamerObject):
             )
             cell.get_cell_data(self.country, self.read_path)
         else:
-            if glob.glob(str(Path(self.read_path)/f"{file_name}")):
+            if glob.glob(str(Path(self.read_path) / f"{file_name}")):
                 self.logging.info(
                     print(
-                        f" -- No need to retrieve pen cell id data! Estimates for {self.country} are already downloaded."
+                        f" -- No need to retrieve open cell id data! Estimates for {self.country} are already downloaded."
                     )
                 )
             else:

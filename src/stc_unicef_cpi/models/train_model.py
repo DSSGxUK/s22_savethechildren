@@ -251,10 +251,10 @@ if __name__ == "__main__":
 
     if args.universal_data_only:
         # Remove country specific data - e.g. in case of Nigeria,
-        # conflict and healthcare data, and FB connectivity data
+        # healthcare and education OSM data, and FB connectivity data
         if args.country == "nigeria":
-            nga_spec_cols = [
-                "n_conflicts",
+            nga_spec_cols = {
+                # "n_conflicts",
                 "n_education",
                 "n_health",
                 "OSM_hospital",
@@ -262,7 +262,8 @@ if __name__ == "__main__":
                 "health_gv_osm",
                 "school_gv_osm",
                 "estimate_dau",
-            ]
+            }
+            nga_spec_cols = nga_spec_cols & set(X.columns)
             X = X.drop(nga_spec_cols, axis=1)
         else:
             print(

@@ -3,24 +3,22 @@ import glob as glob
 import logging
 import sys
 import time
+from functools import partial, reduce
+from pathlib import Path
+
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rioxarray as rxr
 import shapely.wkt
+from art import *
+from rich import pretty, print
 
 import stc_unicef_cpi.data.process_geotiff as pg
 import stc_unicef_cpi.data.process_netcdf as net
 import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
-
-
-from functools import partial, reduce
-from pathlib import Path
-from art import *
-from rich import pretty, print
-
 from stc_unicef_cpi.data.stream_data import RunStreamer
 
 
@@ -72,9 +70,7 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
     try:
         source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
     except FileNotFoundError:
-        raise ValueError(
-            f"Must have raw survey data available in {read_dir}"
-        )
+        raise ValueError(f"Must have raw survey data available in {read_dir}")
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
     # Create variables for two or more deprivations
@@ -106,6 +102,13 @@ def change_name_reproject_tiff(
         fname = Path(tiff).name
         data.attrs["long_name"] = attribute
         data.rio.to_raster(tiff)
+        try:
+            gee_dir = Path(read_dir) / "gee"
+            assert gee_dir.exists()
+        except AssertionError:
+            raise FileNotFoundError(
+                f"Must have GEE data available in {gee_dir} - currently must manually download there from Google Drive."
+            )
         p_r = Path(read_dir) / "gee" / f"cpi_poptotal_{country.lower()}_500.tif"
         pg.rxr_reproject_tiff_to_target(tiff, p_r, Path(out_dir) / fname, verbose=True)
 
@@ -251,6 +254,7 @@ def append_features_to_hexes(
 
     # Preprocessed tiff files
     logger.info(f"Preprocessing tiff files from {read_dir} and saving to {save_dir}..")
+
     preprocessed_tiff_files(country, read_dir, save_dir)
 
     # Conflict Zones
@@ -305,7 +309,9 @@ def append_features_to_hexes(
 
     # Speed Test
     logger.info("Reading speed test estimates...")
-    speed = pd.read_csv(Path(read_dir) / "connectivity" / "2021-10-01_performance_mobile_tiles.csv")
+    speed = pd.read_csv(
+        Path(read_dir) / "connectivity" / "2021-10-01_performance_mobile_tiles.csv"
+    )
     speed = preprocessed_speed_test(speed, res, country)
 
     # Open Cell Data
@@ -405,7 +411,7 @@ if __name__ == "__main__":
     )
 
     # TODO: add autoencoder features
-    
+
 ## Health Sites
 # hh = pd.read_csv("nga_health.csv")
 # hh = hh[~hh.X.isna()]
