@@ -3,9 +3,6 @@ import glob as glob
 import logging
 import sys
 import time
-from functools import partial, reduce
-from pathlib import Path
-
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -17,6 +14,13 @@ import stc_unicef_cpi.data.process_netcdf as net
 import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
+
+
+from functools import partial, reduce
+from pathlib import Path
+from art import *
+from rich import pretty, print
+
 from stc_unicef_cpi.data.stream_data import RunStreamer
 
 
@@ -69,7 +73,7 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
         source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
     except FileNotFoundError:
         raise ValueError(
-            "Must have raw survey data available in '../../../data/raw/childpoverty_microdata_gps_21jun22.csv'"
+            f"Must have raw survey data available in {read_dir}"
         )
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
@@ -207,16 +211,10 @@ def append_features_to_hexes(
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     formatter = logging.Formatter("%(asctime)s:%(name)s:%(message)s")
-    file_handler = logging.FileHandler("make_dataset.log")
+    file_handler = logging.FileHandler(c.dataset_log)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-
     logger.info("Starting process...")
-
-    # Country hexes
-    logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
-    hexes_ctry = geo.get_hexes_for_ctry(country, res)
-    ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
     # Retrieve external data
     print(
@@ -307,7 +305,7 @@ def append_features_to_hexes(
 
     # Speed Test
     logger.info("Reading speed test estimates...")
-    speed = pd.read_csv(Path(read_dir) / "2021-10-01_performance_mobile_tiles.csv")
+    speed = pd.read_csv(Path(read_dir) / "connectivity" / "2021-10-01_performance_mobile_tiles.csv")
     speed = preprocessed_speed_test(speed, res, country)
 
     # Open Cell Data
@@ -344,6 +342,8 @@ def append_target_variable_to_hexes(
     read_dir_target=c.raw_data,
     read_dir=c.ext_data,
 ):
+    tprint("Child Poverty Index", font="cybermedum")
+    print(f"Building dataset for {country} at resolution {res}")
     print(
         f"Creating target variable...only available for certain hexagons in {country}"
     )
@@ -404,9 +404,8 @@ if __name__ == "__main__":
         country_code=args.country_code, country=args.country, res=args.resolution
     )
 
-    # add in autoencoder ftrs
-
-
+    # TODO: add autoencoder features
+    
 ## Health Sites
 # hh = pd.read_csv("nga_health.csv")
 # hh = hh[~hh.X.isna()]

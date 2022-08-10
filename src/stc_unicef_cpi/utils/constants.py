@@ -40,25 +40,26 @@ res_area = {
 }
 
 # google earth engine parameters
-start_ee = '2010-01-01'
-end_ee = '2020-01-01'
+start_ee = "2010-01-01"
+end_ee = "2020-01-01"
 res_ee = 500
-folder_ee = 'gee'
+folder_ee = "gee"
 
 # base directory for data
-base_dir_data = '../../../data'
+base_dir_data = "../../../data"
 
 # external data
-ext_data = f'{base_dir_data}/external'
+ext_data = f"{base_dir_data}/external"
 
 # interim data
-int_data = f'{base_dir_data}/interim'
+int_data = f"{base_dir_data}/interim"
 
 # raw data
-raw_data = f'{base_dir_data}/raw'
+raw_data = f"{base_dir_data}/raw"
 
 # loggers
-str_log = 'data_streamer'
+str_log = "data_streamer"
+dataset_log = "make_dataset.log"
 
 # variables
 
@@ -74,6 +75,6 @@ cols_commuting = [
 cutoff = 30
 
 # speedtest params
-serv_type = 'mobile'
+serv_type = "mobile"
 serv_year = 2021
 serv_quart = 4
