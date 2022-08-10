@@ -215,7 +215,7 @@ class SpeedTestStreamer(StreamerObject):
             url, name = speed.get_speedtest_url(self.service_type, self.year, self.q)
             speed.get_speedtest_info(url, name, self.read_path)
         else:
-            if os.path.exists(f"{self.read_path}/{file_name}"):
+            if os.path.exists(f"{self.read_path}/connectivity/{file_name}"):
                 self.logging.info(
                     print(
                         f" -- No need to retrieve speed test data estimates! Estimates for {self.country} are already downloaded."
