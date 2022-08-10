@@ -2,7 +2,6 @@
 import glob as glob
 import logging
 import os
-import warnings
 import pandas as pd
 
 import stc_unicef_cpi.data.get_cell_tower_data as cell
@@ -16,13 +15,7 @@ import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
 
 from rich import pretty, print
-
-try:
-    import stc_unicef_cpi.data.get_facebook_data as fb
-except:
-    warnings.warn(
-        " -- Necessary modules for FB data not found - assuming this is not used"
-    )
+from art import *
 
 
 class StreamerObject:
@@ -168,7 +161,7 @@ class RoadDensityStreamer(StreamerObject):
         if self.force:
             self.logging.info(
                 g.PrettyLog(
-                    f" -- Retrieving road density estimates for {self.country}..."
+                    f" -- Retrieving road density estimates for {self.country} at res {self.res}..."
                 )
             )
             rd = osm.get_road_density(self.country, self.res)
@@ -182,10 +175,11 @@ class RoadDensityStreamer(StreamerObject):
                 )
             else:
                 self.logging.info(
-                    g.PrettyLog(
-                        f" -- Retrieving road density estimates for {self.country}..."
+                    print(
+                        f" -- Retrieving road density estimates for {self.country} at res {self.res}..."
                     )
                 )
+                print(art("coffee"))
                 rd = osm.get_road_density(self.country, self.res)
                 print(rd)
                 rd.to_csv(f"{self.read_path}/{file_name}", index=False)
@@ -294,7 +288,7 @@ class RunStreamer(StreamerObject):
         GoogleEarthEngineStreamer(self.country, self.force, self.read_path, logging)
 
         print(
-            f" -- Retrieving road density estimates for {self.country}... This might take a while..."
+            f" -- Retrieving road density estimates for {self.country} at {self.res}... This might take a while..."
         )
         RoadDensityStreamer(self.country, self.force, self.read_path, self.res, logging)
 

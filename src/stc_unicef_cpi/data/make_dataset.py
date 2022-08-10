@@ -18,6 +18,8 @@ import stc_unicef_cpi.utils.geospatial as geo
 
 from functools import partial, reduce
 from pathlib import Path
+from art import *
+from rich import pretty, print
 
 from stc_unicef_cpi.data.stream_data import RunStreamer
 
@@ -212,7 +214,6 @@ def append_features_to_hexes(
     file_handler = logging.FileHandler(c.dataset_log)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
-
     logger.info("Starting process...")
 
     # Retrieve external data
@@ -341,6 +342,8 @@ def append_target_variable_to_hexes(
     read_dir_target=c.raw_data,
     read_dir=c.ext_data,
 ):
+    tprint("Child Poverty Index", font="cybermedum")
+    print(f"Building dataset for {country} at resolution {res}")
     print(
         f"Creating target variable...only available for certain hexagons in {country}"
     )

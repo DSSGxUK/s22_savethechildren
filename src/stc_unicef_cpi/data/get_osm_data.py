@@ -1,10 +1,10 @@
 import time
-from io import StringIO
-
 import h3.api.numpy_int as h3
 import pandas as pd
-import requests  # type: ignore
+import requests
+
 from shapely import wkt
+from io import StringIO
 
 from stc_unicef_cpi.utils.geospatial import (
     get_area_polygon,
