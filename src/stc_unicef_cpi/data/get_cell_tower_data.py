@@ -67,6 +67,6 @@ def get_cell_data(country, save_path):
         name_file = url.split("file=")[1]
         r = requests.get(url, allow_redirects=True)
         open(f"{save_path}/{country}_{name_file}.tmp", "wb").write(r.content)
-    df = pd.concat(map(read_csv_gzip, glob.glob(f"{save_path}/{country}_*")))
+    df = pd.concat(map(read_csv_gzip, glob.glob(f"{save_path}/{country}_*.gz.tmp")))
     df = df.reset_index(drop=True)
     return df

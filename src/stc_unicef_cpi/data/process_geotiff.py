@@ -12,6 +12,7 @@ import pandas as pd
 import rasterio
 import rioxarray as rxr
 import swifter
+from affine import Affine
 from dask.distributed import Client, LocalCluster
 from pyproj import Transformer
 from rasterio.enums import Resampling
@@ -119,7 +120,7 @@ def rxr_reproject_tiff_to_target(
 
 
 def geotiff_to_df(
-    geotiff_filepath: str, spec_band_names: List[str] = None, verbose=False
+    geotiff_filepath: str, spec_band_names: List[str] = None, max_bands=5, verbose=False
 ):
     """Convert a geotiff file to a pandas dataframe,
     and print some additional info.
@@ -157,12 +158,20 @@ def geotiff_to_df(
         open_file.name = "data"
         try:
             band_names = open_file.attrs["long_name"]
+            if type(band_names) == str:
+                # not really multiband but below still works
+                band_names = [band_names]
             multi_bands = True
         except KeyError:
             try:
                 assert len(open_file.shape) == 2
                 print("Single band found only")
                 multi_bands = False
+                band_names = [
+                    name.replace("cpi", "", 1)
+                    .replace(".tif", "", 1)
+                    .replace("Data", "", 1)
+                ]
             except AssertionError:
                 # Multi-Band but with different
                 # naming convention
@@ -174,6 +183,11 @@ def geotiff_to_df(
                     if rast_file.meta["count"] == 1:
                         print("Single band found only")
                         multi_bands = False
+                        band_names = [
+                            name.replace("cpi", "", 1)
+                            .replace(".tif", "", 1)
+                            .replace("Data", "", 1)
+                        ]
                     else:
                         multi_bands = True
                         band_names = rast_file.descriptions
@@ -193,7 +207,15 @@ def geotiff_to_df(
                             print("Found bands", band_names)
                             # print(rast_file.tags())
                             # print(rast_file.tags(1))
-        df = open_file.to_dataframe()
+        # restrict to tifs of fewer than max bands
+        # else can cause memory issues
+        if len(band_names) > max_bands:
+            raise ValueError(
+                "Too many bands, will require a lot of RAM: instead advisable to use rast_to_agg_df"
+            )
+        else:
+            df = open_file.to_dataframe()
+
     # print(df.reset_index().describe())
     df.drop(columns=["spatial_ref"], inplace=True)
     df.dropna(subset=["data"], inplace=True)
@@ -218,13 +240,13 @@ def geotiff_to_df(
         # Single band, but check to make sure, then rename data
         # suitably
         nbands = df.band.nunique()
-        title = name.lstrip("cpi").rstrip(".tif")
+        title = name.replace("cpi", "", 1).replace(".tif", "", 1)
         print(f"{nbands} bands found in {title}")
         if nbands > 1:
             raise ValueError("More than one band, need to handle")
         else:
             df.drop(columns=["band"], inplace=True)
-        df.rename(columns={"data": title.strip("Data")}, inplace=True)
+        df.rename(columns={"data": title.replace("Data", "")}, inplace=True)
         df = df.reset_index()
 
     if reproj:
@@ -237,6 +259,85 @@ def geotiff_to_df(
 
     # print(df.head())
     return df
+
+
+def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose=False):
+    """Likely slower than using rioxarray fns, but
+    benefit of handling groups of bands at a time, rather
+    than all at once (v memory expensive) - only to be
+    used for tiffs with many bands.
+
+    :param tiff_file: _description_
+    :type tiff_file: _type_
+    :param agg_fn: _description_, defaults to np.mean
+    :type agg_fn: _type_, optional
+    :param resolution: _description_, defaults to 7
+    :type resolution: int, optional
+    :param max_bands: _description_, defaults to 3
+    :type max_bands: int, optional
+    :param verbose: be verbose, defaults to False
+    :type verbose: bool, optional
+    """
+    with rasterio.open(tiff_file) as raster:
+        band_names = np.array(raster.descriptions)
+        nbands = len(band_names)
+        ctr = 0
+
+        if verbose:
+            print("Finding pixel coords...")
+        # get pixel coords
+        T0 = raster.transform  # upper-left pixel corner affine transform
+        # Get affine transform for pixel centres
+        T1 = T0 * Affine.translation(0.5, 0.5)
+        # Function to convert pixel row/column index (from 0) to easting/northing at centre
+        rc2en = lambda r, c: T1 * (c, r)
+
+        tmp = raster.read(1)
+        # All rows and columns
+        cols, rows = np.meshgrid(np.arange(tmp.shape[1]), np.arange(tmp.shape[0]))
+        del tmp
+        # All eastings and northings (there is probably a faster way to do this)
+        eastings, northings = np.vectorize(rc2en, otypes=[float, float])(rows, cols)
+        transformer = Transformer.from_crs(raster.crs, "WGS84")
+        longs, lats = transformer.transform(eastings, northings)
+        del eastings, northings
+        latlongs = np.dstack((lats, longs))
+        if verbose:
+            print("Calculating hex codes...")
+        hex_codes = np.apply_along_axis(
+            lambda x: h3.geo_to_h3(*x, resolution),
+            axis=-1,
+            arr=latlongs,
+        )
+        del latlongs
+        res_df = None
+        while ctr < nbands:
+            band_idxs = np.array(
+                list(set(range(ctr, ctr + max_bands)) & set(range(nbands))), dtype=int
+            )
+            if verbose:
+                print(f"Done, now processing bands {band_names[band_idxs]}")
+            array = raster.read(list(band_idxs + 1))  # need + 1 as not zero-indexed
+            array = np.vstack((array, hex_codes[np.newaxis, ...]))
+            df = pd.DataFrame(
+                array.reshape([len(band_idxs) + 1, -1]).T,
+                columns=list(band_names[band_idxs]) + ["hex_code"],
+            )
+            del array
+            if verbose:
+                print("Aggregating...")
+            df = df.groupby(by="hex_code").agg(
+                {band: agg_fn for band in band_names[band_idxs]}
+            )
+            if res_df is None:
+                res_df = df
+            else:
+                if verbose:
+                    print("Joining to previous aggregations...")
+                res_df = res_df.join(df)
+            del df
+            ctr += max_bands
+    return res_df
 
 
 def agg_tif_to_df(
@@ -304,7 +405,7 @@ def agg_tif_to_df(
         tif_files = tiff_dir
 
     for i, fname in enumerate(tif_files):
-        title = Path(fname).name.lstrip(rm_prefix).rstrip(".tif")
+        title = Path(fname).name.replace(rm_prefix, "", 1).replace(".tif", "", 1)
         print(f"Working with {title}: {i+1}/{len(tif_files)}...")
         # Convert to dataframe
         try:
@@ -328,10 +429,11 @@ def agg_tif_to_df(
                     "tcp://localhost:8786", timeout="2s"
                 ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
                     # NB ideal to have partitions around 100MB in size
+                    # client.restart()
                     ddf = dd.from_pandas(
                         tmp,
                         npartitions=max(
-                            [10, int(tmp.memory_usage(deep=True).sum() // int(1e6))]
+                            [4, int(tmp.memory_usage(deep=True).sum() // int(1e8))]
                         ),
                     )  # chunksize = max_records(?)
                     print(f"Using {ddf.npartitions} partitions")
@@ -350,15 +452,22 @@ def agg_tif_to_df(
                     )
                     tmp = ddf.compute()
             except OSError:
-                cluster = LocalCluster(scheduler_port=8786)
+                cluster = LocalCluster(
+                    scheduler_port=8786,
+                    n_workers=4,
+                    threads_per_worker=1,
+                    memory_limit="1GB",
+                )
                 with Client(
-                    cluster, timeout="2s"
+                    cluster,
+                    timeout="2s",
                 ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
+                    # client.restart()
                     # NB ideal to have partitions around 100MB in size
                     ddf = dd.from_pandas(
                         tmp,
                         npartitions=max(
-                            [10, int(tmp.memory_usage(deep=True).sum() // int(1e6))]
+                            [4, int(tmp.memory_usage(deep=True).sum() // int(1e8))]
                         ),
                     )  # chunksize = max_records(?)
                     print(f"Using {ddf.npartitions} partitions")
@@ -387,7 +496,7 @@ def agg_tif_to_df(
             tmp = tmp.groupby(by=["hex_code"]).agg(
                 {col: agg_fn for col in tmp.columns if col != "hex_code"}
             )
-        print("Joining to survey data...")
+        print("Joining to already aggregated data...")
         # Aggregate ground truth to hexagonal cells with mean
         # NB automatically excludes missing data for households,
         # so differing quantities of data for different values

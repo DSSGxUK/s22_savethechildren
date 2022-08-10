@@ -9,6 +9,7 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import rasterio
 import rioxarray as rxr
 import shapely.wkt
 from art import *
@@ -126,36 +127,51 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     g.create_folder(out_dir)
     # clip gdp ppp 30 arc sec
     print(" -- Clipping gdp pp 30 arc sec")
-    net.netcdf_to_clipped_array(
-        Path(read_dir) / "gdp_ppp_30.nc", ctry_name=country, save_dir=read_dir
-    )
+    if not (Path(read_dir) / (country.lower() + "_gdp_ppp_30.tif")).exists():
+        net.netcdf_to_clipped_array(
+            Path(read_dir) / "gdp_ppp_30.nc", ctry_name=country, save_dir=read_dir
+        )
 
     # clip ec and gdp
     print(" -- Clipping ec and gdp")
     tifs = glob.glob(str(Path(read_dir) / "*" / "*" / "2019" / "*.tif"))
-    partial_func = partial(pg.clip_tif_to_ctry, ctry_name=country, save_dir=read_dir)
-    list(map(partial_func, tifs))
+    if not all(
+        [
+            (Path(read_dir) / (country.lower() + "_" + str(Path(tif).name))).exists()
+            for tif in tifs
+        ]
+    ):
+        partial_func = partial(
+            pg.clip_tif_to_ctry, ctry_name=country, save_dir=read_dir
+        )
+        list(map(partial_func, tifs))
 
     # reproject resolution + crs
     print(" -- Reprojecting resolution & determining crs")
     econ_tiffs = sorted(glob.glob(str(Path(read_dir) / f"{country.lower()}_*.tif")))
     econ_tiffs = [ele for ele in econ_tiffs if "africa" not in ele]
-    attributes = [
-        ["gdp_2019"],
-        ["ec_2019"],
-        ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"],
-    ]
-    mapfunc = partial(change_name_reproject_tiff, country=country)
-    list(map(mapfunc, econ_tiffs, attributes))
+    if not all([(Path(out_dir) / Path(fname).name).exists() for fname in econ_tiffs]):
+        attributes = [
+            ["gdp_2019"],
+            ["ec_2019"],
+            ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"],
+        ]
+        mapfunc = partial(change_name_reproject_tiff, country=country)
+        list(map(mapfunc, econ_tiffs, attributes))
 
     # critical infrastructure data
     print(" -- Reprojecting critical infrastructure data")
-    cisi = glob.glob(str(Path(read_dir) / "*" / "*" / "010_degree" / "africa.tif"))[0]
-    pg.clip_tif_to_ctry(cisi, ctry_name=country, save_dir=read_dir)
-    p_r = Path(read_dir) / "gee" / f"cpi_poptotal_{country.lower()}_500.tif"
     cisi_ctry = Path(read_dir) / f"{country.lower()}_africa.tif"
     fname = Path(cisi_ctry).name
-    pg.rxr_reproject_tiff_to_target(cisi_ctry, p_r, Path(out_dir) / fname, verbose=True)
+    if not (Path(out_dir) / fname).exists():
+        cisi = glob.glob(str(Path(read_dir) / "*" / "*" / "010_degree" / "africa.tif"))[
+            0
+        ]
+        pg.clip_tif_to_ctry(cisi, ctry_name=country, save_dir=read_dir)
+        p_r = Path(read_dir) / "gee" / f"cpi_poptotal_{country.lower()}_500.tif"
+        pg.rxr_reproject_tiff_to_target(
+            cisi_ctry, p_r, Path(out_dir) / fname, verbose=True
+        )
 
 
 @g.timing
@@ -163,6 +179,7 @@ def preprocessed_speed_test(speed, res, country):
     speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
     speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
     world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    logging.info("Clipping speed data to country - can take some time...")
     speed = gpd.sjoin(
         speed, world[world.name == country], how="inner", op="intersects"
     ).reset_index(drop=True)
@@ -233,9 +250,8 @@ def append_features_to_hexes(
     )
     logger.info("Finished data retrieval.")
     logger.info(
-        f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee."
+        f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee. May take some time to appear."
     )
-    time.sleep(100)
 
     # Country hexes
     logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
@@ -254,15 +270,14 @@ def append_features_to_hexes(
 
     # Preprocessed tiff files
     logger.info(f"Preprocessing tiff files from {read_dir} and saving to {save_dir}..")
-
     preprocessed_tiff_files(country, read_dir, save_dir)
 
     # Conflict Zones
     logger.info("Reading and computing conflict zone estimates...")
-    cz = pd.read_csv(Path(read_dir) / "conflict/GEDEvent_v22_1.csv")
+    cz = pd.read_csv(Path(read_dir) / "conflict/GEDEvent_v22_1.csv", low_memory=False)
     cz = cz[cz.country == country]
-    cz = geo.create_geometry(cz, "latitude", "longitude")
     cz = geo.get_hex_code(cz, "latitude", "longitude", res)
+    cz = geo.create_geometry(cz, "latitude", "longitude")
     cz = geo.aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
 
     # Commuting zones
@@ -272,36 +287,61 @@ def append_features_to_hexes(
     # Economic data
     logger.info("Retrieving features from economic tif files...")
     econ_files = glob.glob(str(Path(save_dir) / f"{country.lower()}*.tif"))
-    econ_files = [ele for ele in econ_files if "ppp" not in ele]
-    econ = list(map(pg.geotiff_to_df, econ_files))
-    econ = reduce(
-        lambda left, right: pd.merge(
-            left, right, on=["latitude", "longitude"], how="outer"
-        ),
-        econ,
-    )
-    ppp = glob.glob(str(Path(save_dir) / f"{country.lower()}*ppp*.tif"))[0]
-    ppp = pg.geotiff_to_df(ppp, ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"])
-    econ = econ.merge(ppp, on=["latitude", "longitude"], how="outer")
+    # econ_files = [ele for ele in econ_files if "ppp" not in ele]
 
+    econ = pg.agg_tif_to_df(
+        ctry,
+        econ_files,
+        verbose=True,
+    )
+    # econ = list(map(pg.geotiff_to_df, econ_files))
+    # NB never want to join on lat long if only need
+    # aggregated values - first aggregate then join
+    # on hex codes
+    # econ = reduce(
+    #     lambda left, right: pd.merge(
+    #         left, right, on=["latitude", "longitude"], how="outer"
+    #     ),
+    #     econ,
+    # )
+    # ppp = glob.glob(str(Path(save_dir) / f"{country.lower()}*ppp*.tif"))[0]
+    # ppp = pg.geotiff_to_df(ppp, ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"])
+    # econ = econ.merge(ppp, on=["latitude", "longitude"], how="outer")
+    # del ppp  # Clean up memory
     # Google Earth Engine
     logger.info("Retrieving features from google earth engine tif files...")
     gee_files = glob.glob(str(Path(read_dir) / "gee" / f"*_{country.lower()}*.tif"))
-    gee = list(map(pg.geotiff_to_df, gee_files))
-    gee = reduce(
-        lambda left, right: pd.merge(
-            left, right, on=["latitude", "longitude"], how="outer"
-        ),
-        gee,
-    )
+    # don't want to do this as loads every tiff as df and
+    # loads all into memory at once
+    # gee = list(map(pg.geotiff_to_df, gee_files))
+
+    max_bands = 3
+    gee_nbands = np.zeros(len(gee_files))
+    for idx, file in enumerate(gee_files):
+        with rasterio.open(file) as tif:
+            gee_nbands[idx] = tif.count
+    small_gee = np.array(gee_files)[gee_nbands < max_bands]
+    large_gee = np.array(gee_files)[gee_nbands >= max_bands]
+    gee = pg.agg_tif_to_df(ctry, list(small_gee), verbose=True)
+    for large_file in large_gee:
+        gee = gee.join(
+            pg.rast_to_agg_df(
+                large_file, resolution=res, max_bands=max_bands, verbose=True
+            ),
+            on="hex_code",
+            how="outer",
+        )
+    # gee = reduce(
+    #     lambda left, right: pd.merge(
+    #         left, right, on=["latitude", "longitude"], how="outer"
+    #     ),
+    #     gee,
+    # )
 
     # Join GEE with Econ
-    logger.info("Merging and aggregating features from tiff files to hexagons...")
-    images = gee.merge(econ, on=["latitude", "longitude"], how="outer")
-    images = geo.create_geometry(images, "latitude", "longitude")
-    images = geo.get_hex_code(images, "latitude", "longitude", res)
-    images = images.groupby("hex_code").mean().reset_index()
-    images = images.drop(["latitude", "longitude"], axis=1)
+    logger.info("Merging aggregated features from tiff files to hexagons...")
+    images = gee.merge(econ, on=["hex_code"], how="outer")
+    del econ
 
     # Road density
     logger.info("Reading road density estimates...")
@@ -319,12 +359,18 @@ def append_features_to_hexes(
     cell = g.read_csv_gzip(
         glob.glob(str(Path(read_dir) / f"{country.lower()}_*gz.tmp"))[0]
     )
-    cell = geo.create_geometry(cell, "lat", "long")
     cell = geo.get_hex_code(cell, "lat", "long", res)
-    cell = geo.aggregate_hexagon(cell, "cid", "cells", "count")
+    cell = cell[["hex_code", "radio", "avg_signal"]]
+    cell = (
+        cell.groupby(by=["hex_code", "radio"])
+        .size()
+        .unstack(level=1)
+        .fillna(0)
+        .join(cell.groupby("hex_code").avg_signal.mean())
+    ).reset_index()
 
-    # Aggregate Data
-    logger.info("Merging and aggregating features all features")
+    # Collect Data
+    logger.info("Merging all features")
     dfs = [ctry, commuting, cz, road, speed, cell, images]
     hexes = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
