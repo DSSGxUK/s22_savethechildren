@@ -1,6 +1,8 @@
 import geopandas as gpd
+import stc_unicef_cpi.utils.general as g
 
 from datetime import datetime
+from pathlib import Path
 
 
 def get_speedtest_url(service_type, year, q):
@@ -28,7 +30,7 @@ def get_speedtest_url(service_type, year, q):
     return url, name
 
 
-def prep_tile(data, name):
+def prep_tile(data, name, path_save):
     """Prepare tile
 
     _extended_summary_
@@ -40,13 +42,14 @@ def prep_tile(data, name):
     """
     data = data[['avg_d_kbps', 'avg_u_kbps', 'geometry']]
     print('Saving speedtest data to directory...')
-    data.to_csv(f"../data/connectivity/{name}", index=False)
+    g.create_folder(Path(path_save) / "connectivity")
+    data.to_csv(Path(path_save) / "connectivity" / f"{name}", index=False)
 
 
-def get_speedtest_info(url, name):
+def get_speedtest_info(url, name, path_save):
         try:
             gdf_tiles = gpd.read_file(url)
             data = gdf_tiles
-            data = prep_tile(data, name)
+            data = prep_tile(data, name, path_save)
         except:
             raise ValueError("Unable to retrieve data.")
