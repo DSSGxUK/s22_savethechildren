@@ -305,7 +305,7 @@ def append_features_to_hexes(
 
     # Speed Test
     logger.info("Reading speed test estimates...")
-    speed = pd.read_csv(Path(read_dir) / "2021-10-01_performance_mobile_tiles.csv")
+    speed = pd.read_csv(Path(read_dir) / "connectivity" / "2021-10-01_performance_mobile_tiles.csv")
     speed = preprocessed_speed_test(speed, res, country)
 
     # Open Cell Data
