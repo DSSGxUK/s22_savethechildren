@@ -176,13 +176,23 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
 
 @g.timing
 def preprocessed_speed_test(speed, res, country):
-    speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
-    speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
+    # speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
+    # speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
+    logging.info("Clipping speed data to country - can take a couple of mins...")
     world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-    logging.info("Clipping speed data to country - can take some time...")
-    speed = gpd.sjoin(
-        speed, world[world.name == country], how="inner", op="intersects"
-    ).reset_index(drop=True)
+    ctry = world[world.name == country]
+    bd_series = speed.geometry.str.replace(r"POLYGON\s\(+|\)", "").str.split(r"\s|,\s")
+    speed["min_x"] = bd_series.str[0].astype("float")
+    speed["max_y"] = bd_series.str[-1].astype("float")
+    minx, miny, maxx, maxy = ctry.bounds.values.T.squeeze()
+    # use rough bounds to restrict more or less to country
+    speed = speed[
+        speed.min_x.between(minx - 1e-2, maxx + 1e-2)
+        & speed.max_y.between(miny - 1e-2, maxy + 1e-2)
+    ]
+    speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
+    # only now look for intersection, as expensive
+    speed = gpd.sjoin(speed, ctry, how="inner", op="intersects").reset_index(drop=True)
     tmp = speed.geometry.swifter.apply(
         lambda x: pd.Series(np.array(x.centroid.coords.xy).flatten())
     )
