@@ -690,7 +690,6 @@ if __name__ == "__main__":
                     with open(SAVE_DIRECTORY / pipeline_desc, "wb") as f:
                         pickle.dump(automl.best_config_per_estimator, f)
                 else:
-                    # TODO: change model save description
                     model_desc = f"{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}"
                     pipeline_desc = f"best_cfg-{model_desc}.pkl"
                     with open(SAVE_DIRECTORY / f"{model_desc}.pkl", "wb") as f:
