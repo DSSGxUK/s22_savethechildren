@@ -191,6 +191,7 @@ def preprocessed_speed_test(speed, res, country):
         & speed.max_y.between(miny - 1e-2, maxy + 1e-2)
     ]
     speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
+    speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
     # only now look for intersection, as expensive
     speed = gpd.sjoin(speed, ctry, how="inner", op="intersects").reset_index(drop=True)
     tmp = speed.geometry.swifter.apply(
@@ -266,6 +267,9 @@ def append_features_to_hexes(
     # Country hexes
     logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
+    # expand by 2 hexes to ensure covers all data
+    outer_hexes = geo.get_new_nbrs_at_k(hexes_ctry, 2)
+    hexes_ctry = np.concatenate((hexes_ctry, outer_hexes))
     ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
     # Facebook connectivity metrics
@@ -302,8 +306,11 @@ def append_features_to_hexes(
     econ = pg.agg_tif_to_df(
         ctry,
         econ_files,
+        resolution=res,
+        rm_prefix=rf"cpi|_|{country.lower()}|500",
         verbose=True,
     )
+    # print(econ.head()) # looks OK
     # econ = list(map(pg.geotiff_to_df, econ_files))
     # NB never want to join on lat long if only need
     # aggregated values - first aggregate then join
@@ -332,14 +339,20 @@ def append_features_to_hexes(
             gee_nbands[idx] = tif.count
     small_gee = np.array(gee_files)[gee_nbands < max_bands]
     large_gee = np.array(gee_files)[gee_nbands >= max_bands]
-    gee = pg.agg_tif_to_df(ctry, list(small_gee), verbose=True)
+    gee = pg.agg_tif_to_df(
+        ctry,
+        list(small_gee),
+        resolution=res,
+        rm_prefix=rf"cpi|_|{country.lower()}|500",
+        verbose=True,
+    )
     for large_file in large_gee:
         gee = gee.join(
             pg.rast_to_agg_df(
                 large_file, resolution=res, max_bands=max_bands, verbose=True
             ),
             on="hex_code",
-            how="outer",
+            how="left",
         )
     # gee = reduce(
     #     lambda left, right: pd.merge(
@@ -350,6 +363,8 @@ def append_features_to_hexes(
 
     # Join GEE with Econ
     logger.info("Merging aggregated features from tiff files to hexagons...")
+    # econ.to_csv(Path(save_dir) / f"tmp_{country.lower()}_econ.csv")
+    # gee.to_csv(Path(save_dir) / f"tmp_{country.lower()}_gee.csv")
     images = gee.merge(econ, on=["hex_code"], how="outer")
     del econ
 

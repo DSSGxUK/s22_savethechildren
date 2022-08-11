@@ -58,7 +58,17 @@ if __name__ == "__main__":
         "--clean-name",
         type=str,
         help="Name of clean dataset inside data directory",
-        default="new_auto_thr_clean_nga.csv",
+        default="hexes_{}_res{}_thres{}.csv",
+    )
+    parser.add_argument(
+        "--resolution", "-res", type=int, default=7, help="Resolution of h3 grid"
+    )
+    parser.add_argument(
+        "--threshold",
+        "-thres",
+        type=int,
+        default=30,
+        help="Threshold for minimum number of surveys per hex",
     )
     parser.add_argument(
         "--country",
@@ -218,13 +228,34 @@ if __name__ == "__main__":
     # TODO: link w Dani's data generating pipeline
     # - Either load clean dataset, or pass data directory with all data
     # files necessary to produce clean data
+
+    clean_name = args.clean_name
+    if "{}" in clean_name:
+        clean_name = clean_name.format(args.country, args.resolution, args.threshold)
+    XY = pd.read_csv(Path(args.data) / clean_name)
     if args.copy_to_nbrs:
-        # Load all NGA data (including expanded data)
-        # TODO: include option to run on expanded dataset
-        raise NotImplementedError("Not yet implemented")
+        pass
+
+    if args.target != "all":
+        if args.target == "av-severity":
+            target_name = "sumpoor_sev"
+        elif args.target == "av-prevalence":
+            target_name = "deprived_sev"
+        elif args.target == "av-2-prevalence":
+            target_name = "dep_2_or_more_sev"
+        elif args.target == "av-3-prevalence":
+            target_name = "dep_3_or_more_sev"
+        elif args.target == "av-4-prevalence":
+            target_name = "dep_4_or_more_sev"
+        else:
+            if args.target in ["health", "nutrition"]:
+                warnings.warn(
+                    f"Target variable {args.target} has very minimal ground truth data - model extrapolation likely to be poor"
+                )
+            target_name = f"dep_{args.target}_sev"
+        XY.dropna(subset=[target_name], inplace=True)
     else:
-        # Load all NGA data, using only specified (perturbed) locations
-        XY = pd.read_csv(Path(args.data) / args.clean_name)
+        XY.dropna(subset=["sumpoor_sev"], inplace=True)
     if args.country != "all":
         # Want to either use preexisting data in location specified,
         # else produce data from scratch
@@ -246,8 +277,13 @@ if __name__ == "__main__":
     # thr_df = pd.read_csv(thr_data)
     # thr_all = all_df.set_index('hex_code').loc[thr_df.hex_code].reset_index()
     #### Select features to use
-    start_idx = XY.columns.tolist().index("LATNUM")
-    X = XY.iloc[:, start_idx:].copy()
+    # get idx where survey data starts
+    survey_idx = XY.columns.tolist().index("survey")
+    X = XY.iloc[:, :survey_idx].copy()
+    # add in lat longs as ftrs
+    latlongs = X.hex_code.swifter.apply(lambda x: h3.h3_to_geo(x))
+    X["lat"] = latlongs.str[0]
+    X["long"] = latlongs.str[1]
 
     if args.universal_data_only:
         # Remove country specific data - e.g. in case of Nigeria,
@@ -277,22 +313,6 @@ if __name__ == "__main__":
 
     #### Select target variables
     if args.target != "all":
-        if args.target == "av-severity":
-            target_name = "sumpoor_sev"
-        elif args.target == "av-prevalence":
-            target_name = "deprived_sev"
-        elif args.target == "av-2-prevalence":
-            target_name = "dep_2_or_more_sev"
-        elif args.target == "av-3-prevalence":
-            target_name = "dep_3_or_more_sev"
-        elif args.target == "av-4-prevalence":
-            target_name = "dep_4_or_more_sev"
-        else:
-            if args.target in ["health", "nutrition"]:
-                warnings.warn(
-                    f"Target variable {args.target} has very minimal ground truth data - model extrapolation likely to be poor"
-                )
-            target_name = f"dep_{args.target}_sev"
         Y = XY[target_name].copy()
     else:
         # NB only evaluating on good idxs here, if want to do health / nutrition need to pass explicitly.
