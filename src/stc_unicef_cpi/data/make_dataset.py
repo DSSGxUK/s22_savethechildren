@@ -7,6 +7,7 @@ from functools import partial, reduce
 from pathlib import Path
 
 import geopandas as gpd
+import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
 import rasterio
@@ -67,7 +68,9 @@ def aggregate_dataset(df):
     return df_mean, df_count
 
 
-def create_target_variable(country_code, res, lat, long, threshold, read_dir):
+def create_target_variable(
+    country_code, res, lat, long, threshold, read_dir, copy_to_nbrs=False
+):
     try:
         source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
     except FileNotFoundError:
@@ -79,6 +82,41 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
         sub[f"dep_{k}_or_more_sev"] = sub["sumpoor_sev"] >= k
     sub = geo.get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
+    if copy_to_nbrs:
+        sub["hex_incl_nbrs"] = sub[["location", "hex_code"]].apply(
+            lambda row: h3.k_ring(row["hex_code"], 1)
+            if row["location"] == 1
+            else h3.k_ring(row["hex_code"], 2),
+            axis=1,
+        )
+        sev_cols = [col for col in sub.columns if "_sev" in col]
+        other_cols = [
+            col
+            for col in sub.columns
+            if ("int" in str(sub[col].dtype) or "float" in str(sub[col].dtype))
+        ]
+        agg_dict = {col: "mean" for col in other_cols}
+        agg_dict.update({idx: ["mean", "count"] for idx in sev_cols})
+        # agg_dict.update({"hhid": "count"})
+        sub = sub.explode("hex_incl_nbrs").groupby(by=["hex_incl_nbrs"]).agg(agg_dict)
+        sub.columns = ["_".join(col) for col in sub.columns.values]
+        sub.rename(
+            columns={
+                f"{sev}_mean": f"{sev.replace('dep_','').replace('_sev','')}_prev"
+                for sev in sev_cols
+                if sev != "deprived_sev"
+            },
+            inplace=True,
+        )
+        sub.rename(
+            columns={
+                f"{sev}_count": f"{sev.replace('dep_','').replace('_sev','')}_count"
+                for sev in sev_cols
+                if sev != "deprived_sev"
+            },
+            inplace=True,
+        )
+
     sub_mean, sub_count = aggregate_dataset(sub)
     sub_count = sub_count[sub_count.survey >= threshold]
     survey = geo.get_hex_centroid(sub_mean, "hex_code")
@@ -427,6 +465,9 @@ def append_target_variable_to_hexes(
     train = create_target_variable(
         country_code, res, lat, long, threshold, read_dir_target
     )
+    train_expanded = create_target_variable(
+        country_code, res, lat, long, threshold, read_dir_target, copy_to_nbrs=True
+    )
     print(
         f"Appending  features to all hexagons in {country}. This step might take a while...~20 minutes"
     )
@@ -438,6 +479,10 @@ def append_target_variable_to_hexes(
     print(f"Saving dataset to {save_dir}")
     complete.to_csv(
         Path(save_dir) / f"hexes_{country.lower()}_res{res}_thres{threshold}.csv",
+        index=False,
+    )
+    train_expanded.to_csv(
+        Path(save_dir) / f"expanded_{country.lower()}_res{res}_thres{threshold}.csv",
         index=False,
     )
     print("Done!")

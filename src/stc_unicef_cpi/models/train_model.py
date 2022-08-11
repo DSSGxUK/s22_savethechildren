@@ -234,7 +234,24 @@ if __name__ == "__main__":
         clean_name = clean_name.format(args.country, args.resolution, args.threshold)
     XY = pd.read_csv(Path(args.data) / clean_name)
     if args.copy_to_nbrs:
-        pass
+        expanded_gt = pd.read_csv(
+            Path(args.data)
+            / f"expanded_{args.country.lower()}_res{args.resolution}_thres{args.threshold}.csv"
+        )
+        # contains both count and mean value for targets
+        # so currently as not using count beyond
+        # thresholding just clean and drop
+        expanded_gt.drop(
+            columns=[col for col in expanded_gt.columns if "_count" in col],
+            inplace=True,
+        )
+        expanded_gt.rename(
+            columns={col: col.replace("_mean", "") for col in expanded_gt.columns}
+        )
+        expanded_gt.set_index("hex_code", inplace=True)
+        # replace original gt with expanded gt
+        XY[expanded_gt.columns] = np.nan
+        XY.combine_first(expanded_gt)
 
     if args.target != "all":
         if args.target == "av-severity":
