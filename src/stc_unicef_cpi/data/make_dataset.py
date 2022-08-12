@@ -99,6 +99,8 @@ def create_target_variable(
         agg_dict.update({idx: ["mean", "count"] for idx in sev_cols})
         # agg_dict.update({"hhid": "count"})
         sub = sub.explode("hex_incl_nbrs").groupby(by=["hex_incl_nbrs"]).agg(agg_dict)
+        sub.drop(columns=["hex_code_mean"], inplace=True)
+        sub.rename(columns={"hex_incl_nbrs": "hex_code"}, inplace=True)
         sub.columns = ["_".join(col) for col in sub.columns.values]
         sub.rename(
             columns={
@@ -116,6 +118,7 @@ def create_target_variable(
             },
             inplace=True,
         )
+        sub.drop
 
     sub_mean, sub_count = aggregate_dataset(sub)
     sub_count = sub_count[sub_count.survey >= threshold]
