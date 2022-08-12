@@ -46,7 +46,7 @@ warnings.filterwarnings("ignore")
 if __name__ == "__main__":
     ### Argument and global variables
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
-    DATA_DIRECTORY = Path("../../../data/processed")
+    DATA_DIRECTORY = Path.cwd().parent.parent.parent / "data" / "processed"
     parser.add_argument(
         "-d",
         "--data",
@@ -517,7 +517,7 @@ if __name__ == "__main__":
     univ_data = "univ" if args.universal_data_only else "all"
     ip_data = "ip" if args.interpretable else "nip"
     if len(Y.shape) == 1:
-        pipeline_desc = f"best_cfg-{args.country}-{args.target}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+        pipeline_desc = f"best_cfg-{args.country}-{args.target}-{args.cv_type}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
         if args.automl_warm_start:
             try:
                 with open(DATA_DIRECTORY.parent / "models" / pipeline_desc, "rb") as f:
@@ -688,6 +688,7 @@ if __name__ == "__main__":
                             "target_transform": args.target_transform,
                             "interpretable": args.interpretable,
                             "universal": args.universal_data_only,
+                            "copy_to_nbrs": args.copy_to_nbrs,
                         }
                     )
                     mlflow.log_param(key="best_model", value=automl.best_estimator)
