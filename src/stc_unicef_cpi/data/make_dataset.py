@@ -99,8 +99,6 @@ def create_target_variable(
         agg_dict.update({idx: ["mean", "count"] for idx in sev_cols})
         # agg_dict.update({"hhid": "count"})
         sub = sub.explode("hex_incl_nbrs").groupby(by=["hex_incl_nbrs"]).agg(agg_dict)
-        sub.drop(columns=["hex_code_mean"], inplace=True)
-        sub.rename(columns={"hex_incl_nbrs": "hex_code"}, inplace=True)
         sub.columns = ["_".join(col) for col in sub.columns.values]
         sub.rename(
             columns={
@@ -118,12 +116,15 @@ def create_target_variable(
             },
             inplace=True,
         )
-        sub.drop
-
-    sub_mean, sub_count = aggregate_dataset(sub)
-    sub_count = sub_count[sub_count.survey >= threshold]
-    survey = geo.get_hex_centroid(sub_mean, "hex_code")
-    survey_threshold = sub_count.merge(survey, how="left", on="hex_code")
+        sub.drop(columns=["hex_code_mean"], inplace=True)
+        survey_threshold = sub[sub.sumpoor_count >= threshold].reset_index().copy()
+        survey_threshold.rename(columns={"hex_incl_nbrs": "hex_code"}, inplace=True)
+        survey_threshold = geo.get_hex_centroid(survey_threshold, "hex_code")
+    else:
+        sub_mean, sub_count = aggregate_dataset(sub)
+        sub_count = sub_count[sub_count.survey >= threshold]
+        survey = geo.get_hex_centroid(sub_mean, "hex_code")
+        survey_threshold = sub_count.merge(survey, how="left", on="hex_code")
     return survey_threshold
 
 
