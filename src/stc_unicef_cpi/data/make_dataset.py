@@ -298,7 +298,7 @@ def append_features_to_hexes(
         res,
         force,
         audience,
-        read_path=c.ext_data,
+        read_path=str(c.ext_data),
         name_logger=c.str_log,
     )
     logger.info("Finished data retrieval.")
