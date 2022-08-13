@@ -563,17 +563,19 @@ if __name__ == "__main__":
         try:
             # Create an experiment name, which must be unique and case sensitive
             experiment_id = client.create_experiment(
-                f"{args.country}-{args.target}-{args.model}"
+                f"{args.country}-{args.target}-{args.model}-{args.eval_split_type}"
             )
             # experiment = client.get_experiment(experiment_id)
         except:
-            assert f"{args.country}-{args.target}-{args.model}" in [
-                exp.name for exp in client.list_experiments()
-            ]
+            assert (
+                f"{args.country}-{args.target}-{args.model}-{args.eval_split_type}"
+                in [exp.name for exp in client.list_experiments()]
+            )
             experiment_id = [
                 exp.experiment_id
                 for exp in client.list_experiments()
-                if exp.name == f"{args.country}-{args.target}-{args.model}"
+                if exp.name
+                == f"{args.country}-{args.target}-{args.model}-{args.eval_split_type}"
             ][0]
         mlflow.start_run(experiment_id=experiment_id)
     if args.model == "automl":
@@ -683,6 +685,7 @@ if __name__ == "__main__":
                     mlflow.set_tags(
                         {
                             "cv_type": args.cv_type,
+                            "eval_split_type": args.eval_split_type,
                             "imputation": args.impute,
                             "standardisation": args.standardise,
                             "target_transform": args.target_transform,

@@ -442,6 +442,15 @@ def append_features_to_hexes(
     hexes = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
+    zero_fill_cols = [
+        "n_conflicts",
+        "GSM",
+        "LTE",
+        "NR",
+        "UMTS",
+    ]
+    # where nans mean zero, fill as such
+    hexes.fillna(value={col: 0 for col in zero_fill_cols}, inplace=True)
     logger.info("Finishing process...")
 
     return hexes
