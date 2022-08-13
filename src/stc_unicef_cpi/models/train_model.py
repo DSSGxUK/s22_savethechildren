@@ -218,6 +218,22 @@ if __name__ == "__main__":
     except argparse.ArgumentError:
         parser.print_help()
         sys.exit(0)
+    # NB to generate list of all combos of chosen params,
+    # may use e.g.
+    # c1 = np.array(["all", "nigeria", "senegal"])
+    # c2 = np.array(["normal", "stratified", "spatial"])
+    # c3 = np.array(["all", "health", "nutrition","av-3-prevalence",
+    #             "av-4-prevalence",])
+    # c4 = np.array(["none", "mean", "median", "knn", "linear", "rf"])
+    # c5 = np.array(["none", "standard", "minmax", "robust"])
+    # c6 = np.array(["none", "log", "power"])
+    # c7 = np.array(["normal", "stratified", "spatial"])
+    # c8 = np.array([" ", "-ip"])
+    # c9 = np.array([" ", "-univ"])
+    # c10 = np.array([" ", "-cp2nbr"])
+
+    # params = np.array(np.meshgrid(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)).T.reshape(-1, 10)
+    # np.savetxt('./training_params.txt',params,delimiter=' ',fmt='%s')
 
     DATA_DIRECTORY = Path(args.data)
     if args.save_model:
