@@ -116,6 +116,7 @@ def unzip_file(name):
     :param name: name or path of file to unzip
     :type name: str
     """
+    name = str(name)
     name_folder = glob.glob(name)[0].split(".zip")[0]
     with zipfile.ZipFile(glob.glob(name)[0], "r") as h:
         create_folder(name_folder)
