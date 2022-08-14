@@ -26,9 +26,9 @@ do
         --eval-split-type ${train_pars[6]} \
         --log-run \
         --ncores $num_cores \
-        "${train_pars[7]}" \
-        "${train_pars[8]}" \
-        "${train_pars[9]}" &
+        -ip "${train_pars[7]}" \
+        -univ "${train_pars[8]}" \
+        -cp2nbr "${train_pars[9]}" &
 # --interpretable or nothing # --universal-data-only or nothing# --copy-to-nbrs or nothing
 #   --subsel_data         Use feature subset selection
 #   --n_runs N_RUNS       Number of runs
