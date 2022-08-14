@@ -1,5 +1,6 @@
 import glob
 import os
+import re
 from pathlib import Path
 from typing import List, Union
 
@@ -120,7 +121,11 @@ def rxr_reproject_tiff_to_target(
 
 
 def geotiff_to_df(
-    geotiff_filepath: str, spec_band_names: List[str] = None, max_bands=5, verbose=False
+    geotiff_filepath: str,
+    spec_band_names: List[str] = None,
+    max_bands=5,
+    rm_prefix=None,
+    verbose=False,
 ):
     """Convert a geotiff file to a pandas dataframe,
     and print some additional info.
@@ -168,7 +173,7 @@ def geotiff_to_df(
                 print("Single band found only")
                 multi_bands = False
                 band_names = [
-                    name.replace("cpi", "", 1)
+                    re.sub(rm_prefix, "", name)
                     .replace(".tif", "", 1)
                     .replace("Data", "", 1)
                 ]
@@ -184,7 +189,7 @@ def geotiff_to_df(
                         print("Single band found only")
                         multi_bands = False
                         band_names = [
-                            name.replace("cpi", "", 1)
+                            re.sub(rm_prefix, "", name)
                             .replace(".tif", "", 1)
                             .replace("Data", "", 1)
                         ]
@@ -240,7 +245,7 @@ def geotiff_to_df(
         # Single band, but check to make sure, then rename data
         # suitably
         nbands = df.band.nunique()
-        title = name.replace("cpi", "", 1).replace(".tif", "", 1)
+        title = re.sub(rm_prefix, "", name).replace(".tif", "", 1)
         print(f"{nbands} bands found in {title}")
         if nbands > 1:
             raise ValueError("More than one band, need to handle")
@@ -310,6 +315,8 @@ def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose
             arr=latlongs,
         )
         del latlongs
+        # if verbose:
+        #     print(f"Found {len(np.unique(hex_codes))} hex codes")
         res_df = None
         while ctr < nbands:
             band_idxs = np.array(
@@ -317,25 +324,29 @@ def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose
             )
             if verbose:
                 print(f"Done, now processing bands {band_names[band_idxs]}")
+            if len(band_idxs) == 1:
+                band_cols = band_names[band_idxs].tolist()
+            else:
+                band_cols = band_names[band_idxs].tolist()
             array = raster.read(list(band_idxs + 1))  # need + 1 as not zero-indexed
-            array = np.vstack((array, hex_codes[np.newaxis, ...]))
+            # array = np.vstack((array, hex_codes[np.newaxis, ...]))
             df = pd.DataFrame(
-                array.reshape([len(band_idxs) + 1, -1]).T,
-                columns=list(band_names[band_idxs]) + ["hex_code"],
+                array.reshape([len(band_idxs), -1]).T,
+                columns=band_cols,
             )
+            df["hex_code"] = hex_codes.reshape(-1)
+            df.dropna(inplace=True)
             del array
             if verbose:
                 print("Aggregating...")
-            df = df.groupby(by="hex_code").agg(
-                {band: agg_fn for band in band_names[band_idxs]}
-            )
+            df = df.groupby(by="hex_code").agg({band: agg_fn for band in band_cols})
             if res_df is None:
                 res_df = df
             else:
                 if verbose:
                     print("Joining to previous aggregations...")
                 res_df = res_df.join(df)
-            del df
+                del df
             ctr += max_bands
     return res_df
 
@@ -405,15 +416,16 @@ def agg_tif_to_df(
         tif_files = tiff_dir
 
     for i, fname in enumerate(tif_files):
-        title = Path(fname).name.replace(rm_prefix, "", 1).replace(".tif", "", 1)
+        title = re.sub(rm_prefix, "", Path(fname).name).replace(".tif", "", 1)
         print(f"Working with {title}: {i+1}/{len(tif_files)}...")
         # Convert to dataframe
         try:
-            tmp = geotiff_to_df(fname, verbose=verbose)
+            tmp = geotiff_to_df(fname, rm_prefix=rm_prefix, verbose=verbose)
         except:
             tmp = geotiff_to_df(
                 fname,
                 spec_band_names=["GDP_PPP_1990", "GDP_PPP_2000", "GDP_PPP_2015"],
+                rm_prefix=rm_prefix,
                 verbose=verbose,
             )
         print("Converted to dataframe!")
@@ -505,7 +517,7 @@ def agg_tif_to_df(
             if len(override_cols) > 0:
                 print("Overwriting old columns:", override_cols)
             df.drop(columns=override_cols, inplace=True)
-        df = df.merge(
+        df = df.join(
             tmp,
             how="left",
             on="hex_code",

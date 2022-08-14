@@ -1,3 +1,5 @@
+from pathlib import Path
+
 # optimization objective for facebook audience estimates
 opt = "REACH"
 
@@ -46,16 +48,26 @@ res_ee = 500
 folder_ee = "gee"
 
 # base directory for data
-base_dir_data = "../../../data"
+current_dir = Path.cwd()
+if current_dir.name == "data" and current_dir.parent.name == "stc_unicef_cpi":
+    base_dir_data = Path.cwd().parent.parent.parent / "data"
+    base_dir_data.mkdir(exist_ok=True)
+else:
+    raise ValueError(
+        "Must run make_dataset.py from stc_unicef_cpi/data directly for default paths to work as intended"
+    )
 
 # external data
-ext_data = f"{base_dir_data}/external"
+ext_data = base_dir_data / "external"
+ext_data.mkdir(exist_ok=True)
 
 # interim data
-int_data = f"{base_dir_data}/interim"
+int_data = base_dir_data / "interim"
+int_data.mkdir(exist_ok=True)
 
 # raw data
-raw_data = f"{base_dir_data}/raw"
+raw_data = base_dir_data / "raw"
+raw_data.mkdir(exist_ok=True)
 
 # loggers
 str_log = "data_streamer"
@@ -68,7 +80,7 @@ cols_commuting = [
     "name_commuting",
     "win_population_commuting",
     "win_roads_km_commuting",
-    "area_commuting"
+    "area_commuting",
 ]
 
 # threshold

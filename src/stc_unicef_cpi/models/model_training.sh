@@ -8,6 +8,7 @@
 params='training_params.txt'
 sed '/^ *#/d;s/#.*//' $params > 'clean_params.txt'
 clean_pars='clean_params.txt'
+num_cores=4
 num_procs=6 # max number of runs to try at once
 num_jobs="\j"  # The prompt escape for number of jobs currently running
 while read -a train_pars;
@@ -16,17 +17,19 @@ do
     wait -n
   done
   python train_model.py \
-        --country ${train_pars[1]} \
-        --cv-type ${train_pars[2]} \
-        --target ${train_pars[3]} \
-        --impute ${train_pars[4]} \
-        --standardise ${train_pars[5]} \
-        --target-transform ${train_pars[6]} \
-        --eval-split-type ${train_pars[7]} \
+        --country ${train_pars[0]} \
+        --cv-type ${train_pars[1]} \
+        --target ${train_pars[2]} \
+        --impute ${train_pars[3]} \
+        --standardise ${train_pars[4]} \
+        --target-transform ${train_pars[5]} \
+        --eval-split-type ${train_pars[6]} \
         --log-run \
-        "${train_pars[8]}" \ # --interpretable or nothing
-        "${train_pars[9]}" \ # --universal-data-only or nothing
-        "${train_pars[10]}" \ # --copy-to-nbrs or nothing
+        --ncores $num_cores \
+        -ip "${train_pars[7]}" \
+        -univ "${train_pars[8]}" \
+        -cp2nbr "${train_pars[9]}" &
+# --interpretable or nothing # --universal-data-only or nothing# --copy-to-nbrs or nothing
 #   --subsel_data         Use feature subset selection
 #   --n_runs N_RUNS       Number of runs
 #   --test-size TEST_SIZE

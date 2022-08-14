@@ -1,7 +1,9 @@
 import math
+from itertools import chain
 
 import geopandas as gpd
 import h3.api.numpy_int as h3
+import numpy as np
 import pandas as pd
 import shapely.wkt
 from pyproj import Geod
@@ -79,9 +81,9 @@ def get_hex_code(df, lat, long, res):
 
 def aggregate_hexagon(df, col_to_agg, name_agg, type):
     if type == "count":
-        df = df.groupby("hex_code").count().reset_index()
+        df = df.groupby("hex_code", as_index=False).count()
     else:
-        df = df.groupby("hex_code").mean().reset_index()
+        df = df.groupby("hex_code", as_index=False).mean()
     df = df[["hex_code", col_to_agg]]
     df = df.rename({col_to_agg: name_agg}, axis=1)
     return df
@@ -104,6 +106,31 @@ def get_hexes_for_ctry(ctry_name="Nigeria", res=7):
     ctry_shp = world[world.name == ctry_name].geometry.values[0].__geo_interface__
 
     return h3.polyfill(ctry_shp, res)
+
+
+def get_new_nbrs_at_k(hexes, k):
+    """Given set of hexes, return set of new neighbors at k distance
+    Useful for expanding country hex sets
+
+    :param hexes: _description_
+    :type hexes: _type_
+    :param k: _description_
+    :type k: _type_
+    """
+
+    def hex_nbrs_at_k(hex, k):
+        return np.array(
+            list(
+                chain.from_iterable(
+                    [h3.hex_ring(hex, dist) for dist in range(1, k + 1)]
+                )
+            )
+        )
+
+    nbrs_at_k = pd.DataFrame(hexes, columns=["hex_code"]).hex_code.swifter.apply(
+        lambda hex: hex_nbrs_at_k(hex, k)
+    )
+    return np.setdiff1d(np.array(list(chain.from_iterable(nbrs_at_k))), hexes)
 
 
 def get_area_polygon(polygon, crs="WGS84"):

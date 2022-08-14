@@ -46,7 +46,7 @@ warnings.filterwarnings("ignore")
 if __name__ == "__main__":
     ### Argument and global variables
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
-    DATA_DIRECTORY = Path("../../../data/processed")
+    DATA_DIRECTORY = Path.cwd().parent.parent.parent / "data" / "processed"
     parser.add_argument(
         "-d",
         "--data",
@@ -58,7 +58,17 @@ if __name__ == "__main__":
         "--clean-name",
         type=str,
         help="Name of clean dataset inside data directory",
-        default="new_auto_thr_clean_nga.csv",
+        default="hexes_{}_res{}_thres{}.csv",
+    )
+    parser.add_argument(
+        "--resolution", "-res", type=int, default=7, help="Resolution of h3 grid"
+    )
+    parser.add_argument(
+        "--threshold",
+        "-thres",
+        type=int,
+        default=30,
+        help="Threshold for minimum number of surveys per hex",
     )
     parser.add_argument(
         "--country",
@@ -70,19 +80,23 @@ if __name__ == "__main__":
     parser.add_argument(
         "-ip",
         "--interpretable",
-        action="store_true",
+        type=str,
+        default="false",
+        choices=["true", "false"],
         help="Make model (more) interpretable - no matter other flags, use only base (non auto-encoder) features so can explain",
     )
     parser.add_argument(
         "--universal-data-only",
         "-univ",
-        action="store_true",
+        default="false",
+        choices=["true", "false"],
         help="Use only universal data (i.e. no country-specific data) - only applicable if --country!=all",
     )
     parser.add_argument(
         "--copy-to-nbrs",
         "-cp2nbr",
-        action="store_true",
+        default="false",
+        choices=["true", "false"],
         help="Use expanded dataset, where 'ground-truth' values are copied to neighbouring cells",
     )
     # parser.add_argument(
@@ -202,12 +216,38 @@ if __name__ == "__main__":
         action="store_true",
         help="Produce scatter plot(s) of predicted vs actual values on test set",
     )
+    parser.add_argument("--ncores", type=int, default=4, help="Number of cores to use")
+    # NB not sensible to use this in current setup
+    # given trying overall pipeline hyperparams
+    # in parallel using shell script
+    # parser.add_argument(
+    #     "--n_concurrent",
+    #     type=int,
+    #     default=1,
+    #     help="Number of parallel runs for automl tuning"
+    # )
 
     try:
         args = parser.parse_args()
     except argparse.ArgumentError:
         parser.print_help()
         sys.exit(0)
+    # NB to generate list of all combos of chosen params,
+    # may use e.g.
+    # c1 = np.array(["all", "nigeria", "senegal"])
+    # c2 = np.array(["normal", "stratified", "spatial"])
+    # c3 = np.array(["all", "health", "nutrition","av-3-prevalence",
+    #             "av-4-prevalence",])
+    # c4 = np.array(["none", "mean", "median", "knn", "linear", "rf"])
+    # c5 = np.array(["none", "standard", "minmax", "robust"])
+    # c6 = np.array(["none", "log", "power"])
+    # c7 = np.array(["normal", "stratified", "spatial"])
+    # c8 = np.array([" ", "-ip"])
+    # c9 = np.array([" ", "-univ"])
+    # c10 = np.array([" ", "-cp2nbr"])
+
+    # params = np.array(np.meshgrid(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10)).T.reshape(-1, 10)
+    # np.savetxt('./training_params.txt',params,delimiter=' ',fmt='%s')
 
     DATA_DIRECTORY = Path(args.data)
     if args.save_model:
@@ -218,13 +258,51 @@ if __name__ == "__main__":
     # TODO: link w Dani's data generating pipeline
     # - Either load clean dataset, or pass data directory with all data
     # files necessary to produce clean data
-    if args.copy_to_nbrs:
-        # Load all NGA data (including expanded data)
-        # TODO: include option to run on expanded dataset
-        raise NotImplementedError("Not yet implemented")
+
+    clean_name = args.clean_name
+    if "{}" in clean_name:
+        clean_name = clean_name.format(args.country, args.resolution, args.threshold)
+    XY = pd.read_csv(Path(args.data) / clean_name)
+    if args.copy_to_nbrs == "true":
+        expanded_gt = pd.read_csv(
+            Path(args.data)
+            / f"expanded_{args.country.lower()}_res{args.resolution}_thres{args.threshold}.csv"
+        )
+        # contains both count and mean value for targets
+        # so currently as not using count beyond
+        # thresholding just clean and drop
+        expanded_gt.drop(
+            columns=[col for col in expanded_gt.columns if "_count" in col],
+            inplace=True,
+        )
+        expanded_gt.rename(
+            columns={col: col.replace("_mean", "") for col in expanded_gt.columns}
+        )
+        expanded_gt.set_index("hex_code", inplace=True)
+        # replace original gt with expanded gt
+        XY[expanded_gt.columns] = np.nan
+        XY.combine_first(expanded_gt)
+
+    if args.target != "all":
+        if args.target == "av-severity":
+            target_name = "sumpoor_sev"
+        elif args.target == "av-prevalence":
+            target_name = "deprived_sev"
+        elif args.target == "av-2-prevalence":
+            target_name = "dep_2_or_more_sev"
+        elif args.target == "av-3-prevalence":
+            target_name = "dep_3_or_more_sev"
+        elif args.target == "av-4-prevalence":
+            target_name = "dep_4_or_more_sev"
+        else:
+            if args.target in ["health", "nutrition"]:
+                warnings.warn(
+                    f"Target variable {args.target} has very minimal ground truth data - model extrapolation likely to be poor"
+                )
+            target_name = f"dep_{args.target}_sev"
+        XY.dropna(subset=[target_name], inplace=True)
     else:
-        # Load all NGA data, using only specified (perturbed) locations
-        XY = pd.read_csv(Path(args.data) / args.clean_name)
+        XY.dropna(subset=["sumpoor_sev"], inplace=True)
     if args.country != "all":
         # Want to either use preexisting data in location specified,
         # else produce data from scratch
@@ -246,10 +324,15 @@ if __name__ == "__main__":
     # thr_df = pd.read_csv(thr_data)
     # thr_all = all_df.set_index('hex_code').loc[thr_df.hex_code].reset_index()
     #### Select features to use
-    start_idx = XY.columns.tolist().index("LATNUM")
-    X = XY.iloc[:, start_idx:].copy()
+    # get idx where survey data starts
+    survey_idx = XY.columns.tolist().index("survey")
+    X = XY.iloc[:, :survey_idx].copy()
+    # add in lat longs as ftrs
+    latlongs = X.hex_code.swifter.apply(lambda x: h3.h3_to_geo(x))
+    X["lat"] = latlongs.str[0]
+    X["long"] = latlongs.str[1]
 
-    if args.universal_data_only:
+    if args.universal_data_only == "true":
         # Remove country specific data - e.g. in case of Nigeria,
         # healthcare and education OSM data, and FB connectivity data
         if args.country == "nigeria":
@@ -270,29 +353,13 @@ if __name__ == "__main__":
                 "NB no additional features exist for countries other than Nigeria, so no additional features are removed"
             )
 
-    if args.interpretable:
+    if args.interpretable == "true":
         # Remove auto-encoder features for more interpretable models
         auto_cols = [col for col in X.columns if "auto_" in col]
         X = X.drop(auto_cols, axis=1)
 
     #### Select target variables
     if args.target != "all":
-        if args.target == "av-severity":
-            target_name = "sumpoor_sev"
-        elif args.target == "av-prevalence":
-            target_name = "deprived_sev"
-        elif args.target == "av-2-prevalence":
-            target_name = "dep_2_or_more_sev"
-        elif args.target == "av-3-prevalence":
-            target_name = "dep_3_or_more_sev"
-        elif args.target == "av-4-prevalence":
-            target_name = "dep_4_or_more_sev"
-        else:
-            if args.target in ["health", "nutrition"]:
-                warnings.warn(
-                    f"Target variable {args.target} has very minimal ground truth data - model extrapolation likely to be poor"
-                )
-            target_name = f"dep_{args.target}_sev"
         Y = XY[target_name].copy()
     else:
         # NB only evaluating on good idxs here, if want to do health / nutrition need to pass explicitly.
@@ -392,6 +459,7 @@ if __name__ == "__main__":
                 "rf",
                 "extra_tree",
             ],
+            "n_jobs": args.ncores,
             "log_file_name": "automl.log",  # flaml log file
             "seed": 42,  # random seed
             "eval_method": "cv",
@@ -449,7 +517,7 @@ if __name__ == "__main__":
     # feature standardisation setup
     # choices = ["none", "standard", "minmax", "robust"]
     if args.standardise == "none":
-        standardiser = None
+        num_stand = None
     elif args.standardise == "standard":
         num_stand = StandardScaler()
     elif args.standardise == "minmax":
@@ -477,10 +545,10 @@ if __name__ == "__main__":
 
     pipeline = Pipeline([("preprocessor", col_tf), ("model", model)])
 
-    univ_data = "univ" if args.universal_data_only else "all"
-    ip_data = "ip" if args.interpretable else "nip"
+    univ_data = "univ" if args.universal_data_only == "true" else "all"
+    ip_data = "ip" if args.interpretable == "true" else "nip"
     if len(Y.shape) == 1:
-        pipeline_desc = f"best_cfg-{args.country}-{args.target}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+        pipeline_desc = f"best_cfg-{args.country}-{args.target}-{args.cv_type}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
         if args.automl_warm_start:
             try:
                 with open(DATA_DIRECTORY.parent / "models" / pipeline_desc, "rb") as f:
@@ -526,17 +594,19 @@ if __name__ == "__main__":
         try:
             # Create an experiment name, which must be unique and case sensitive
             experiment_id = client.create_experiment(
-                f"{args.country}-{args.target}-{args.model}"
+                f"{args.country}-{args.target}-{args.model}-{args.eval_split_type}"
             )
             # experiment = client.get_experiment(experiment_id)
         except:
-            assert f"{args.country}-{args.target}-{args.model}" in [
-                exp.name for exp in client.list_experiments()
-            ]
+            assert (
+                f"{args.country}-{args.target}-{args.model}-{args.eval_split_type}"
+                in [exp.name for exp in client.list_experiments()]
+            )
             experiment_id = [
                 exp.experiment_id
                 for exp in client.list_experiments()
-                if exp.name == f"{args.country}-{args.target}-{args.model}"
+                if exp.name
+                == f"{args.country}-{args.target}-{args.model}-{args.eval_split_type}"
             ][0]
         mlflow.start_run(experiment_id=experiment_id)
     if args.model == "automl":
@@ -646,11 +716,13 @@ if __name__ == "__main__":
                     mlflow.set_tags(
                         {
                             "cv_type": args.cv_type,
+                            "eval_split_type": args.eval_split_type,
                             "imputation": args.impute,
                             "standardisation": args.standardise,
                             "target_transform": args.target_transform,
                             "interpretable": args.interpretable,
                             "universal": args.universal_data_only,
+                            "copy_to_nbrs": args.copy_to_nbrs,
                         }
                     )
                     mlflow.log_param(key="best_model", value=automl.best_estimator)

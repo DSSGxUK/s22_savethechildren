@@ -7,8 +7,10 @@ from functools import partial, reduce
 from pathlib import Path
 
 import geopandas as gpd
+import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
+import pycountry
 import rasterio
 import rioxarray as rxr
 import shapely.wkt
@@ -67,7 +69,9 @@ def aggregate_dataset(df):
     return df_mean, df_count
 
 
-def create_target_variable(country_code, res, lat, long, threshold, read_dir):
+def create_target_variable(
+    country_code, res, lat, long, threshold, read_dir, copy_to_nbrs=False
+):
     try:
         source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
     except FileNotFoundError:
@@ -79,10 +83,49 @@ def create_target_variable(country_code, res, lat, long, threshold, read_dir):
         sub[f"dep_{k}_or_more_sev"] = sub["sumpoor_sev"] >= k
     sub = geo.get_hex_code(sub, lat, long, res)
     sub = sub.reset_index(drop=True)
-    sub_mean, sub_count = aggregate_dataset(sub)
-    sub_count = sub_count[sub_count.survey >= threshold]
-    survey = geo.get_hex_centroid(sub_mean, "hex_code")
-    survey_threshold = sub_count.merge(survey, how="left", on="hex_code")
+    if copy_to_nbrs:
+        sub["hex_incl_nbrs"] = sub[["location", "hex_code"]].apply(
+            lambda row: h3.k_ring(row["hex_code"], 1)
+            if row["location"] == 1
+            else h3.k_ring(row["hex_code"], 2),
+            axis=1,
+        )
+        sev_cols = [col for col in sub.columns if "_sev" in col]
+        other_cols = [
+            col
+            for col in sub.columns
+            if ("int" in str(sub[col].dtype) or "float" in str(sub[col].dtype))
+        ]
+        agg_dict = {col: "mean" for col in other_cols}
+        agg_dict.update({idx: ["mean", "count"] for idx in sev_cols})
+        # agg_dict.update({"hhid": "count"})
+        sub = sub.explode("hex_incl_nbrs").groupby(by=["hex_incl_nbrs"]).agg(agg_dict)
+        sub.columns = ["_".join(col) for col in sub.columns.values]
+        sub.rename(
+            columns={
+                f"{sev}_mean": f"{sev.replace('dep_','').replace('_sev','')}_prev"
+                for sev in sev_cols
+                if sev != "deprived_sev"
+            },
+            inplace=True,
+        )
+        sub.rename(
+            columns={
+                f"{sev}_count": f"{sev.replace('dep_','').replace('_sev','')}_count"
+                for sev in sev_cols
+                if sev != "deprived_sev"
+            },
+            inplace=True,
+        )
+        sub.drop(columns=["hex_code_mean"], inplace=True)
+        survey_threshold = sub[sub.sumpoor_count >= threshold].reset_index().copy()
+        survey_threshold.rename(columns={"hex_incl_nbrs": "hex_code"}, inplace=True)
+        survey_threshold = geo.get_hex_centroid(survey_threshold, "hex_code")
+    else:
+        sub_mean, sub_count = aggregate_dataset(sub)
+        sub_count = sub_count[sub_count.survey >= threshold]
+        survey = geo.get_hex_centroid(sub_mean, "hex_code")
+        survey_threshold = sub_count.merge(survey, how="left", on="hex_code")
     return survey_threshold
 
 
@@ -189,8 +232,9 @@ def preprocessed_speed_test(speed, res, country):
     speed = speed[
         speed.min_x.between(minx - 1e-2, maxx + 1e-2)
         & speed.max_y.between(miny - 1e-2, maxy + 1e-2)
-    ]
+    ].copy()
     speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
+    speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
     # only now look for intersection, as expensive
     speed = gpd.sjoin(speed, ctry, how="inner", op="intersects").reset_index(drop=True)
     tmp = speed.geometry.swifter.apply(
@@ -255,7 +299,7 @@ def append_features_to_hexes(
         res,
         force,
         audience,
-        read_path=c.ext_data,
+        read_path=str(c.ext_data),
         name_logger=c.str_log,
     )
     logger.info("Finished data retrieval.")
@@ -266,6 +310,9 @@ def append_features_to_hexes(
     # Country hexes
     logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
+    # expand by 2 hexes to ensure covers all data
+    outer_hexes = geo.get_new_nbrs_at_k(hexes_ctry, 2)
+    hexes_ctry = np.concatenate((hexes_ctry, outer_hexes))
     ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
     # Facebook connectivity metrics
@@ -302,8 +349,11 @@ def append_features_to_hexes(
     econ = pg.agg_tif_to_df(
         ctry,
         econ_files,
+        resolution=res,
+        rm_prefix=rf"cpi|_|{country.lower()}|500",
         verbose=True,
     )
+    # print(econ.head()) # looks OK
     # econ = list(map(pg.geotiff_to_df, econ_files))
     # NB never want to join on lat long if only need
     # aggregated values - first aggregate then join
@@ -332,14 +382,20 @@ def append_features_to_hexes(
             gee_nbands[idx] = tif.count
     small_gee = np.array(gee_files)[gee_nbands < max_bands]
     large_gee = np.array(gee_files)[gee_nbands >= max_bands]
-    gee = pg.agg_tif_to_df(ctry, list(small_gee), verbose=True)
+    gee = pg.agg_tif_to_df(
+        ctry,
+        list(small_gee),
+        resolution=res,
+        rm_prefix=rf"cpi|_|{country.lower()}|500",
+        verbose=True,
+    )
     for large_file in large_gee:
         gee = gee.join(
             pg.rast_to_agg_df(
                 large_file, resolution=res, max_bands=max_bands, verbose=True
             ),
             on="hex_code",
-            how="outer",
+            how="left",
         )
     # gee = reduce(
     #     lambda left, right: pd.merge(
@@ -350,6 +406,8 @@ def append_features_to_hexes(
 
     # Join GEE with Econ
     logger.info("Merging aggregated features from tiff files to hexagons...")
+    # econ.to_csv(Path(save_dir) / f"tmp_{country.lower()}_econ.csv")
+    # gee.to_csv(Path(save_dir) / f"tmp_{country.lower()}_gee.csv")
     images = gee.merge(econ, on=["hex_code"], how="outer")
     del econ
 
@@ -385,6 +443,15 @@ def append_features_to_hexes(
     hexes = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
+    zero_fill_cols = [
+        "n_conflicts",
+        "GSM",
+        "LTE",
+        "NR",
+        "UMTS",
+    ]
+    # where nans mean zero, fill as such
+    hexes.fillna(value={col: 0 for col in zero_fill_cols}, inplace=True)
     logger.info("Finishing process...")
 
     return hexes
@@ -412,6 +479,9 @@ def append_target_variable_to_hexes(
     train = create_target_variable(
         country_code, res, lat, long, threshold, read_dir_target
     )
+    train_expanded = create_target_variable(
+        country_code, res, lat, long, threshold, read_dir_target, copy_to_nbrs=True
+    )
     print(
         f"Appending  features to all hexagons in {country}. This step might take a while...~20 minutes"
     )
@@ -425,6 +495,10 @@ def append_target_variable_to_hexes(
         Path(save_dir) / f"hexes_{country.lower()}_res{res}_thres{threshold}.csv",
         index=False,
     )
+    train_expanded.to_csv(
+        Path(save_dir) / f"expanded_{country.lower()}_res{res}_thres{threshold}.csv",
+        index=False,
+    )
     print("Done!")
     return complete
 
@@ -432,13 +506,13 @@ def append_target_variable_to_hexes(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
-    parser.add_argument(
-        "-cc",
-        "--country_code",
-        type=str,
-        help="Country code to make dataset for, default is NGA",
-        default="NGA",
-    )
+    # parser.add_argument(
+    #     "-cc",
+    #     "--country_code",
+    #     type=str,
+    #     help="Country code to make dataset for, default is NGA",
+    #     default="NGA",
+    # )
 
     parser.add_argument(
         "-c",
@@ -461,9 +535,12 @@ if __name__ == "__main__":
     except argparse.ArgumentError:
         parser.print_help()
         sys.exit(0)
+    country = pycountry.countries.search_fuzzy(args.country)[0]
+    country_name = country.name
+    country_code = country.alpha_3
 
     append_target_variable_to_hexes(
-        country_code=args.country_code, country=args.country, res=args.resolution
+        country_code=country_code, country=country_name, res=args.resolution
     )
 
     # TODO: add autoencoder features
