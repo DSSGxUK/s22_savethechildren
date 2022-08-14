@@ -80,19 +80,23 @@ if __name__ == "__main__":
     parser.add_argument(
         "-ip",
         "--interpretable",
-        action="store_true",
+        type=str,
+        default="False",
+        choices=["True", "False"],
         help="Make model (more) interpretable - no matter other flags, use only base (non auto-encoder) features so can explain",
     )
     parser.add_argument(
         "--universal-data-only",
         "-univ",
-        action="store_true",
+        default="False",
+        choices=["True", "False"],
         help="Use only universal data (i.e. no country-specific data) - only applicable if --country!=all",
     )
     parser.add_argument(
         "--copy-to-nbrs",
         "-cp2nbr",
-        action="store_true",
+        default="False",
+        choices=["True", "False"],
         help="Use expanded dataset, where 'ground-truth' values are copied to neighbouring cells",
     )
     # parser.add_argument(
@@ -259,7 +263,7 @@ if __name__ == "__main__":
     if "{}" in clean_name:
         clean_name = clean_name.format(args.country, args.resolution, args.threshold)
     XY = pd.read_csv(Path(args.data) / clean_name)
-    if args.copy_to_nbrs:
+    if args.copy_to_nbrs == "True":
         expanded_gt = pd.read_csv(
             Path(args.data)
             / f"expanded_{args.country.lower()}_res{args.resolution}_thres{args.threshold}.csv"
@@ -328,7 +332,7 @@ if __name__ == "__main__":
     X["lat"] = latlongs.str[0]
     X["long"] = latlongs.str[1]
 
-    if args.universal_data_only:
+    if args.universal_data_only == "True":
         # Remove country specific data - e.g. in case of Nigeria,
         # healthcare and education OSM data, and FB connectivity data
         if args.country == "nigeria":
@@ -349,7 +353,7 @@ if __name__ == "__main__":
                 "NB no additional features exist for countries other than Nigeria, so no additional features are removed"
             )
 
-    if args.interpretable:
+    if args.interpretable == "True":
         # Remove auto-encoder features for more interpretable models
         auto_cols = [col for col in X.columns if "auto_" in col]
         X = X.drop(auto_cols, axis=1)
@@ -541,8 +545,8 @@ if __name__ == "__main__":
 
     pipeline = Pipeline([("preprocessor", col_tf), ("model", model)])
 
-    univ_data = "univ" if args.universal_data_only else "all"
-    ip_data = "ip" if args.interpretable else "nip"
+    univ_data = "univ" if args.universal_data_only == "True" else "all"
+    ip_data = "ip" if args.interpretable == "True" else "nip"
     if len(Y.shape) == 1:
         pipeline_desc = f"best_cfg-{args.country}-{args.target}-{args.cv_type}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
         if args.automl_warm_start:
