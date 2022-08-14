@@ -455,6 +455,7 @@ if __name__ == "__main__":
                 "rf",
                 "extra_tree",
             ],
+            "n_jobs": args.ncores,
             "log_file_name": "automl.log",  # flaml log file
             "seed": 42,  # random seed
             "eval_method": "cv",
