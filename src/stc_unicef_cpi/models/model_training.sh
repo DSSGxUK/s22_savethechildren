@@ -17,18 +17,18 @@ do
     wait -n
   done
   python train_model.py \
-        --country ${train_pars[1]} \
-        --cv-type ${train_pars[2]} \
-        --target ${train_pars[3]} \
-        --impute ${train_pars[4]} \
-        --standardise ${train_pars[5]} \
-        --target-transform ${train_pars[6]} \
-        --eval-split-type ${train_pars[7]} \
+        --country ${train_pars[0]} \
+        --cv-type ${train_pars[1]} \
+        --target ${train_pars[2]} \
+        --impute ${train_pars[3]} \
+        --standardise ${train_pars[4]} \
+        --target-transform ${train_pars[5]} \
+        --eval-split-type ${train_pars[6]} \
         --log-run \
         --ncores $num_cores \
-        "${train_pars[8]}" \ # --interpretable or nothing
-        "${train_pars[9]}" \ # --universal-data-only or nothing
-        "${train_pars[10]}" & # --copy-to-nbrs or nothing
+        "${train_pars[7]}" \ # --interpretable or nothing
+        "${train_pars[8]}" \ # --universal-data-only or nothing
+        "${train_pars[9]}" & # --copy-to-nbrs or nothing
 #   --subsel_data         Use feature subset selection
 #   --n_runs N_RUNS       Number of runs
 #   --test-size TEST_SIZE
