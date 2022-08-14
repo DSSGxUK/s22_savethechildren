@@ -517,7 +517,7 @@ if __name__ == "__main__":
     # feature standardisation setup
     # choices = ["none", "standard", "minmax", "robust"]
     if args.standardise == "none":
-        standardiser = None
+        num_stand = None
     elif args.standardise == "standard":
         num_stand = StandardScaler()
     elif args.standardise == "minmax":
