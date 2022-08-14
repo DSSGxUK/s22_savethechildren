@@ -10,6 +10,7 @@ import geopandas as gpd
 import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
+import pycountry
 import rasterio
 import rioxarray as rxr
 import shapely.wkt
@@ -505,13 +506,13 @@ def append_target_variable_to_hexes(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
-    parser.add_argument(
-        "-cc",
-        "--country_code",
-        type=str,
-        help="Country code to make dataset for, default is NGA",
-        default="NGA",
-    )
+    # parser.add_argument(
+    #     "-cc",
+    #     "--country_code",
+    #     type=str,
+    #     help="Country code to make dataset for, default is NGA",
+    #     default="NGA",
+    # )
 
     parser.add_argument(
         "-c",
@@ -534,9 +535,12 @@ if __name__ == "__main__":
     except argparse.ArgumentError:
         parser.print_help()
         sys.exit(0)
+    country = pycountry.countries.search_fuzzy(args.country)[0]
+    country_name = country.name
+    country_code = country.alpha_3
 
     append_target_variable_to_hexes(
-        country_code=args.country_code, country=args.country, res=args.resolution
+        country_code=country_code, country=country_name, res=args.resolution
     )
 
     # TODO: add autoencoder features
