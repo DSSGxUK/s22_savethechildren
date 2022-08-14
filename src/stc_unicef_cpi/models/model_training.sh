@@ -8,6 +8,7 @@
 params='training_params.txt'
 sed '/^ *#/d;s/#.*//' $params > 'clean_params.txt'
 clean_pars='clean_params.txt'
+num_cores=4
 num_procs=6 # max number of runs to try at once
 num_jobs="\j"  # The prompt escape for number of jobs currently running
 while read -a train_pars;
@@ -24,9 +25,10 @@ do
         --target-transform ${train_pars[6]} \
         --eval-split-type ${train_pars[7]} \
         --log-run \
+        --ncores $num_cores \
         "${train_pars[8]}" \ # --interpretable or nothing
         "${train_pars[9]}" \ # --universal-data-only or nothing
-        "${train_pars[10]}" \ # --copy-to-nbrs or nothing
+        "${train_pars[10]}" & # --copy-to-nbrs or nothing
 #   --subsel_data         Use feature subset selection
 #   --n_runs N_RUNS       Number of runs
 #   --test-size TEST_SIZE

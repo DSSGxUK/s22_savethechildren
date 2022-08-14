@@ -212,6 +212,16 @@ if __name__ == "__main__":
         action="store_true",
         help="Produce scatter plot(s) of predicted vs actual values on test set",
     )
+    parser.add_argument("--ncores", type=int, default=4, help="Number of cores to use")
+    # NB not sensible to use this in current setup
+    # given trying overall pipeline hyperparams
+    # in parallel using shell script
+    # parser.add_argument(
+    #     "--n_concurrent",
+    #     type=int,
+    #     default=1,
+    #     help="Number of parallel runs for automl tuning"
+    # )
 
     try:
         args = parser.parse_args()

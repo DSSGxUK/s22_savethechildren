@@ -231,7 +231,7 @@ def preprocessed_speed_test(speed, res, country):
     speed = speed[
         speed.min_x.between(minx - 1e-2, maxx + 1e-2)
         & speed.max_y.between(miny - 1e-2, maxy + 1e-2)
-    ]
+    ].copy()
     speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
     speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
     # only now look for intersection, as expensive
