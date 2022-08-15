@@ -553,9 +553,10 @@ if __name__ == "__main__":
             try:
                 with open(DATA_DIRECTORY.parent / "models" / pipeline_desc, "rb") as f:
                     start_pts = pickle.load(f)  # type: ignore
+                pipeline_settings["model__starting_points"] = start_pts
             except FileNotFoundError:
                 print("No warm start available.")
-        pipeline_settings["model__starting_points"] = start_pts
+
         pipeline.fit(
             X_train.reset_index(drop=True),
             Y_train.reset_index(drop=True),
@@ -572,6 +573,7 @@ if __name__ == "__main__":
                         DATA_DIRECTORY.parent / "models" / pipeline_desc, "rb"
                     ) as f:
                         start_pts = pickle.load(f)  # type: ignore
+                    pipeline_settings["model__starting_points"] = start_pts
                 except FileNotFoundError:
                     print("No warm start available.")
             if args.eval_split_type == "stratified":
