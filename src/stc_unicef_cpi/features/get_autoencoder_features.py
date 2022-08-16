@@ -3,13 +3,13 @@ import shutil
 import os
 import numpy as np
 
-from pathlib import Path
 from stc_unicef_cpi.features import autoencoder_features as af
 
 
 def copy_files(src, trg, word):
     files = os.listdir(src)
     files = [x for x in files if word.lower() in x]
+    files = [x for x in files if '.tif' in x]
     for file in files:
         shutil.copy2(os.path.join(src, file), trg)
 

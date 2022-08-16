@@ -334,137 +334,142 @@ def append_features_to_hexes(
     hexes_ctry = np.concatenate((hexes_ctry, outer_hexes))
     ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
 
-    ## Facebook connectivity metrics
-    #if audience:
-    #    logger.info(
-    #        f"Collecting audience estimates for {country} at resolution {res}..."
-    #    )
-    #    fb = pd.read_parquet(
-    #        Path(read_dir) / f"fb_aud_{country.lower()}_res{res}.parquet"
-    #    )
-    #    fb = geo.get_hex_centroid(fb)
-#
-    ## Preprocessed tiff files
-    #logger.info(f"Preprocessing tiff files from {read_dir} and saving to {save_dir}..")
-    #preprocessed_tiff_files(country, read_dir, save_dir)
-#
-    ## Conflict Zones
-    #logger.info("Reading and computing conflict zone estimates...")
-    #cz = pd.read_csv(Path(read_dir) / "conflict/GEDEvent_v22_1.csv", low_memory=False)
-    #cz = cz[cz.country == country]
-    #cz = geo.get_hex_code(cz, "latitude", "longitude", res)
-    #cz = geo.create_geometry(cz, "latitude", "longitude")
-    #cz = geo.aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
-#
-    ## Commuting zones
-    #logger.info("Reading and computing commuting zone estimates...")
-    #commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
-#
+    # Facebook connectivity metrics
+    if audience:
+        logger.info(
+            f"Collecting audience estimates for {country} at resolution {res}..."
+        )
+        fb = pd.read_parquet(
+            Path(read_dir) / f"fb_aud_{country.lower()}_res{res}.parquet"
+        )
+        fb = geo.get_hex_centroid(fb)
+
+    # Preprocessed tiff files
+    logger.info(f"Preprocessing tiff files from {read_dir} and saving to {save_dir}..")
+    preprocessed_tiff_files(country, read_dir, save_dir)
+
+    # Conflict Zones
+    logger.info("Reading and computing conflict zone estimates...")
+    cz = pd.read_csv(Path(read_dir) / "conflict/GEDEvent_v22_1.csv", low_memory=False)
+    cz = cz[cz.country == country]
+    cz = geo.get_hex_code(cz, "latitude", "longitude", res)
+    cz = geo.create_geometry(cz, "latitude", "longitude")
+    cz = geo.aggregate_hexagon(cz, "geometry", "n_conflicts", "count")
+
+    # Commuting zones
+    logger.info("Reading and computing commuting zone estimates...")
+    commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
+
     ## Economic data
-    #logger.info("Retrieving features from economic tif files...")
-    #econ_files = glob.glob(str(Path(save_dir) / f"{country.lower()}*.tif"))
-    ## econ_files = [ele for ele in econ_files if "ppp" not in ele]
-#
-    #econ = pg.agg_tif_to_df(
-    #    ctry,
-    #    econ_files,
-    #    resolution=res,
-    #    rm_prefix=rf"cpi|_|{country.lower()}|500",
-    #    verbose=True,
-    #)
-    ## print(econ.head()) # looks OK
-    ## econ = list(map(pg.geotiff_to_df, econ_files))
-    ## NB never want to join on lat long if only need
-    ## aggregated values - first aggregate then join
-    ## on hex codes
-    ## econ = reduce(
-    ##     lambda left, right: pd.merge(
-    ##         left, right, on=["latitude", "longitude"], how="outer"
-    ##     ),
-    ##     econ,
-    ## )
-    ## ppp = glob.glob(str(Path(save_dir) / f"{country.lower()}*ppp*.tif"))[0]
-    ## ppp = pg.geotiff_to_df(ppp, ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"])
-    ## econ = econ.merge(ppp, on=["latitude", "longitude"], how="outer")
-    ## del ppp  # Clean up memory
-    ## Google Earth Engine
-    #logger.info("Retrieving features from google earth engine tif files...")
-    #gee_files = glob.glob(str(Path(read_dir) / "gee" / f"*_{country.lower()}*.tif"))
-    ## don't want to do this as loads every tiff as df and
-    ## loads all into memory at once
-    ## gee = list(map(pg.geotiff_to_df, gee_files))
-#
-    #max_bands = 3
-    #gee_nbands = np.zeros(len(gee_files))
-    #for idx, file in enumerate(gee_files):
-    #    with rasterio.open(file) as tif:
-    #        gee_nbands[idx] = tif.count
-    #small_gee = np.array(gee_files)[gee_nbands < max_bands]
-    #large_gee = np.array(gee_files)[gee_nbands >= max_bands]
-    #gee = pg.agg_tif_to_df(
-    #    ctry,
-    #    list(small_gee),
-    #    resolution=res,
-    #    rm_prefix=rf"cpi|_|{country.lower()}|500",
-    #    verbose=True,
-    #)
-    #for large_file in large_gee:
-    #    gee = gee.join(
-    #        pg.rast_to_agg_df(
-    #            large_file, resolution=res, max_bands=max_bands, verbose=True
-    #        ),
-    #        on="hex_code",
-    #        how="left",
-    #    )
-    ## gee = reduce(
-    ##     lambda left, right: pd.merge(
-    ##         left, right, on=["latitude", "longitude"], how="outer"
-    ##     ),
-    ##     gee,
-    ## )
-#
-    ## Join GEE with Econ
-    #logger.info("Merging aggregated features from tiff files to hexagons...")
-    ## econ.to_csv(Path(save_dir) / f"tmp_{country.lower()}_econ.csv")
-    ## gee.to_csv(Path(save_dir) / f"tmp_{country.lower()}_gee.csv")
-    #images = gee.merge(econ, on=["hex_code"], how="outer")
-    #del econ
-#
-    ## Road density
-    #logger.info("Reading road density estimates...")
-    #road = pd.read_csv(Path(read_dir) / f"road_density_{country.lower()}_res{res}.csv")
-#
-    ## Speed Test
-    #logger.info("Reading speed test estimates...")
-    #speed = pd.read_csv(
-    #    Path(read_dir) / "connectivity" / "2021-10-01_performance_mobile_tiles.csv"
-    #)
-    #speed = preprocessed_speed_test(speed, res, country)
-#
-    ## Open Cell Data
-    #logger.info("Reading open cell data...")
-    #cell = g.read_csv_gzip(
-    #    glob.glob(str(Path(read_dir) / f"{country.lower()}_*gz.tmp"))[0]
-    #)
-    #cell = geo.get_hex_code(cell, "lat", "long", res)
-    #cell = cell[["hex_code", "radio", "avg_signal"]]
-    #cell = (
-    #    cell.groupby(by=["hex_code", "radio"])
-    #    .size()
-    #    .unstack(level=1)
-    #    .fillna(0)
-    #    .join(cell.groupby("hex_code").avg_signal.mean())
-    #).reset_index()
-#
-    ## Collected Data
-    #logger.info("Merging all features")
-    #dfs = [ctry, commuting, cz, road, speed, cell, images]
-    #hexes = reduce(
-    #    lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
-    #)
+    logger.info("Retrieving features from economic tif files...")
+    econ_files = glob.glob(str(Path(save_dir) / f"{country.lower()}*.tif"))
+    # econ_files = [ele for ele in econ_files if "ppp" not in ele]
+
+    econ = pg.agg_tif_to_df(
+        ctry,
+        econ_files,
+        resolution=res,
+        rm_prefix=rf"cpi|_|{country.lower()}|500",
+        verbose=True,
+    )
+    # print(econ.head()) # looks OK
+    # econ = list(map(pg.geotiff_to_df, econ_files))
+    # NB never want to join on lat long if only need
+    # aggregated values - first aggregate then join
+    # on hex codes
+    # econ = reduce(
+    #     lambda left, right: pd.merge(
+    #         left, right, on=["latitude", "longitude"], how="outer"
+    #     ),
+    #     econ,
+    # )
+    # ppp = glob.glob(str(Path(save_dir) / f"{country.lower()}*ppp*.tif"))[0]
+    # ppp = pg.geotiff_to_df(ppp, ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"])
+    # econ = econ.merge(ppp, on=["latitude", "longitude"], how="outer")
+    # del ppp  # Clean up memory
+    # Google Earth Engine
+    logger.info("Retrieving features from google earth engine tif files...")
+    gee_files = glob.glob(str(Path(read_dir) / "gee" / f"*_{country.lower()}*.tif"))
+    # don't want to do this as loads every tiff as df and
+    # loads all into memory at once
+    # gee = list(map(pg.geotiff_to_df, gee_files))
+
+    max_bands = 3
+    gee_nbands = np.zeros(len(gee_files))
+    for idx, file in enumerate(gee_files):
+        with rasterio.open(file) as tif:
+            gee_nbands[idx] = tif.count
+    small_gee = np.array(gee_files)[gee_nbands < max_bands]
+    large_gee = np.array(gee_files)[gee_nbands >= max_bands]
+    gee = pg.agg_tif_to_df(
+        ctry,
+        list(small_gee),
+        resolution=res,
+        rm_prefix=rf"cpi|_|{country.lower()}|500",
+        verbose=True,
+    )
+    for large_file in large_gee:
+        gee = gee.join(
+            pg.rast_to_agg_df(
+                large_file, resolution=res, max_bands=max_bands, verbose=True
+            ),
+            on="hex_code",
+            how="left",
+        )
+    # gee = reduce(
+    #     lambda left, right: pd.merge(
+    #         left, right, on=["latitude", "longitude"], how="outer"
+    #     ),
+    #     gee,
+    # )
+
+    # Join GEE with Econ
+    logger.info("Merging aggregated features from tiff files to hexagons...")
+    # econ.to_csv(Path(save_dir) / f"tmp_{country.lower()}_econ.csv")
+    # gee.to_csv(Path(save_dir) / f"tmp_{country.lower()}_gee.csv")
+    images = gee.merge(econ, on=["hex_code"], how="outer")
+    del econ
+
+    # Road density
+    logger.info("Reading road density estimates...")
+    road = pd.read_csv(Path(read_dir) / f"road_density_{country.lower()}_res{res}.csv")
+
+    # Speed Test
+    logger.info("Reading speed test estimates...")
+    speed = pd.read_csv(
+        Path(read_dir) / "connectivity" / "2021-10-01_performance_mobile_tiles.csv"
+    )
+    speed = preprocessed_speed_test(speed, res, country)
+
+    # Open Cell Data
+    logger.info("Reading open cell data...")
+    cell = g.read_csv_gzip(
+        glob.glob(str(Path(read_dir) / f"{country.lower()}_*gz.tmp"))[0]
+    )
+    cell = geo.get_hex_code(cell, "lat", "long", res)
+    cell = cell[["hex_code", "radio", "avg_signal"]]
+    cell = (
+        cell.groupby(by=["hex_code", "radio"])
+        .size()
+        .unstack(level=1)
+        .fillna(0)
+        .join(cell.groupby("hex_code").avg_signal.mean())
+    ).reset_index()
+
+    # Collected Data
+    logger.info("Merging all features")
+    dfs = [ctry, commuting, cz, road, speed, cell, images]
+    hexes = reduce(
+        lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
+    )
 
     # Get autoencoders
     if encoders:
+        tiffs = Path(tiff_dir / country.lower())
+        tiffs.mkdir(exist_ok=True)
+        print('--- Copying tiff files to tiff directory')
+        gaf.copy_files(c.ext_data / "gee", tiffs, country.lower())
+        gaf.copy_files(c.ext_data, tiffs, country.lower())
         df = pd.read_csv('/Users/danielapintoveizaga/GitHub/stc_unicef_cpi/data/interim/hexes_nigeria_res7_thres30.csv')
         # check if model is trained, else train model
         modelname = f"autoencoder_{country.lower()}_res{res}.h5"
@@ -472,41 +477,39 @@ def append_features_to_hexes(
             print('--- Model already saved.')
         else:
             print('--- Training auto encoder...')
-            gaf.train_auto_encoder(list(df.hex_code), tiff_dir, hyper_tunning, model_dir, country, res)
+            gaf.train_auto_encoder(list(df.hex_code), tiffs, hyper_tunning, model_dir, country, res)
         # check if autoencoder features have been saved
         filename = f"encodings_{country.lower()}_res{res}.csv"
         if os.path.exists(Path(save_dir) / filename):
-            print('--- Autoencoding features have been already saved.')
+            print("--- Autoencoding features have already been saved.")
             auto_features = pd.read_csv(Path(save_dir) / filename)
         else:
-            print('--- Retrieving autoencoding features...')
-            auto_features = gaf.retrieve_autoencoder_features(list(df.hex_code), model_dir, country, res, tiff_dir)
-            print(auto_features)
+            print("--- Retrieving autoencoding features...")
+            auto_features = gaf.retrieve_autoencoder_features(list(df.hex_code), model_dir, country, res, tiff_dir / country.lower())
             auto_features = pd.DataFrame(
                 data=auto_features,
                 columns=['f_'+str(i) for i in range(auto_features.shape[1])],
-                index='hex_code'
-                ).reset_index().rename({'index': 'hex_code'}, axis=1)
-            print(auto_features)
+                index=list(df.hex_code)
+            ).reset_index().rename({'index': 'hex_code'}, axis=1)
+            print(f"--- Saving autoencoding features to {save_dir}...")
             auto_features.to_csv(
                 Path(save_dir) / filename,
                 index=False,
             )
-        print(auto_features)
-        #hexes = hexes.merge(auto_features, on='hex_code', how='left')
+        hexes = hexes.merge(auto_features, on='hex_code', how='left')
 
-    #zero_fill_cols = [
-    #    "n_conflicts",
-    #    "GSM",
-    #    "LTE",
-    #    "NR",
-    #    "UMTS",
-    #]
-    ## where nans mean zero, fill as such
-    #hexes.fillna(value={col: 0 for col in zero_fill_cols}, inplace=True)
-    #logger.info("Finishing process...")
-#
-    #return hexes
+    zero_fill_cols = [
+        "n_conflicts",
+        "GSM",
+        "LTE",
+        "NR",
+        "UMTS",
+    ]
+    # where nans mean zero, fill as such
+    hexes.fillna(value={col: 0 for col in zero_fill_cols}, inplace=True)
+    logger.info("Finishing process...")
+
+    return hexes
 
 
 @g.timing
@@ -517,7 +520,7 @@ def append_target_variable_to_hexes(
     encoders=True,
     force=False,
     audience=False,
-    hyper_tunning=False,
+    hyper_tunning=True,
     lat="latnum",
     long="longnum",
     interim_dir=c.int_data,
@@ -528,36 +531,36 @@ def append_target_variable_to_hexes(
     read_dir=c.ext_data,
     tiff_dir=c.tiff_data,
 ):
-    #tprint("Child Poverty Index", font="cybermedum")
-    #print(f"Building dataset for {country} at resolution {res}")
-    #print(
-    #    f"Creating target variable...only available for certain hexagons in {country}"
-    #)
-    #train = create_target_variable(
-    #    country_code, res, lat, long, threshold, read_dir_target
-    #)
-    #train_expanded = create_target_variable(
-    #    country_code, res, lat, long, threshold, read_dir_target, copy_to_nbrs=True
-    #)
-    #print(
-    #    f"Appending  features to all hexagons in {country}. This step might take a while...~20 minutes"
-    #)
+    tprint("Child Poverty Index", font="cybermedum")
+    print(f"Building dataset for {country} at resolution {res}")
+    print(
+        f"Creating target variable...only available for certain hexagons in {country}"
+    )
+    train = create_target_variable(
+        country_code, res, lat, long, threshold, read_dir_target
+    )
+    train_expanded = create_target_variable(
+        country_code, res, lat, long, threshold, read_dir_target, copy_to_nbrs=True
+    )
+    print(
+        f"Appending  features to all hexagons in {country}. This step might take a while...~20 minutes"
+    )
     complete = append_features_to_hexes(
         country, res, encoders, force, audience, model_dir, read_dir, interim_dir, tiff_dir, hyper_tunning
     )
     hyper_tunning=False
-    #print(f"Merging target variable to hexagons in {country}")
-    #complete = complete.merge(train, on="hex_code", how="left")
-    #print(f"Saving dataset to {save_dir}")
-    #complete.to_csv(
-    #    Path(save_dir) / f"hexes_{country.lower()}_res{res}_thres{threshold}.csv",
-    #    index=False,
-    #)
-    #train_expanded.to_csv(
-    #    Path(save_dir) / f"expanded_{country.lower()}_res{res}_thres{threshold}.csv",
-    #    index=False,
-    #)
-    #print("Done!")
+    print(f"Merging target variable to hexagons in {country}")
+    complete = complete.merge(train, on="hex_code", how="left")
+    print(f"Saving dataset to {save_dir}")
+    complete.to_csv(
+        Path(save_dir) / f"hexes_{country.lower()}_res{res}_thres{threshold}.csv",
+        index=False,
+    )
+    train_expanded.to_csv(
+        Path(save_dir) / f"expanded_{country.lower()}_res{res}_thres{threshold}.csv",
+        index=False,
+    )
+    print("Done!")
     return complete
 
 
@@ -600,8 +603,6 @@ if __name__ == "__main__":
     append_target_variable_to_hexes(
         country_code=country_code, country=country_name, res=args.resolution
     )
-
-    # TODO: add autoencoder features
 
 ## Health Sites
 # hh = pd.read_csv("nga_health.csv")

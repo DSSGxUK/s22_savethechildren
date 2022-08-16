@@ -61,8 +61,7 @@ raw_data = base_dir_data / "raw"
 raw_data.mkdir(exist_ok=True)
 
 # tiff files
-
-tiff_data = base_dir_data / "tiff"
+tiff_data = ext_data / "tiff"
 tiff_data.mkdir(exist_ok=True)
 
 # loggers
@@ -87,5 +86,3 @@ serv_type = "mobile"
 serv_year = 2021
 serv_quart = 4
 
-# models' names
-autoencoder_nga = "autoencoder_nga"
