@@ -285,7 +285,7 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
 
 @g.timing
 def append_features_to_hexes(
-    country, res, encoders, force=False, audience=False, model_dir=c.base_dir_model, read_dir=c.ext_data, save_dir=c.int_data, tiff_dir=c.tiff_data,
+    country, res, encoders, gpu, force=False, audience=False, model_dir=c.base_dir_model, read_dir=c.ext_data, save_dir=c.int_data, tiff_dir=c.tiff_data,
     hyper_tunning=False
 ):
     """Append features to hexagons withing a country
@@ -485,7 +485,7 @@ def append_features_to_hexes(
             auto_features = pd.read_csv(Path(save_dir) / filename)
         else:
             print("--- Retrieving autoencoding features...")
-            auto_features = gaf.retrieve_autoencoder_features(list(df.hex_code), model_dir, country, res, tiff_dir / country.lower())
+            auto_features = gaf.retrieve_autoencoder_features(list(df.hex_code), model_dir, country, res, tiffs, gpu)
             auto_features = pd.DataFrame(
                 data=auto_features,
                 columns=['f_'+str(i) for i in range(auto_features.shape[1])],
@@ -517,6 +517,7 @@ def append_target_variable_to_hexes(
     country_code,
     country,
     res,
+    gpu=False,
     encoders=True,
     force=False,
     audience=False,
@@ -546,7 +547,7 @@ def append_target_variable_to_hexes(
         f"Appending  features to all hexagons in {country}. This step might take a while...~20 minutes"
     )
     complete = append_features_to_hexes(
-        country, res, encoders, force, audience, model_dir, read_dir, interim_dir, tiff_dir, hyper_tunning
+        country, res, encoders, gpu, force, audience, model_dir, read_dir, interim_dir, tiff_dir, hyper_tunning
     )
     print(f"Merging target variable to hexagons in {country}")
     complete = complete.merge(train, on="hex_code", how="left")

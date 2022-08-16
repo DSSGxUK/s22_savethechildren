@@ -223,7 +223,7 @@ def get_trained_autoencoder(
         return model
 
 
-def get_encoded_features(trained_autoencoder_dir, model_name, hex_codes, tiff_files_dir, dim=16, batch_size=4096, gpu=False):
+def get_encoded_features(trained_autoencoder_dir, model_name, hex_codes, tiff_files_dir, gpu, dim=16, batch_size=4096):
     """Get encoded features in batches
     :param trained_autoencoder_dir: directory for saved keras model
     :type trained_autoencoder_dir: _type_

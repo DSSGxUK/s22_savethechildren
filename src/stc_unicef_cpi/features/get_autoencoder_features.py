@@ -29,7 +29,6 @@ def train_auto_encoder(hex_codes, read_dir, hyper_tunning, save_dir, country, re
     :param res: _description_
     :type res: _type_
     """
-    print(hex_codes)
     train_img_arr = af.get_train_data(read_dir, hex_codes)
     model_name = f"autoencoder_{country.lower()}_res{res}"
     if hyper_tunning:
@@ -45,13 +44,12 @@ def train_auto_encoder(hex_codes, read_dir, hyper_tunning, save_dir, country, re
     else:
         af.get_trained_autoencoder(
             input_data=train_img_arr,
-            epochs=1,
             save_dir=save_dir,
             model_name=model_name
             )
 
 
-def retrieve_autoencoder_features(hex_codes, trained_autoencoder_dir, country, res, tiff_files_dir):
+def retrieve_autoencoder_features(hex_codes, trained_autoencoder_dir, country, res, tiff_files_dir, gpu):
     """Predict autoencoder features
     :param hex_codes: _description_
     :type hex_codes: _type_
@@ -71,7 +69,8 @@ def retrieve_autoencoder_features(hex_codes, trained_autoencoder_dir, country, r
         trained_autoencoder_dir=trained_autoencoder_dir,
         model_name=model_name,
         hex_codes=np.array(hex_codes),
-        tiff_files_dir=tiff_files_dir
+        tiff_files_dir=tiff_files_dir,
+        gpu=gpu
         )
 
     return features
