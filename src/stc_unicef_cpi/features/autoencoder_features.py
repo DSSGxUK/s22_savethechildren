@@ -240,7 +240,7 @@ def get_encoded_features(trained_autoencoder_dir, model_name, hex_codes, tiff_fi
     :return: numpy array of size (len(hex_codes), 32)
     :rtype: numpy array
     """
-    trained_autoencoder = tensorflow.keras.models.load_model(Path(trained_autoencoder_dir) / (model_name+".h5"))
+    trained_autoencoder = tensorflow.keras.models.load_model(Path(trained_autoencoder_dir) / (model_name + ".h5"))
     intermediate_model = tensorflow.keras.models.Model(
         inputs=trained_autoencoder.input,
         outputs=trained_autoencoder.get_layer('Encoder_Output').output
@@ -273,7 +273,6 @@ def check_autoencoder_reconstruction(trained_autoencoder, input_data):
     n = 5
     plt.figure(figsize=(20, 8))
     for i in range(1, n + 1):
-        # Display original
         ax = plt.subplot(2, n, i)
         band = np.random.randint(0, input_data.shape[-1])
         sample = np.random.randint(0, input_data.shape[0])

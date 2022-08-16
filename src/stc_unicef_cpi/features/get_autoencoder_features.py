@@ -14,10 +14,10 @@ def copy_files(src, trg, word):
         shutil.copy2(os.path.join(src, file), trg)
 
 
-def train_auto_encoder(read_hexes, read_dir, hyper_tunning, save_dir, country, res, thres):
+def train_auto_encoder(hex_codes, read_dir, hyper_tunning, save_dir, country, res):
     """Train autoencoder model
-    :param read_hexes: _description_
-    :type read_hexes: _type_
+    :param hex_codes: _description_
+    :type hex_codes: _type_
     :param read_dir: _description_
     :type read_dir: _type_
     :param hyper_tunning: _description_
@@ -28,17 +28,14 @@ def train_auto_encoder(read_hexes, read_dir, hyper_tunning, save_dir, country, r
     :type country: _type_
     :param res: _description_
     :type res: _type_
-    :param thres: _description_
-    :type thres: _type_
     """
-    hexes = pd.read_csv(Path(read_hexes) / f"hexes_{country.lower()}_res{res}_thres{thres}.csv")
-    hex_codes = list(hexes.hex_code.values)
+    print(hex_codes)
     train_img_arr = af.get_train_data(read_dir, hex_codes)
     model_name = f"autoencoder_{country.lower()}_res{res}"
     if hyper_tunning:
         best_hps = af.get_best_hyperparameters(train_img_arr)
         af.get_trained_autoencoder(
-            input_data=train_img_arr,
+            input_data=traifn_img_arr,
             batch_size=best_hps['batch size'],
             epochs=best_hps['epochs'],
             learning_rate=best_hps['learning rate'],
@@ -48,30 +45,27 @@ def train_auto_encoder(read_hexes, read_dir, hyper_tunning, save_dir, country, r
     else:
         af.get_trained_autoencoder(
             input_data=train_img_arr,
+            epochs=1,
             save_dir=save_dir,
             model_name=model_name
             )
 
 
-def retrieve_autoencoder_features(read_hexes, trained_autoencoder_dir, country, res, thres, tiff_files_dir):
+def retrieve_autoencoder_features(hex_codes, trained_autoencoder_dir, country, res, tiff_files_dir):
     """Predict autoencoder features
-    :param read_hexes: _description_
-    :type read_hexes: _type_
+    :param hex_codes: _description_
+    :type hex_codes: _type_
     :param trained_autoencoder_dir: _description_
     :type trained_autoencoder_dir: _type_
     :param country: _description_
     :type country: _type_
     :param res: _description_
     :type res: _type_
-    :param thres: _description_
-    :type thres: _type_
     :param tiff_files_dir: _description_
     :type tiff_files_dir: _type_
     :return: _description_
     :rtype: _type_
     """
-    hexes = pd.read_csv(Path(read_hexes) / f"hexes_{country.lower()}_res{res}_thres{thres}.csv")
-    hex_codes = list(hexes.hex_code.values)
     model_name = f"autoencoder_{country.lower()}_res{res}"
     features = af.get_encoded_features(
         trained_autoencoder_dir=trained_autoencoder_dir,
