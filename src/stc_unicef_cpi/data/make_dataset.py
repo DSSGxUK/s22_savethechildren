@@ -2,6 +2,7 @@ import argparse
 import glob as glob
 import logging
 import sys
+import os
 import time
 from functools import partial, reduce
 from pathlib import Path
@@ -24,6 +25,7 @@ import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
 from stc_unicef_cpi.data.stream_data import RunStreamer
+from stc_unicef_cpi.features import get_autoencoder_featues as gaf
 
 
 def read_input_unicef(path_read):
@@ -283,7 +285,7 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
 
 @g.timing
 def append_features_to_hexes(
-    country, res, force=False, audience=False, read_dir=c.ext_data, save_dir=c.int_data
+    country, res, encoders=False, force=False, audience=False, read_dir=c.ext_data, save_dir=c.int_data
 ):
     """Append features to hexagons withing a country
     :param country_code: _description_, defaults to "NGA"
@@ -453,12 +455,37 @@ def append_features_to_hexes(
         .join(cell.groupby("hex_code").avg_signal.mean())
     ).reset_index()
 
-    # Collect Data
+    # Collected Data
     logger.info("Merging all features")
     dfs = [ctry, commuting, cz, road, speed, cell, images]
     hexes = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
+
+    # Get autoencoders
+    if encoders:
+        # check if model is trained, else train model
+        if os.path.exists(f"{self.base_dir_model} / autoencoder_{country.lower()}_res{res}")
+            pass
+        else:
+            gaf.train_auto_encoder(read_hexes, read_dir, hyper_tunning, save_dir, country, res, thres)
+        
+        # check if autoencoder features are already saved
+        if os.path.exists(f"{self.base_dir_model} / autoencoder_{country.lower()}_res{res}")
+            auto_features = pd.read_csv(Path(save_dir) / f"autoencoder_{country.lower()}_res{res}_thres{threshold}.csv")
+        else:
+            auto_features = gaf.retrieve_autoencoder_features(read_hexes, trained_autoencoder_dir, country, res, thres, tiff_files_dir)
+            auto_features = pd.DataFrame(
+                data=auto_features,
+                columns=['f_'+str(i) for i in range(features.shape[1])],
+                index=hex_code
+                ).reset_index().rename({'index': 'hex_code'}, axis=1)
+            auto_features.to_csv(
+                Path(save_dir) / f"autoencoder_{country.lower()}_res{res}_thres{threshold}.csv",
+                index=False,
+            )
+        hexes = hexes.merge(auto_features, on='hex_code', how='left')
+        
     zero_fill_cols = [
         "n_conflicts",
         "GSM",
