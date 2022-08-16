@@ -4,15 +4,20 @@ import sys
 import warnings
 from pathlib import Path
 
+import cartopy.io.shapereader as shpreader
+import geopandas as gpd
+import h3.api.numpy_int as h3
 import joblib
 import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
 import pandas as pd
+import pycountry
 import seaborn as sns
 import swifter
 from flaml import AutoML
 from flaml.ml import sklearn_metric_loss_score
+from shapely.geometry import Point
 from sklearn import clone, set_config
 from sklearn.compose import (
     ColumnTransformer,
@@ -261,13 +266,47 @@ if __name__ == "__main__":
 
     clean_name = args.clean_name
     if "{}" in clean_name:
-        clean_name = clean_name.format(args.country, args.resolution, args.threshold)
-    XY = pd.read_csv(Path(args.data) / clean_name)
+        if args.country != "all":
+            clean_name = clean_name.format(
+                args.country.lower(), args.resolution, args.threshold
+            )
+        else:
+            print("Using all available data - currently not generalisable:")
+            print("will look for all data in form")
+            print("(expanded_/hexes_)[country]_res[resolution]_thres[threshold].csv,")
+            print(f"in specified directory: {DATA_DIRECTORY}")
+            clean_name = f"hexes_*_res{args.resolution}_thres{args.threshold}.csv"
+            all_data = list(Path(DATA_DIRECTORY).expanduser().glob(clean_name))
+    if args.country != "all":
+        XY = pd.read_csv(Path(args.data) / clean_name)
+    else:
+        try:
+            XY = pd.read_csv(all_data[0])
+        except Exception:
+            XY = pd.read_csv(all_data)
+        if len(all_data) > 1:
+            XY = pd.concat([XY, *list(map(pd.read_csv, all_data[1:]))], axis=0)
     if args.copy_to_nbrs == "true":
-        expanded_gt = pd.read_csv(
-            Path(args.data)
-            / f"expanded_{args.country.lower()}_res{args.resolution}_thres{args.threshold}.csv"
-        )
+        if args.country != "all":
+            expanded_gt = pd.read_csv(
+                Path(args.data)
+                / f"expanded_{args.country.lower()}_res{args.resolution}_thres{args.threshold}.csv"
+            )
+        else:
+            expanded_name = f"expanded_*_res{args.resolution}_thres{args.threshold}.csv"
+            all_expanded_data = list(
+                Path(DATA_DIRECTORY).expanduser().glob(expanded_name)
+            )
+            try:
+                expanded_gt = pd.read_csv(all_expanded_data[0])
+            except Exception:
+                expanded_gt = pd.read_csv(all_expanded_data)
+            if len(all_expanded_data) > 1:
+                expanded_gt = pd.concat(
+                    [expanded_gt, *list(map(pd.read_csv, all_expanded_data[1:]))],
+                    axis=0,
+                )
+
         # contains both count and mean value for targets
         # so currently as not using count beyond
         # thresholding just clean and drop
@@ -306,14 +345,18 @@ if __name__ == "__main__":
     if args.country != "all":
         # Want to either use preexisting data in location specified,
         # else produce data from scratch
-        import geopandas as gpd
-        import h3.api.numpy_int as h3
-        from shapely.geometry import Point
 
-        world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-        # world[world.name == "Nigeria"].geometry.__geo_interface__['features'][0]['geometry']
-        ctry_name = args.country.capitalize()
-        ctry_geom = world[world.name == ctry_name].geometry.values[0]
+        # Also reclip just in case
+        shpfilename = shpreader.natural_earth(
+            resolution="10m", category="cultural", name="admin_0_countries"
+        )
+        reader = shpreader.Reader(shpfilename)
+        world = reader.records()
+        country = pycountry.countries.search_fuzzy(args.country)[0]
+        ctry_name = country.name
+        ctry_geom = next(
+            filter(lambda x: x.attributes["NAME"] == ctry_name, world)
+        ).geometry
         XY = XY[
             XY.hex_code.swifter.apply(
                 lambda x: Point(h3.h3_to_geo(x)[::-1])
@@ -588,7 +631,9 @@ if __name__ == "__main__":
             )
 
     if args.log_run:
-        MLFLOW_DIR = DATA_DIRECTORY.parent / "models" / "mlruns"
+        SAVE_DIR = DATA_DIRECTORY.parent / "models"
+        SAVE_DIR.mkdir(exist_ok=True)
+        MLFLOW_DIR = SAVE_DIR / "mlruns"
         MLFLOW_DIR.mkdir(exist_ok=True)
 
         mlflow.set_tracking_uri(MLFLOW_DIR)

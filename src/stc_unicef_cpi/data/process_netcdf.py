@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import cartopy.io.shapereader as shpreader
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -7,9 +8,7 @@ import rasterio
 import rasterio.mask
 
 
-def netcdf_to_clipped_array(
-    file_path, *, ctry_name, save_dir=None, plot=False
-):
+def netcdf_to_clipped_array(file_path, *, ctry_name, save_dir=None, plot=False):
     """Read netCDF file and return either array clipped to
     specified country, or a GeoTIFF clipped to this country
     and saved in the specified directory with same name as
@@ -27,12 +26,22 @@ def netcdf_to_clipped_array(
     :rtype: _type_
     """
     fname = Path(file_path).name
-    world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    # world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    # use high res version to avoid clipping
+    shpfilename = shpreader.natural_earth(
+        resolution="10m", category="cultural", name="admin_0_countries"
+    )
+    reader = shpreader.Reader(shpfilename)
+    world = reader.records()
     with rasterio.open(f"netcdf:{file_path}", "r", masked=True) as netf:
-        if netf.crs is not None:
+        ctry_shp = next(
+            filter(lambda x: x.attributes["NAME"] == ctry_name, world)
+        ).geometry
+        if netf.crs is not None and netf.crs != "EPSG:4326":
             # NB assumes that no CRS corresponds to EPSG:4326 (as standard)
-            world = world.to_crs(netf.crs)
-        ctry_shp = world[world.name == ctry_name].geometry
+            ctry_shp = gpd.GeoSeries(ctry_shp)
+            ctry_shp.crs = "EPSG:4326"
+            ctry_shp.to_crs(netf.crs)
         print(
             f"Pixel scale in crs {netf.crs}: {netf.res}"
         )  # shows pixel scale in crs units
@@ -61,7 +70,9 @@ def netcdf_to_clipped_array(
         )
 
         with rasterio.open(
-            save_dir / (ctry_name.lower() + '_' + fname.rstrip(".nc") + ".tif"), "w", **out_meta
+            save_dir / (ctry_name.lower() + "_" + fname.rstrip(".nc") + ".tif"),
+            "w",
+            **out_meta,
         ) as dest:
             dest.write(out_image)
     else:

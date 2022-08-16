@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import List, Union
 
+import cartopy.io.shapereader as shpreader
 import dask.dataframe as dd
 import geopandas as gpd
 import h3.api.numpy_int as h3
@@ -54,10 +55,23 @@ def clip_tif_to_ctry(file_path, ctry_name, save_dir=None):
     :raises ValueError: _description_
     """
     fname = Path(file_path).name
-    world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    # world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    shpfilename = shpreader.natural_earth(
+        resolution="10m", category="cultural", name="admin_0_countries"
+    )
+    reader = shpreader.Reader(shpfilename)
+    world = reader.records()
     with rasterio.open(file_path, "r", masked=True) as tif_file:
-        world = world.to_crs(tif_file.crs)
-        ctry_shp = world[world.name == ctry_name].geometry
+        ctry_shp = next(
+            filter(lambda x: x.attributes["NAME"] == ctry_name, world)
+        ).geometry
+        if tif_file.crs is not None and tif_file.crs != "EPSG:4326":
+            # NB assumes that no CRS corresponds to EPSG:4326 (as standard)
+            ctry_shp = gpd.GeoSeries(ctry_shp)
+            ctry_shp.crs = "EPSG:4326"
+            ctry_shp.to_crs(tif_file.crs)
+        # world = world.to_crs(tif_file.crs)
+        # ctry_shp = world[world.name == ctry_name].geometry
         out_image, out_transform = rasterio.mask.mask(tif_file, ctry_shp, crop=True)
         out_meta = tif_file.meta
 
