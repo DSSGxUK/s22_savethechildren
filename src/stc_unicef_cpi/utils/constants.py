@@ -47,11 +47,14 @@ end_ee = "2020-01-01"
 res_ee = 500
 folder_ee = "gee"
 
-# base directory for data
 current_dir = Path.cwd()
 if current_dir.name == "data" and current_dir.parent.name == "stc_unicef_cpi":
+    # base directory for data
     base_dir_data = Path.cwd().parent.parent.parent / "data"
     base_dir_data.mkdir(exist_ok=True)
+    # base directory for autoencoder models
+    base_dir_model = Path.cwd().parent.parent.parent / "models"
+    base_dir_model.mkdir(exist_ok=True)
 else:
     raise ValueError(
         "Must run make_dataset.py from stc_unicef_cpi/data directly for default paths to work as intended"
@@ -68,6 +71,11 @@ int_data.mkdir(exist_ok=True)
 # raw data
 raw_data = base_dir_data / "raw"
 raw_data.mkdir(exist_ok=True)
+
+# tiff files
+
+tiff_data = base_dir_data / "tiff"
+tiff_data.mkdir(exist_ok=True)
 
 # loggers
 str_log = "data_streamer"
@@ -90,3 +98,6 @@ cutoff = 30
 serv_type = "mobile"
 serv_year = 2021
 serv_quart = 4
+
+# models' names
+autoencoder_nga = "autoencoder_nga"
