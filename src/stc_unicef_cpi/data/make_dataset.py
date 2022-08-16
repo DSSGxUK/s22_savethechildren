@@ -548,7 +548,6 @@ def append_target_variable_to_hexes(
     complete = append_features_to_hexes(
         country, res, encoders, force, audience, model_dir, read_dir, interim_dir, tiff_dir, hyper_tunning
     )
-    hyper_tunning=False
     print(f"Merging target variable to hexagons in {country}")
     complete = complete.merge(train, on="hex_code", how="left")
     print(f"Saving dataset to {save_dir}")
