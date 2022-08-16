@@ -13,6 +13,10 @@ from stc_unicef_cpi.utils.geospatial import (
     get_poly_boundary,
 )
 
+# TODO: Consider using OSMnx package instead
+# https://osmnx.readthedocs.io/en/stable/
+# May be able to acquire other features of interest also
+
 
 def format_polygon_coords(geometry):
     """Format the coordinates for Overpass

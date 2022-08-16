@@ -588,7 +588,9 @@ if __name__ == "__main__":
             )
 
     if args.log_run:
-        MLFLOW_DIR = DATA_DIRECTORY.parent / "models" / "mlruns"
+        SAVE_DIR = DATA_DIRECTORY.parent / "models"
+        SAVE_DIR.mkdir(exist_ok=True)
+        MLFLOW_DIR = SAVE_DIR / "mlruns"
         MLFLOW_DIR.mkdir(exist_ok=True)
 
         mlflow.set_tracking_uri(MLFLOW_DIR)
