@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from tensorflow import keras
 from tensorflow.keras.optimizers import Adam
 from keras.layers import Conv2D, UpSampling2D, MaxPooling2D
-from tensorflow.keras.callbacks import EarlyStopping, TensorBoard
+from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.preprocessing import StandardScaler
 from pathlib import Path
 from pyDRMetrics.pyDRMetrics import *
