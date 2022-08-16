@@ -218,7 +218,7 @@ def get_trained_autoencoder(
         if model_name is None:
             print("Warning: No model_name given, saving as autoencoder.h5")
             model_name = "autoencoder"
-        model.save(Path(save_dir)/(model_name+".h5"))
+        model.save(Path(save_dir)/(model_name + ".h5"))
     else:
         return model
 
@@ -277,16 +277,16 @@ def check_autoencoder_reconstruction(trained_autoencoder, input_data):
         ax = plt.subplot(2, n, i)
         band = np.random.randint(0, input_data.shape[-1])
         sample = np.random.randint(0, input_data.shape[0])
-        plt.imshow(input_data[sample,:,:,band].reshape(input_data.shape[1], input_data.shape[1]))
+        plt.imshow(input_data[sample, :, :, band].reshape(input_data.shape[1], input_data.shape[1]))
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
-        ax.set_title("Actual Sample:"+str(sample)+", Band:"+str(band))
+        ax.set_title("Actual Sample:" + str(sample) + ", Band:" + str(band))
         # Display reconstruction
         ax = plt.subplot(2, n, i + n)
-        plt.imshow(decoded_imgs[sample,:,:,band].reshape(input_data.shape[1], input_data.shape[1]))
+        plt.imshow(decoded_imgs[sample, :, :, band].reshape(input_data.shape[1], input_data.shape[1]))
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
-        ax.set_title("Reconstructed Sample:"+str(sample)+", Band:"+str(band))
+        ax.set_title("Reconstructed Sample:" + str(sample) + ", Band:" + str(band))
     plt.show()
 
 
