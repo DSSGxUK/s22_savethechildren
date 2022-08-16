@@ -28,11 +28,14 @@ end_ee = "2020-01-01"
 res_ee = 500
 folder_ee = "gee"
 
-# base directory for data
 current_dir = Path.cwd()
 if current_dir.name == "data" and current_dir.parent.name == "stc_unicef_cpi":
+    # base directory for data
     base_dir_data = Path.cwd().parent.parent.parent / "data"
     base_dir_data.mkdir(exist_ok=True)
+    # base directory for autoencoder models
+    base_dir_model = Path.cwd().parent.parent.parent / "models"
+    base_dir_model.mkdir(exist_ok=True)
 else:
     # true if not importing from notebook
     # importing_file = Path(__file__).name
@@ -57,6 +60,10 @@ proc_data.mkdir(exist_ok=True)
 raw_data = base_dir_data / "raw"
 raw_data.mkdir(exist_ok=True)
 
+# tiff files
+tiff_data = ext_data / "tiff"
+tiff_data.mkdir(exist_ok=True)
+
 # loggers
 str_log = "data_streamer"
 dataset_log = "make_dataset.log"
@@ -78,3 +85,4 @@ cutoff = 30
 serv_type = "mobile"
 serv_year = 2021
 serv_quart = 4
+

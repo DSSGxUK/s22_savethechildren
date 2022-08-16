@@ -1,6 +1,7 @@
 import argparse
 import glob as glob
 import logging
+import os
 import sys
 import time
 from functools import partial, reduce
@@ -24,6 +25,7 @@ import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
 from stc_unicef_cpi.data.stream_data import RunStreamer
+from stc_unicef_cpi.features import get_autoencoder_features as gaf
 
 
 def read_input_unicef(path_read):
@@ -294,11 +296,16 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
 def append_features_to_hexes(
     country,
     res,
+    encoders,
+    gpu,
     force=False,
     force_download=False,
     audience=False,
     read_dir=c.ext_data,
     save_dir=c.int_data,
+    model_dir=c.base_dir_model,
+    tiff_dir=c.tiff_data,
+    hyper_tuning=False,
 ):
     """Append features to hexagons withing a country
     :param country_code: _description_, defaults to "NGA"
@@ -372,7 +379,7 @@ def append_features_to_hexes(
     logger.info("Reading and computing commuting zone estimates...")
     commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
 
-    # Economic data
+    ## Economic data
     logger.info("Retrieving features from economic tif files...")
     econ_files = glob.glob(str(Path(save_dir) / f"{country.lower()}*.tif"))
     # econ_files = [ele for ele in econ_files if "ppp" not in ele]
@@ -492,7 +499,7 @@ def append_features_to_hexes(
     print("cell: ", len(cell))
     print(cell.head())
 
-    # Collect Data
+    # Collected Data
     logger.info("Merging all features")
     print("ctry:", len(ctry))
     print(ctry.head())
@@ -505,6 +512,49 @@ def append_features_to_hexes(
     hexes = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
+
+    # Get autoencoders
+    if encoders:
+        tiffs = Path(tiff_dir / country.lower())
+        tiffs.mkdir(exist_ok=True)
+        print("--- Copying tiff files to tiff directory")
+        gaf.copy_files(c.ext_data / "gee", tiffs, country.lower())
+        gaf.copy_files(c.ext_data, tiffs, country.lower())
+        # check if model is trained, else train model
+        modelname = f"autoencoder_{country.lower()}_res{res}.h5"
+        if os.path.exists(Path(model_dir) / modelname):
+            print("--- Model already saved.")
+        else:
+            print("--- Training auto encoder...")
+            gaf.train_auto_encoder(
+                list(ctry.hex_code), tiffs, hyper_tuning, model_dir, country, res
+            )
+        # check if autoencoder features have been saved
+        filename = f"encodings_{country.lower()}_res{res}.csv"
+        if os.path.exists(Path(save_dir) / filename):
+            print("--- Autoencoding features have already been saved.")
+            auto_features = pd.read_csv(Path(save_dir) / filename)
+        else:
+            print("--- Retrieving autoencoding features...")
+            auto_features = gaf.retrieve_autoencoder_features(
+                list(ctry.hex_code), model_dir, country, res, tiffs, gpu
+            )
+            auto_features = (
+                pd.DataFrame(
+                    data=auto_features,
+                    columns=["f_" + str(i) for i in range(auto_features.shape[1])],
+                    index=list(ctry.hex_code),
+                )
+                .reset_index()
+                .rename({"index": "hex_code"}, axis=1)
+            )
+            print(f"--- Saving autoencoding features to {save_dir}...")
+            auto_features.to_csv(
+                Path(save_dir) / filename,
+                index=False,
+            )
+        hexes = hexes.merge(auto_features, on="hex_code", how="left")
+
     zero_fill_cols = [
         "n_conflicts",
         "GSM",
@@ -524,16 +574,21 @@ def append_target_variable_to_hexes(
     country_code,
     country,
     res,
+    gpu=False,
+    encoders=True,
     force=False,
     force_download=False,
     audience=False,
+    hyper_tuning=True,
     lat="latnum",
     long="longnum",
     interim_dir=c.int_data,
     save_dir=c.proc_data,
+    model_dir=c.base_dir_model,
     threshold=c.cutoff,
     read_dir_target=c.raw_data,
     read_dir=c.ext_data,
+    tiff_dir=c.tiff_data,
 ):
     tprint("Child Poverty Index", font="cybermedum")
     print(f"Building dataset for {country} at resolution {res}")
@@ -552,11 +607,16 @@ def append_target_variable_to_hexes(
     complete = append_features_to_hexes(
         country,
         res,
+        encoders,
+        gpu,
         force=force,
         force_download=force_download,
         audience=audience,
         read_dir=read_dir,
         save_dir=interim_dir,
+        model_dir=model_dir,
+        tiff_dir=tiff_dir,
+        hyper_tuning=hyper_tuning,
     )
     print(f"Merging target variable to hexagons in {country}")
     complete = complete.merge(train, on="hex_code", how="left")
@@ -606,6 +666,9 @@ if __name__ == "__main__":
         action="store_true",
         help="Force recreation of dataset, without redownloading unless necessary",
     )
+    parser.add_argument(
+        "--add-auto", action="store_true", help="Generate autoencoder features also"
+    )
 
     try:
         args = parser.parse_args()
@@ -621,9 +684,8 @@ if __name__ == "__main__":
         country=country_name,
         res=args.resolution,
         force=args.force,
+        encoders=args.add_auto,
     )
-
-    # TODO: add autoencoder features
 
 ## Health Sites
 # hh = pd.read_csv("nga_health.csv")

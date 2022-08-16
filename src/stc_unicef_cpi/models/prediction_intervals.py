@@ -66,11 +66,14 @@ def predict_intervals(input_data, target_dim, mapie_dir, alpha=0.05, save_dir=No
     )
     
     # restrict upper & lower bound for predictions to 1 & 0 resp
-    pred_intervals["upper_"+target_dim] = pred_intervals["upper_"+target_dim].apply(lambda x: 1 if x > 1 else x)
-    pred_intervals["lower_"+target_dim] = pred_intervals["lower_"+target_dim].apply(lambda x: 0 if x < 0 else x)
+    if target_dim != "sumpoor_sev":
+        pred_intervals["upper_"+target_dim] = pred_intervals["upper_"+target_dim].apply(lambda x: 1 if x > 1 else x)
+        pred_intervals["lower_"+target_dim] = pred_intervals["lower_"+target_dim].apply(lambda x: 0 if x < 0 else x)
 
     pred_intervals["prediction_"+target_dim] = mapie.predict(input_data)
     pred_intervals = pred_intervals[["lower_"+target_dim, "prediction_"+target_dim, "upper_"+target_dim]]
+
+    pred_intervals["hex_code"] = input_data["hex_code"]
 
     if save_dir:
         pred_intervals.to_csv(Path(save_dir)/("intervals_"+target_dim+".csv"), index=False)
