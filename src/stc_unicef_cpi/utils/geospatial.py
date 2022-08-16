@@ -1,6 +1,7 @@
 import math
 from itertools import chain
 
+import cartopy.io.shapereader as shpreader
 import geopandas as gpd
 import h3.api.numpy_int as h3
 import numpy as np
@@ -10,7 +11,25 @@ from pyproj import Geod
 from shapely import geometry, wkt
 from shapely.geometry.polygon import Polygon
 
-from stc_unicef_cpi.utils.constants import res_area
+# resolution and area of hexagon in km2
+res_area = {
+    0: 4250546.8477000,
+    1: 607220.9782429,
+    2: 86745.8540347,
+    3: 12392.2648621,
+    4: 1770.3235517,
+    5: 252.9033645,
+    6: 36.1290521,
+    7: 5.1612932,
+    8: 0.7373276,
+    9: 0.1053325,
+    10: 0.0150475,
+    11: 0.0021496,
+    12: 0.0003071,
+    13: 0.0000439,
+    14: 0.0000063,
+    15: 0.0000009,
+}
 
 
 def get_hex_radius(res):
@@ -91,7 +110,13 @@ def aggregate_hexagon(df, col_to_agg, name_agg, type):
 
 def get_shape_for_ctry(ctry_name):
     world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-    ctry_shp = world[world.name == ctry_name]
+    # ctry_shp = world[world.name == ctry_name]
+    shpfilename = shpreader.natural_earth(
+        resolution="10m", category="cultural", name="admin_0_countries"
+    )
+    reader = shpreader.Reader(shpfilename)
+    world = reader.records()
+    ctry_shp = next(filter(lambda x: x.attributes["NAME"] == ctry_name, world)).geometry
     return ctry_shp
 
 
@@ -102,10 +127,21 @@ def get_hexes_for_ctry(ctry_name="Nigeria", res=7):
     :param level: _description_, defaults to 7
     :type level: int, optional
     """
-    world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-    ctry_shp = world[world.name == ctry_name].geometry.values[0].__geo_interface__
+    shpfilename = shpreader.natural_earth(
+        resolution="10m", category="cultural", name="admin_0_countries"
+    )
+    reader = shpreader.Reader(shpfilename)
+    world = reader.records()
+    ctry_shp = next(filter(lambda x: x.attributes["NAME"] == ctry_name, world)).geometry
+    try:
+        # handle MultiPolygon
+        ctry_polys = list(ctry_shp)
+        hexes = [h3.polyfill(poly.__geo_interface__, res) for poly in ctry_polys]
+        return np.array(list(chain.from_iterable(hexes)), dtype=int)
 
-    return h3.polyfill(ctry_shp, res)
+    except TypeError:
+        ctry_shp = ctry_shp.__geo_interface__
+        return h3.polyfill(ctry_shp, res)
 
 
 def get_new_nbrs_at_k(hexes, k):

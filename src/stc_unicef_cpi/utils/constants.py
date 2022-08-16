@@ -1,3 +1,4 @@
+import inspect
 from pathlib import Path
 
 # optimization objective for facebook audience estimates
@@ -21,26 +22,6 @@ open_cell_colnames = [
     "avg_signal",
 ]
 
-# resolution and area of hexagon in km2
-res_area = {
-    0: 4250546.8477000,
-    1: 607220.9782429,
-    2: 86745.8540347,
-    3: 12392.2648621,
-    4: 1770.3235517,
-    5: 252.9033645,
-    6: 36.1290521,
-    7: 5.1612932,
-    8: 0.7373276,
-    9: 0.1053325,
-    10: 0.0150475,
-    11: 0.0021496,
-    12: 0.0003071,
-    13: 0.0000439,
-    14: 0.0000063,
-    15: 0.0000009,
-}
-
 # google earth engine parameters
 start_ee = "2010-01-01"
 end_ee = "2020-01-01"
@@ -53,8 +34,11 @@ if current_dir.name == "data" and current_dir.parent.name == "stc_unicef_cpi":
     base_dir_data = Path.cwd().parent.parent.parent / "data"
     base_dir_data.mkdir(exist_ok=True)
 else:
+    # true if not importing from notebook
+    # importing_file = Path(__file__).name
+    # if importing_file == "make_dataset.py":
     raise ValueError(
-        "Must run make_dataset.py from stc_unicef_cpi/data directly for default paths to work as intended"
+        "Must run make_dataset.py from stc_unicef_cpi/data directly for default paths to work as intended: constants.py should only be relevant for this script."
     )
 
 # external data
