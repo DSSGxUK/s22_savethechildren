@@ -69,7 +69,7 @@ def clip_tif_to_ctry(file_path, ctry_name, save_dir=None):
             # NB assumes that no CRS corresponds to EPSG:4326 (as standard)
             ctry_shp = gpd.GeoSeries(ctry_shp)
             ctry_shp.crs = "EPSG:4326"
-            ctry_shp.to_crs(tif_file.crs)
+            ctry_shp = ctry_shp.to_crs(tif_file.crs).geometry
         # world = world.to_crs(tif_file.crs)
         # ctry_shp = world[world.name == ctry_name].geometry
         out_image, out_transform = rasterio.mask.mask(tif_file, ctry_shp, crop=True)
@@ -245,8 +245,10 @@ def geotiff_to_df(
 
     if len(df.index.names) == 3:
         # TO SORT FOR OTHER ORDERING
+        assert df.index.names == ["band", "y", "x"]
         df.index.set_names(["band", "latitude", "longitude"], inplace=True)
     elif len(df.index.names) == 2:
+        assert df.index.names == ["y", "x"]
         df.index.set_names(["latitude", "longitude"], inplace=True)
     else:
         raise ValueError("Unexpected number of index levels")
@@ -259,6 +261,10 @@ def geotiff_to_df(
         # Single band, but check to make sure, then rename data
         # suitably
         nbands = df.band.nunique()
+        if nbands == 0:
+            # undefined band names
+            with rasterio.open(geotiff_filepath) as rast_file:
+                nbands = len(rast_file.indexes)
         title = re.sub(rm_prefix, "", name).replace(".tif", "", 1)
         print(f"{nbands} bands found in {title}")
         if nbands > 1:
@@ -270,6 +276,8 @@ def geotiff_to_df(
 
     if reproj:
         # do reprojection of coords to lat/lon
+        if verbose:
+            print("REPROJECTING")
         transformer = Transformer.from_crs(og_proj, "EPSG:4326")
         coords = [
             transformer.transform(x, y) for x, y in df[["latitude", "longitude"]].values
@@ -317,7 +325,7 @@ def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose
         del tmp
         # All eastings and northings (there is probably a faster way to do this)
         eastings, northings = np.vectorize(rc2en, otypes=[float, float])(rows, cols)
-        transformer = Transformer.from_crs(raster.crs, "WGS84")
+        transformer = Transformer.from_crs(raster.crs, "EPSG:4326")
         longs, lats = transformer.transform(eastings, northings)
         del eastings, northings
         latlongs = np.dstack((lats, longs))
@@ -349,7 +357,7 @@ def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose
                 columns=band_cols,
             )
             df["hex_code"] = hex_codes.reshape(-1)
-            df.dropna(inplace=True)
+            df.dropna(how="all", inplace=True)
             del array
             if verbose:
                 print("Aggregating...")
@@ -359,9 +367,10 @@ def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose
             else:
                 if verbose:
                     print("Joining to previous aggregations...")
-                res_df = res_df.join(df)
+                res_df = res_df.join(df, how="outer")
                 del df
             ctr += max_bands
+    res_df.dropna(how="all", inplace=True)
     return res_df
 
 
@@ -536,6 +545,8 @@ def agg_tif_to_df(
             how="left",
             on="hex_code",
         )
+        if verbose:
+            print(df.head())
         print("Done!")
     return df
 

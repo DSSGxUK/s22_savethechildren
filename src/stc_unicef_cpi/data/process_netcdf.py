@@ -41,7 +41,7 @@ def netcdf_to_clipped_array(file_path, *, ctry_name, save_dir=None, plot=False):
             # NB assumes that no CRS corresponds to EPSG:4326 (as standard)
             ctry_shp = gpd.GeoSeries(ctry_shp)
             ctry_shp.crs = "EPSG:4326"
-            ctry_shp.to_crs(netf.crs)
+            ctry_shp = ctry_shp.to_crs(netf.crs).geometry
         print(
             f"Pixel scale in crs {netf.crs}: {netf.res}"
         )  # shows pixel scale in crs units

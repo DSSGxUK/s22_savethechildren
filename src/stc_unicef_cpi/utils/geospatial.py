@@ -136,12 +136,16 @@ def get_hexes_for_ctry(ctry_name="Nigeria", res=7):
     try:
         # handle MultiPolygon
         ctry_polys = list(ctry_shp)
-        hexes = [h3.polyfill(poly.__geo_interface__, res) for poly in ctry_polys]
+        hexes = [
+            h3.polyfill(poly.__geo_interface__, res, geo_json_conformant=True)
+            for poly in ctry_polys
+        ]
         return np.array(list(chain.from_iterable(hexes)), dtype=int)
 
     except TypeError:
+        # only normal Polygon
         ctry_shp = ctry_shp.__geo_interface__
-        return h3.polyfill(ctry_shp, res)
+        return h3.polyfill(ctry_shp, res, geo_json_conformant=True)
 
 
 def get_new_nbrs_at_k(hexes, k):
