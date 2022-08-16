@@ -6,6 +6,7 @@ import time
 from functools import partial, reduce
 from pathlib import Path
 
+import cartopy.io.shapereader as shpreader
 import geopandas as gpd
 import h3.api.numpy_int as h3
 import numpy as np
@@ -222,6 +223,17 @@ def preprocessed_speed_test(speed, res, country):
     # speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
     # speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
     logging.info("Clipping speed data to country - can take a couple of mins...")
+    shpfilename = shpreader.natural_earth(
+        resolution="10m", category="cultural", name="admin_0_countries"
+    )
+    reader = shpreader.Reader(shpfilename)
+    world = reader.records()
+    country = pycountry.countries.search_fuzzy(args.country)[0]
+    ctry_name = country.name
+    ctry_geom = next(
+        filter(lambda x: x.attributes["NAME"] == ctry_name, world)
+    ).geometry
+    # now use low res to roughly clip
     world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
     ctry = world[world.name == country]
     bd_series = speed.geometry.str.replace(r"POLYGON\s\(+|\)", "").str.split(r"\s|,\s")
@@ -230,13 +242,17 @@ def preprocessed_speed_test(speed, res, country):
     minx, miny, maxx, maxy = ctry.bounds.values.T.squeeze()
     # use rough bounds to restrict more or less to country
     speed = speed[
-        speed.min_x.between(minx - 1e-2, maxx + 1e-2)
-        & speed.max_y.between(miny - 1e-2, maxy + 1e-2)
+        speed.min_x.between(minx - 1e-1, maxx + 1e-1)
+        & speed.max_y.between(miny - 1e-1, maxy + 1e-1)
     ].copy()
     speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
     speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
     # only now look for intersection, as expensive
-    speed = gpd.sjoin(speed, ctry, how="inner", op="intersects").reset_index(drop=True)
+    ctry_geom = gpd.GeoSeries(ctry_geom)
+    ctry_geom.crs = "EPSG:4326"
+    speed = gpd.sjoin(speed, ctry_geom, how="inner", op="intersects").reset_index(
+        drop=True
+    )
     tmp = speed.geometry.swifter.apply(
         lambda x: pd.Series(np.array(x.centroid.coords.xy).flatten())
     )
@@ -466,7 +482,8 @@ def append_target_variable_to_hexes(
     audience=False,
     lat="latnum",
     long="longnum",
-    save_dir=c.int_data,
+    interim_dir=c.int_data,
+    save_dir=c.proc_data,
     threshold=c.cutoff,
     read_dir_target=c.raw_data,
     read_dir=c.ext_data,
@@ -486,7 +503,7 @@ def append_target_variable_to_hexes(
         f"Appending  features to all hexagons in {country}. This step might take a while...~20 minutes"
     )
     complete = append_features_to_hexes(
-        country, res, force, audience, read_dir, save_dir
+        country, res, force, audience, read_dir, interim_dir
     )
     print(f"Merging target variable to hexagons in {country}")
     complete = complete.merge(train, on="hex_code", how="left")

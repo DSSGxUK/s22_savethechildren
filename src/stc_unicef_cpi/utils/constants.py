@@ -65,6 +65,10 @@ ext_data.mkdir(exist_ok=True)
 int_data = base_dir_data / "interim"
 int_data.mkdir(exist_ok=True)
 
+# processed data
+proc_data = base_dir_data / "processed"
+proc_data.mkdir(exist_ok=True)
+
 # raw data
 raw_data = base_dir_data / "raw"
 raw_data.mkdir(exist_ok=True)
