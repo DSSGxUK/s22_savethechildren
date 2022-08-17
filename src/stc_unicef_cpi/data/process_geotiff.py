@@ -337,7 +337,7 @@ def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose
         # All eastings and northings (there is probably a faster way to do this)
         eastings, northings = np.vectorize(rc2en, otypes=[float, float])(rows, cols)
         transformer = Transformer.from_crs(raster.crs, "EPSG:4326")
-        lats, longs = transformer.transform(eastings, northings)
+        longs, lats = transformer.transform(eastings, northings)
         del eastings, northings
         latlongs = np.dstack((lats, longs))
         if verbose:
