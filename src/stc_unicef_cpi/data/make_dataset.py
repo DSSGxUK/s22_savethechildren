@@ -689,9 +689,21 @@ if __name__ == "__main__":
     country_name = country.name
     country_code = country.alpha_3
 
+    if args.add_auto:
+        import tensorflow as tf
+
+        num_gpus = len(tf.config.experimental.list_physical_devices("GPU"))
+        print("Num GPUs Available: ", num_gpus)
+        if num_gpus > 0:
+            gpu = True
+
+    else:
+        gpu = False
+
     append_target_variable_to_hexes(
         country_code=country_code,
         country=country_name,
+        gpu=gpu,
         res=args.resolution,
         force=args.force,
         encoders=args.add_auto,
