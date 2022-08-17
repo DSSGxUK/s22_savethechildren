@@ -72,7 +72,13 @@ def clip_tif_to_ctry(file_path, ctry_name, save_dir=None):
             ctry_shp = ctry_shp.to_crs(tif_file.crs).geometry
         # world = world.to_crs(tif_file.crs)
         # ctry_shp = world[world.name == ctry_name].geometry
-        out_image, out_transform = rasterio.mask.mask(tif_file, ctry_shp, crop=True)
+        try:
+            out_image, out_transform = rasterio.mask.mask(tif_file, ctry_shp, crop=True)
+        except TypeError:
+            # polygon not iterable
+            out_image, out_transform = rasterio.mask.mask(
+                tif_file, [ctry_shp], crop=True
+            )
         out_meta = tif_file.meta
 
     if save_dir is not None:

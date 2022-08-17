@@ -50,7 +50,11 @@ def netcdf_to_clipped_array(file_path, *, ctry_name, save_dir=None, plot=False):
         # print(nga_subset[-1].min(),nga_subset[-1].max())
         # plt.imshow(np.log(nga_subset[-1,:,:]+10),cmap='PiYG')
         # plt.show()
-        out_image, out_transform = rasterio.mask.mask(netf, ctry_shp, crop=True)
+        try:
+            out_image, out_transform = rasterio.mask.mask(netf, ctry_shp, crop=True)
+        except TypeError:
+            # polygon not iterable
+            out_image, out_transform = rasterio.mask.mask(netf, [ctry_shp], crop=True)
         if plot:
             plt.imshow(
                 np.log(out_image[-1, :, :] - out_image[-1].min() + 1), cmap="PiYG"
