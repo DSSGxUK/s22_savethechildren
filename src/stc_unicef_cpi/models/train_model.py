@@ -222,7 +222,7 @@ if __name__ == "__main__":
         help="Produce scatter plot(s) of predicted vs actual values on test set",
     )
     parser.add_argument("--ncores", type=int, default=4, help="Number of cores to use")
-    # NB not sensible to use this in current setup
+    # NB not sensible to use the following in current setup
     # given trying overall pipeline hyperparams
     # in parallel using shell script
     # parser.add_argument(

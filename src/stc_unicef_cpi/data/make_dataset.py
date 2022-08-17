@@ -88,6 +88,12 @@ def create_target_variable(
         raise ValueError(f"Must have raw survey data available in {read_dir}")
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
+    try:
+        assert len(sub) > 0
+    except AssertionError:
+        raise ValueError(
+            f"No geocoded data available in given dataset for {pycountry.countries.get(alpha_3=country_code).name}"
+        )
     # Create variables for two or more deprivations
     for k in range(2, 5):
         sub[f"dep_{k}_or_more_sev"] = sub["sumpoor_sev"] >= k
@@ -136,6 +142,12 @@ def create_target_variable(
         sub_count = sub_count[sub_count.survey >= threshold]
         survey = geo.get_hex_centroid(sub_mean, "hex_code")
         survey_threshold = sub_count.merge(survey, how="left", on="hex_code")
+    if copy_to_nbrs:
+        print(
+            f" -- After expanding, have {len(survey_threshold)} hexes with >= {threshold} surveys"
+        )
+    else:
+        print(f" -- Found {len(survey_threshold)} hexes with >= {threshold} surveys")
     return survey_threshold
 
 
@@ -355,6 +367,7 @@ def append_features_to_hexes(
     logger.info(
         f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee. May take some time to appear."
     )
+    logger.info("Check https://code.earthengine.google.com/tasks to monitor progress.")
 
     # Country hexes
     logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
@@ -681,6 +694,12 @@ if __name__ == "__main__":
         help="Force recreation of dataset, without redownloading unless necessary",
     )
     parser.add_argument(
+        "--force-download",
+        "-fdl",
+        action="store_true",
+        help="Force (re)download of dataset",
+    )
+    parser.add_argument(
         "--add-auto", action="store_true", help="Generate autoencoder features also"
     )
 
@@ -710,6 +729,7 @@ if __name__ == "__main__":
         gpu=gpu,
         res=args.resolution,
         force=args.force,
+        force_download=args.force_download,
         encoders=args.add_auto,
     )
 
