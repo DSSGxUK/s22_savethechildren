@@ -531,6 +531,22 @@ def agg_tif_to_df(
                         {col: agg_fn for col in ddf.columns if col != "hex_code"}
                     )
                     tmp = ddf.compute()
+            except RuntimeError:
+                # scheduler for dask failed to start, just use numpy + pandas
+                print("dask failed, switching back to numpy + pandas")
+                tmp["hex_code"] = np.apply_along_axis(
+                    lambda row: h3.geo_to_h3(*row, 7),
+                    arr=tmp[["latitude", "longitude"]].values,
+                    axis=1,
+                )
+                tmp["hex_code"] = tmp.hex_code.astype(int)  # ensure converted to int
+                tmp.drop(columns=["latitude", "longitude"], inplace=True)
+                print("Done!")
+                print("Aggregating within cells...")
+                tmp = tmp.groupby(by=["hex_code"]).agg(
+                    {col: agg_fn for col in tmp.columns if col != "hex_code"}
+                )
+
         else:
             tmp["hex_code"] = tmp[["latitude", "longitude"]].swifter.apply(
                 lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], resolution),
