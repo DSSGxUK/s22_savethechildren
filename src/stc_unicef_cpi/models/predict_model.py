@@ -45,7 +45,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--universal-data-only",
         "-univ",
-        action="store_true",
+        type=str,
+        default="false",
+        choices=["true", "false"],
         help="Use only universal data (i.e. no country-specific data) - only applicable if --country!=all",
     )
     parser.add_argument(
@@ -122,7 +124,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     # load model
-    univ_data = "univ" if args.universal_data_only else "all"
+    univ_data = "univ" if args.universal_data_only == "true" else "all"
     ip_data = "ip" if args.interpretable else "nip"
 
     MODEL_DIR = Path(args.model_dir)
@@ -132,23 +134,25 @@ if __name__ == "__main__":
             target_name = args.target
         else:
             pass
-        model_name = (
-            f"nigeria-dep_{target_name}_sev-normal-True-univ-nip-mean-standard-none.pkl"
-        )
+
+        model_name = f"{args.country}-dep_{args.target}_sev-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
         with open(MODEL_DIR / model_name, "rb") as f:
             # model = pickle.load(f)
             model = joblib.load(f)
         models = {target_name: model}
     else:
-        model_names = MODEL_DIR.glob(
-            "nigeria-*-normal-True-univ-nip-mean-standard-none.pkl"
-        )
+        model_pattern = f"{args.country}-*-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+        model_names = MODEL_DIR.glob(model_pattern)
+        # print(model_pattern)
         models = {}
         for model_path in model_names:
             target_name = (
                 str(model_path.stem)
-                .replace("nigeria-", "")
-                .replace("-normal-True-univ-nip-mean-standard-none", "")
+                .replace(f"{args.country}-", "")
+                .replace(
+                    f"-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}",
+                    "",
+                )
             )
             with open(model_path, "rb") as f:
                 # model = pickle.load(f)
