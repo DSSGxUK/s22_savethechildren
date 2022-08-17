@@ -498,54 +498,57 @@ def agg_tif_to_df(
                     )
                     tmp = ddf.compute()
             except OSError:
-                cluster = LocalCluster(
-                    scheduler_port=8786,
-                    n_workers=2,
-                    threads_per_worker=1,
-                    memory_limit="2GB",
-                )
-                with Client(
-                    cluster,
-                    timeout="2s",
-                ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
-                    # client.restart()
-                    # NB ideal to have partitions around 100MB in size
-                    ddf = dd.from_pandas(
-                        tmp,
-                        npartitions=max(
-                            [4, int(tmp.memory_usage(deep=True).sum() // int(1e8))]
-                        ),
-                    )  # chunksize = max_records(?)
-                    print(f"Using {ddf.npartitions} partitions")
-                    ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
-                        lambda row: h3.geo_to_h3(
-                            row["latitude"], row["longitude"], resolution
-                        ),
-                        axis=1,
-                        meta=(None, int),
+                try:
+                    cluster = LocalCluster(
+                        scheduler_port=8786,
+                        n_workers=2,
+                        threads_per_worker=1,
+                        memory_limit="2GB",
                     )
-                    ddf = ddf.drop(columns=["latitude", "longitude"])
+                    with Client(
+                        cluster,
+                        timeout="2s",
+                    ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
+                        # client.restart()
+                        # NB ideal to have partitions around 100MB in size
+                        ddf = dd.from_pandas(
+                            tmp,
+                            npartitions=max(
+                                [4, int(tmp.memory_usage(deep=True).sum() // int(1e8))]
+                            ),
+                        )  # chunksize = max_records(?)
+                        print(f"Using {ddf.npartitions} partitions")
+                        ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
+                            lambda row: h3.geo_to_h3(
+                                row["latitude"], row["longitude"], resolution
+                            ),
+                            axis=1,
+                            meta=(None, int),
+                        )
+                        ddf = ddf.drop(columns=["latitude", "longitude"])
+                        print("Done!")
+                        print("Aggregating within cells...")
+                        ddf = ddf.groupby("hex_code").agg(
+                            {col: agg_fn for col in ddf.columns if col != "hex_code"}
+                        )
+                        tmp = ddf.compute()
+                except RuntimeError:
+                    # scheduler for dask failed to start, just use numpy + pandas
+                    print("dask failed, switching back to numpy + pandas")
+                    tmp["hex_code"] = np.apply_along_axis(
+                        lambda row: h3.geo_to_h3(*row, 7),
+                        arr=tmp[["latitude", "longitude"]].values,
+                        axis=1,
+                    )
+                    tmp["hex_code"] = tmp.hex_code.astype(
+                        int
+                    )  # ensure converted to int
+                    tmp.drop(columns=["latitude", "longitude"], inplace=True)
                     print("Done!")
                     print("Aggregating within cells...")
-                    ddf = ddf.groupby("hex_code").agg(
-                        {col: agg_fn for col in ddf.columns if col != "hex_code"}
+                    tmp = tmp.groupby(by=["hex_code"]).agg(
+                        {col: agg_fn for col in tmp.columns if col != "hex_code"}
                     )
-                    tmp = ddf.compute()
-            except RuntimeError:
-                # scheduler for dask failed to start, just use numpy + pandas
-                print("dask failed, switching back to numpy + pandas")
-                tmp["hex_code"] = np.apply_along_axis(
-                    lambda row: h3.geo_to_h3(*row, 7),
-                    arr=tmp[["latitude", "longitude"]].values,
-                    axis=1,
-                )
-                tmp["hex_code"] = tmp.hex_code.astype(int)  # ensure converted to int
-                tmp.drop(columns=["latitude", "longitude"], inplace=True)
-                print("Done!")
-                print("Aggregating within cells...")
-                tmp = tmp.groupby(by=["hex_code"]).agg(
-                    {col: agg_fn for col in tmp.columns if col != "hex_code"}
-                )
 
         else:
             tmp["hex_code"] = tmp[["latitude", "longitude"]].swifter.apply(
