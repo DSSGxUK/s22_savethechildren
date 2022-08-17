@@ -284,6 +284,7 @@ def geotiff_to_df(
         ]
         df[["latitude", "longitude"]] = coords
 
+    df.dropna(inplace=True)
     # print(df.head())
     return df
 
@@ -326,7 +327,7 @@ def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose
         # All eastings and northings (there is probably a faster way to do this)
         eastings, northings = np.vectorize(rc2en, otypes=[float, float])(rows, cols)
         transformer = Transformer.from_crs(raster.crs, "EPSG:4326")
-        longs, lats = transformer.transform(eastings, northings)
+        lats, longs = transformer.transform(eastings, northings)
         del eastings, northings
         latlongs = np.dstack((lats, longs))
         if verbose:
@@ -477,7 +478,7 @@ def agg_tif_to_df(
                             row["latitude"], row["longitude"], resolution
                         ),
                         axis=1,
-                        meta=(None, "int64"),
+                        meta=(None, int),
                     )
                     ddf = ddf.drop(columns=["latitude", "longitude"])
                     print("Done!")
@@ -489,9 +490,9 @@ def agg_tif_to_df(
             except OSError:
                 cluster = LocalCluster(
                     scheduler_port=8786,
-                    n_workers=4,
+                    n_workers=2,
                     threads_per_worker=1,
-                    memory_limit="1GB",
+                    memory_limit="2GB",
                 )
                 with Client(
                     cluster,
@@ -511,7 +512,7 @@ def agg_tif_to_df(
                             row["latitude"], row["longitude"], resolution
                         ),
                         axis=1,
-                        meta=(None, "int64"),
+                        meta=(None, int),
                     )
                     ddf = ddf.drop(columns=["latitude", "longitude"])
                     print("Done!")
@@ -546,7 +547,11 @@ def agg_tif_to_df(
             on="hex_code",
         )
         if verbose:
-            print(df.head())
+            print(
+                "Non-nans in block after join:",
+                len(df.dropna(subset=tmp.columns, how="all")),
+            )
+            # print(df.dropna(subset=tmp.columns).head())
         print("Done!")
     return df
 

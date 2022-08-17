@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import time
+import warnings
 from functools import partial, reduce
 from pathlib import Path
 
@@ -25,7 +26,13 @@ import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
 from stc_unicef_cpi.data.stream_data import RunStreamer
-from stc_unicef_cpi.features import get_autoencoder_features as gaf
+
+try:
+    from stc_unicef_cpi.features import get_autoencoder_features as gaf
+except ModuleNotFoundError:
+    warnings.warn(
+        "Necessary module for autoencoder features not found: assuming not desired"
+    )
 
 
 def read_input_unicef(path_read):
@@ -330,7 +337,7 @@ def append_features_to_hexes(
 
     # Retrieve external data
     print(
-        f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
+        f"Initiating data retrieval. Audience: {audience}. Forced data recreation: {force}. Forced redownload: {force_download}."
     )
     RunStreamer(
         country,
@@ -350,8 +357,9 @@ def append_features_to_hexes(
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
     # expand by 2 hexes to ensure covers all data
     outer_hexes = geo.get_new_nbrs_at_k(hexes_ctry, 2)
-    hexes_ctry = np.concatenate((hexes_ctry, outer_hexes))
+    hexes_ctry = np.concatenate((hexes_ctry, outer_hexes), dtype=int)
     ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
+    # ctry.to_csv("./tmp_ctry.csv", index=False)  # temporary file for debugging
 
     # Facebook connectivity metrics
     if audience:
@@ -383,6 +391,8 @@ def append_features_to_hexes(
     logger.info("Retrieving features from economic tif files...")
     econ_files = glob.glob(str(Path(save_dir) / f"{country.lower()}*.tif"))
     # econ_files = [ele for ele in econ_files if "ppp" not in ele]
+    # print("ctry:", len(ctry))
+    # print(ctry.head())
 
     econ = pg.agg_tif_to_df(
         ctry,
@@ -427,21 +437,21 @@ def append_features_to_hexes(
         rm_prefix=rf"cpi|_|{country.lower()}|500",
         verbose=True,
     )
-    print("small gee:", len(gee))
-    print(gee.head())
+    # print("small gee:", len(gee))
+    # print(gee.head())
     for large_file in large_gee:
         large_gee_df = pg.rast_to_agg_df(
             large_file, resolution=res, max_bands=max_bands, verbose=True
         )
-        print("just large gee:", len(large_gee_df))
-        print(large_gee_df.head())
+        # print("just large gee:", len(large_gee_df))
+        # print(large_gee_df.head())
         gee = gee.join(
             large_gee_df,
             on="hex_code",
             how="outer",
         )
-    print("w large gee, pop non-nans:", len(gee.dropna(subset=["population"])))
-    print(gee.head())
+    # print("w large gee, pop non-nans:", len(gee.dropna(subset=["population"])))
+    # print(gee.head())
     # gee = reduce(
     #     lambda left, right: pd.merge(
     #         left, right, on=["latitude", "longitude"], how="outer"
@@ -453,12 +463,12 @@ def append_features_to_hexes(
     logger.info("Merging aggregated features from tiff files to hexagons...")
     # econ.to_csv(Path(save_dir) / f"tmp_{country.lower()}_econ.csv")
     # gee.to_csv(Path(save_dir) / f"tmp_{country.lower()}_gee.csv")
-    print("econ:", len(econ))
-    print(econ.head())
+    # print("econ:", len(econ))
+    # print(econ.head())
     images = gee.merge(econ, on=["hex_code"], how="outer")
     del econ
-    print("images:", len(images))
-    print(images.head())
+    # print("images:", len(images))
+    # print(images.head())
 
     # Road density
     if force:
@@ -470,8 +480,8 @@ def append_features_to_hexes(
         rd.to_csv(Path(read_dir) / road_file_name, index=False)
     logger.info("Reading road density estimates...")
     road = pd.read_csv(Path(read_dir) / f"road_density_{country.lower()}_res{res}.csv")
-    print("road:", len(road))
-    print(road.head())
+    # print("road:", len(road))
+    # print(road.head())
 
     # Speed Test
     logger.info("Reading speed test estimates...")
@@ -479,8 +489,8 @@ def append_features_to_hexes(
         Path(read_dir) / "connectivity" / "2021-10-01_performance_mobile_tiles.csv"
     )
     speed = preprocessed_speed_test(speed, res, country)
-    print("speed:", len(speed))
-    print(speed.head())
+    # print("speed:", len(speed))
+    # print(speed.head())
 
     # Open Cell Data
     logger.info("Reading open cell data...")
@@ -496,17 +506,17 @@ def append_features_to_hexes(
         .fillna(0)
         .join(cell.groupby("hex_code").avg_signal.mean())
     ).reset_index()
-    print("cell: ", len(cell))
-    print(cell.head())
+    # print("cell: ", len(cell))
+    # print(cell.head())
 
     # Collected Data
     logger.info("Merging all features")
-    print("ctry:", len(ctry))
-    print(ctry.head())
-    print("commuting:", len(commuting))
-    print(commuting.head())
-    print("conflict:", len(cz))
-    print(cz.head())
+    # print("ctry:", len(ctry))
+    # print(ctry.head())
+    # print("commuting:", len(commuting))
+    # print(commuting.head())
+    # print("conflict:", len(cz))
+    # print(cz.head())
     dfs = [ctry, commuting, cz, road, speed, cell, images]
     assert all(["hex_code" in df.columns for df in dfs])
     hexes = reduce(
@@ -565,7 +575,7 @@ def append_features_to_hexes(
     # where nans mean zero, fill as such
     hexes.fillna(value={col: 0 for col in zero_fill_cols}, inplace=True)
     logger.info("Finishing process...")
-    print("out:", len(hexes))
+    # print("out:", len(hexes))
     return hexes
 
 
