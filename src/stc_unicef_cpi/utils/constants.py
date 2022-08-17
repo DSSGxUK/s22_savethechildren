@@ -45,7 +45,12 @@ else:
     )
 
 # external data
-ext_data = base_dir_data / "external"
+if Path("/scratch").is_dir():
+    base_ext_dir = Path("/scratch/fitzgeraldj")
+    base_ext_dir.mkdir(exist_ok=True)
+    ext_data = base_ext_dir / "external"
+else:
+    ext_data = base_dir_data / "external"
 ext_data.mkdir(exist_ok=True)
 
 # interim data
@@ -61,7 +66,10 @@ raw_data = base_dir_data / "raw"
 raw_data.mkdir(exist_ok=True)
 
 # tiff files
-tiff_data = ext_data / "tiff"
+if Path("/scratch").is_dir():
+    tiff_data = base_ext_dir / "tiff"
+else:
+    tiff_data = ext_data / "tiff"
 tiff_data.mkdir(exist_ok=True)
 
 # loggers
@@ -85,4 +93,3 @@ cutoff = 30
 serv_type = "mobile"
 serv_year = 2021
 serv_quart = 4
-
