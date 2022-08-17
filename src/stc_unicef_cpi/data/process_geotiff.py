@@ -468,7 +468,7 @@ def agg_tif_to_df(
             print("Large dataframe, using dask instead...")
             try:
                 with Client(
-                    "tcp://localhost:8786", timeout="2s"
+                    "tcp://localhost:9779", timeout="2s"
                 ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
                     # NB ideal to have partitions around 100MB in size
                     # client.restart()
@@ -495,7 +495,7 @@ def agg_tif_to_df(
                     tmp = ddf.compute()
             except OSError:
                 cluster = LocalCluster(
-                    scheduler_port=8786,
+                    scheduler_port=9779,
                     n_workers=2,
                     threads_per_worker=1,
                     memory_limit="2GB",
