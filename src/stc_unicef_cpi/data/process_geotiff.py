@@ -21,6 +21,13 @@ from rasterio.enums import Resampling
 from rasterio.windows import Window
 from tqdm.auto import tqdm
 
+cluster = LocalCluster(
+    scheduler_port=8786,
+    n_workers=2,
+    threads_per_worker=1,
+    memory_limit="2GB",
+)
+
 
 def print_tif_metadata(rioxarray_rio_obj, name=""):
     """View metadata associated with a raster file,
@@ -468,7 +475,7 @@ def agg_tif_to_df(
             print("Large dataframe, using dask instead...")
             try:
                 with Client(
-                    "tcp://localhost:9779", timeout="2s"
+                    cluster, timeout="2s"
                 ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
                     # NB ideal to have partitions around 100MB in size
                     # client.restart()
@@ -495,7 +502,7 @@ def agg_tif_to_df(
                     tmp = ddf.compute()
             except OSError:
                 cluster = LocalCluster(
-                    scheduler_port=9779,
+                    scheduler_port=8786,
                     n_workers=2,
                     threads_per_worker=1,
                     memory_limit="2GB",
