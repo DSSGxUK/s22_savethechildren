@@ -267,7 +267,11 @@ def preprocessed_speed_test(speed, res, country):
     speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
     speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
     # only now look for intersection, as expensive
-    ctry_geom = gpd.GeoDataFrame(ctry_geom, columns=["geometry"], crs="EPSG:4326")
+    try:
+        ctry_geom = gpd.GeoDataFrame(ctry_geom, columns=["geometry"], crs="EPSG:4326")
+    except ValueError:
+        # problem for single geometry
+        ctry_geom = gpd.GeoDataFrame([ctry_geom], columns=["geometry"], crs="EPSG:4326")
     speed = gpd.sjoin(speed, ctry_geom, how="inner", op="intersects").reset_index(
         drop=True
     )
