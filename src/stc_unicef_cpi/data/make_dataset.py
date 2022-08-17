@@ -470,14 +470,13 @@ def append_features_to_hexes(
         print('--- Copying tiff files to tiff directory')
         gaf.copy_files(c.ext_data / "gee", tiffs, country.lower())
         gaf.copy_files(c.ext_data, tiffs, country.lower())
-        df = pd.read_csv('/Users/danielapintoveizaga/GitHub/stc_unicef_cpi/data/interim/hexes_nigeria_res7_thres30.csv')
         # check if model is trained, else train model
         modelname = f"autoencoder_{country.lower()}_res{res}.h5"
         if os.path.exists(Path(model_dir) / modelname):
             print('--- Model already saved.')
         else:
             print('--- Training auto encoder...')
-            gaf.train_auto_encoder(list(df.hex_code), tiffs, hyper_tunning, model_dir, country, res)
+            gaf.train_auto_encoder(list(ctry.hex_code), tiffs, hyper_tunning, model_dir, country, res)
         # check if autoencoder features have been saved
         filename = f"encodings_{country.lower()}_res{res}.csv"
         if os.path.exists(Path(save_dir) / filename):
@@ -485,11 +484,11 @@ def append_features_to_hexes(
             auto_features = pd.read_csv(Path(save_dir) / filename)
         else:
             print("--- Retrieving autoencoding features...")
-            auto_features = gaf.retrieve_autoencoder_features(list(df.hex_code), model_dir, country, res, tiffs, gpu)
+            auto_features = gaf.retrieve_autoencoder_features(list(ctry.hex_code), model_dir, country, res, tiffs, gpu)
             auto_features = pd.DataFrame(
                 data=auto_features,
                 columns=['f_'+str(i) for i in range(auto_features.shape[1])],
-                index=list(df.hex_code)
+                index=list(ctry.hex_code)
             ).reset_index().rename({'index': 'hex_code'}, axis=1)
             print(f"--- Saving autoencoding features to {save_dir}...")
             auto_features.to_csv(
