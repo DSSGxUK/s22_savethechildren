@@ -5,7 +5,9 @@ import pycountry
 class SatelliteImages:
     """Get Satellite Images From Google Earth Engine"""
 
-    def __init__(self, country, folder, res, start, end):
+    def __init__(
+        self, country, folder="gee", res=500, start="2010-01-01", end="2020-01-01"
+    ):
         """Initialize class
         :param country: country
         :type country: str
@@ -18,8 +20,8 @@ class SatelliteImages:
         :param end: ending date
         :type end: str
         """
-        self.country = country
-        country_record = pycountry.countries.search_fuzzy(self.country)[0]
+        country_record = pycountry.countries.search_fuzzy(country)[0]
+        self.country = country_record.name
         self.country_code = country_record.alpha_3
         self.folder = folder + "/" + self.country
         self.res = res
@@ -70,7 +72,7 @@ class SatelliteImages:
         return task
 
     def get_pop_data(self, transform, proj, geo, name="cpi_poptotal"):
-        """Get Population in Nigeria"""
+        """Get 2020 population estimates in country, by age and sex"""
         ctry, geo = self.get_country_boundaries()
         transform, proj = self.get_projection()
         pop_tot = ee.Image(
