@@ -634,7 +634,7 @@ def extract_image_at_coords(
     """
 
     og_proj = dataset.crs
-    if og_proj != "EPSG:4326":
+    if og_proj != "EPSG:4326" and og_proj is not None:
         if verbose:
             print("WARNING, tiff not in lat/long")
         # reproject lat/lon given to tiff crs
