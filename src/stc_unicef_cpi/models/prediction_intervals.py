@@ -40,7 +40,7 @@ def calibrate_prediction_intervals(pipeline_dir, pipeline_name, input_data, targ
     joblib.dump(mapie, Path(mapie_dir)/("mapie_"+target_dim+".pkl"))
 
 
-def predict_intervals(input_data, target_dim, mapie_dir, alpha=0.05, save_dir=None):
+def predict_intervals(input_data, target_dim, mapie_dir, alpha=0.05, batch_size=10000, save_dir=None):
 
     """
     Get prediction intervals for all data using fitted MapieRegressor
@@ -60,25 +60,39 @@ def predict_intervals(input_data, target_dim, mapie_dir, alpha=0.05, save_dir=No
     # subset by pipeline input
     input_data = input_data[list(mapie.estimator.feature_names_in_)]
 
-    pred_intervals = pd.DataFrame(
-        mapie.predict(input_data, alpha=alpha)[1].reshape(-1,2),
+    all_preds = pd.DataFrame(columns=["lower_"+target_dim, "prediction_"+target_dim, "upper_"+target_dim])
+
+    for i in range(0, len(input_data), batch_size):
+
+        if i+batch_size > len(input_data):
+            end = len(input_data)
+        else:
+            end = i+batch_size
+        
+        subset = input_data.iloc[i:end]
+
+        pred_intervals = pd.DataFrame(
+        mapie.predict(subset, alpha=alpha)[1].reshape(-1,2),
         columns=["lower_"+target_dim, "upper_"+target_dim]
-    )
-    
-    # restrict upper & lower bound for predictions to 1 & 0 resp
-    if target_dim != "sumpoor_sev":
-        pred_intervals["upper_"+target_dim] = pred_intervals["upper_"+target_dim].apply(lambda x: 1 if x > 1 else x)
-        pred_intervals["lower_"+target_dim] = pred_intervals["lower_"+target_dim].apply(lambda x: 0 if x < 0 else x)
+        )
 
-    pred_intervals["prediction_"+target_dim] = mapie.predict(input_data)
-    pred_intervals = pred_intervals[["lower_"+target_dim, "prediction_"+target_dim, "upper_"+target_dim]]
+        # restrict upper & lower bound for predictions to 1 & 0 resp
+        if target_dim != "sumpoor_sev":
+            pred_intervals["upper_"+target_dim] = pred_intervals["upper_"+target_dim].apply(lambda x: 1 if x > 1 else x)
+            pred_intervals["lower_"+target_dim] = pred_intervals["lower_"+target_dim].apply(lambda x: 0 if x < 0 else x)
+        
+        pred_intervals["prediction_"+target_dim] = mapie.predict(subset)
+        pred_intervals = pred_intervals[["lower_"+target_dim, "prediction_"+target_dim, "upper_"+target_dim]]
 
-    pred_intervals["hex_code"] = input_data["hex_code"]
+        all_preds = pd.concat([all_preds, pred_intervals], axis=0)
+
+    all_preds.reset_index(drop=True, inplace=True)
+    all_preds["hex_code"] = input_data["hex_code"]
 
     if save_dir:
-        pred_intervals.to_csv(Path(save_dir)/("intervals_"+target_dim+".csv"), index=False)
+        all_preds.to_csv(Path(save_dir)/("intervals_"+target_dim+".csv"), index=False)
     else:
-        return pred_intervals
+        return all_preds
     
 
 
