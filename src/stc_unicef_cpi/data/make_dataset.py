@@ -512,7 +512,9 @@ def append_features_to_hexes(
     # Open Cell Data
     logger.info("Reading open cell data...")
     cell = g.read_csv_gzip(
-        glob.glob(str(Path(read_dir) / f"{country.lower()}_*gz.tmp"))[0]
+        glob.glob(str(Path(read_dir) / f"{country.lower().replace(' ','_')}_*gz.tmp"))[
+            0
+        ]
     )
     cell = geo.get_hex_code(cell, "lat", "long", res)
     cell = cell[["hex_code", "radio", "avg_signal"]]

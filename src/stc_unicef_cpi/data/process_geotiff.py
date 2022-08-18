@@ -645,7 +645,7 @@ def extract_image_at_coords(
         except:
             print("Rasterio version available does not include epsg check:")
             print("Warning: change of flipped crs")
-            # TODO: Check handling transformations correctly
+            # TODO: Check handling transformations correctly, and check again if lat long transformation correct
             # assignees: fitzgeraldja
             # labels: data, IMPORTANT
             # Important! Some bands suggest this is not the case,
