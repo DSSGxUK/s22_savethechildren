@@ -1,3 +1,4 @@
+import numpy as np  # isort:skip
 import argparse
 import pickle
 import sys
@@ -10,7 +11,6 @@ import h3.api.numpy_int as h3
 import joblib
 import matplotlib.pyplot as plt
 import mlflow
-import numpy as np
 import pandas as pd
 import pycountry
 import seaborn as sns
