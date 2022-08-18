@@ -73,7 +73,9 @@ class SatelliteImages:
         """Get Population in Nigeria"""
         ctry, geo = self.get_country_boundaries()
         transform, proj = self.get_projection()
-        pop_tot = ee.Image("WorldPop/GP/100m/pop_age_sex/NGA_2020").clip(ctry)
+        pop_tot = ee.Image(
+            f"WorldPop/GP/100m/pop_age_sex/{self.country_code.upper()}_2020"
+        ).clip(ctry)
         config = self.task_config(geo, name, pop_tot, transform, proj)
         task = self.export_drive(config)
 
