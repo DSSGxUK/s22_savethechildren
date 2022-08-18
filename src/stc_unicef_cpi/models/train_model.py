@@ -80,7 +80,18 @@ if __name__ == "__main__":
         type=str,
         help="Choice of which country to use for training - options are 'all', 'nigeria' or 'senegal'",
         default="all",
-        choices=["all", "nigeria", "senegal"],
+        choices=[
+            "all",
+            "nigeria",
+            "senegal",
+            "togo",
+            "benin",
+            "guinea",
+            "cameroon",
+            "liberia",
+            "sierra leone",
+            "burkina faso",
+        ],
     )
     parser.add_argument(
         "-ip",
