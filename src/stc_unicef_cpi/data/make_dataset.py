@@ -719,6 +719,8 @@ if __name__ == "__main__":
         print("Num GPUs Available: ", num_gpus)
         if num_gpus > 0:
             gpu = True
+        else:
+            gpu = False
 
     else:
         gpu = False
