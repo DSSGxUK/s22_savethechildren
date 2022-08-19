@@ -9,7 +9,7 @@ params=("nigeria","senegal","benin","togo","sierra leone","burkina faso","guinea
 num_cores=4
 num_procs=6 # max number of runs to try at once
 num_jobs="\j"  # The prompt escape for number of jobs currently running
-for ctry in ${params[@]};
+for ctry in "${params[@]}";
     do
         while ((${num_jobs@P}>=$num_procs)); do
             wait -n
