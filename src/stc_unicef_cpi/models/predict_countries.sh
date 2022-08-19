@@ -19,6 +19,7 @@ for ctry in "${params[@]}";
                 --cv-type "spatial" \
                 --impute "median" \
                 --standardise "robust" \
+                -cp2nbr "true" \
                 -ip "true" \
                 -univ "true" \
                 -cp2nbr "true" &
