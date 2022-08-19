@@ -20,7 +20,7 @@ for ctry in "${params[@]}";
                 --impute "median" \
                 --standardise "robust" \
                 -cp2nbr "true" \
-                -ip "true" \
+                -ip \
                 -univ "true" \
                 -cp2nbr "true" &
 # --interpretable or nothing # --universal-data-only or nothing# --copy-to-nbrs or nothing
