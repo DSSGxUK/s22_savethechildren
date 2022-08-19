@@ -298,7 +298,9 @@ if __name__ == "__main__":
         except Exception:
             XY = pd.read_csv(all_data)
         if len(all_data) > 1:
-            XY = pd.concat([XY, *list(map(pd.read_csv, all_data[1:]))], axis=0)
+            XY = pd.concat(
+                [XY, *list(map(pd.read_csv, all_data[1:]))], ignore_index=True, axis=0
+            )
         # arbitrarily remove duplicate hexes
         XY.drop_duplicates(subset=["hex_code"], inplace=True)
     if args.copy_to_nbrs == "true":
@@ -319,6 +321,7 @@ if __name__ == "__main__":
             if len(all_expanded_data) > 1:
                 expanded_gt = pd.concat(
                     [expanded_gt, *list(map(pd.read_csv, all_expanded_data[1:]))],
+                    ignore_index=True,
                     axis=0,
                 )
             # arbitrarily remove duplicate hexes
