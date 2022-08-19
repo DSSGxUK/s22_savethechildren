@@ -297,6 +297,8 @@ if __name__ == "__main__":
             XY = pd.read_csv(all_data)
         if len(all_data) > 1:
             XY = pd.concat([XY, *list(map(pd.read_csv, all_data[1:]))], axis=0)
+        # arbitrarily remove duplicate hexes
+        XY.drop_duplicates(subset=["hex_code"], inplace=True)
     if args.copy_to_nbrs == "true":
         if args.country != "all":
             expanded_gt = pd.read_csv(
@@ -317,6 +319,8 @@ if __name__ == "__main__":
                     [expanded_gt, *list(map(pd.read_csv, all_expanded_data[1:]))],
                     axis=0,
                 )
+            # arbitrarily remove duplicate hexes
+            expanded_gt.drop_duplicates(subset=["hex_code"], inplace=True)
 
         # contains both count and mean value for targets
         # so currently as not using count beyond
@@ -374,7 +378,6 @@ if __name__ == "__main__":
             ).swifter.apply(lambda pt: pt.within(ctry_geom))
         ]
 
-    # TODO: consider including hex count threshold here
     # thr_df = pd.read_csv(thr_data)
     # thr_all = all_df.set_index('hex_code').loc[thr_df.hex_code].reset_index()
     #### Select features to use
