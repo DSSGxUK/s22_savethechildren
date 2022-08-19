@@ -356,7 +356,7 @@ if __name__ == "__main__":
             target_name = f"dep_{args.target}_sev"
         XY.dropna(subset=[target_name], inplace=True)
     else:
-        XY.dropna(subset=["sumpoor_sev"], inplace=True)
+        XY.dropna(subset=["hex_code", "sumpoor_sev"], inplace=True)
     if args.country != "all":
         # Want to either use preexisting data in location specified,
         # else produce data from scratch
@@ -432,6 +432,7 @@ if __name__ == "__main__":
     # generate train / test split
     # choices = ["normal", "stratified", "spatial"]
     if args.eval_split_type == "normal":
+        # TODO: rerun without fixing random state for general splits
         X_train, X_test, Y_train, Y_test = train_test_split(
             X, Y, test_size=args.test_size, random_state=42
         )
