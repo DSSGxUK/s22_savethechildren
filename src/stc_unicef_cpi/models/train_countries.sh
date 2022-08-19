@@ -20,6 +20,7 @@ for ctry in "${params[@]}";
                 --impute "median" \
                 --standardise "robust" \
                 --log-run \
+                --save-model \
                 --ncores $num_cores \
                 -ip "true" \
                 -univ "true" \
