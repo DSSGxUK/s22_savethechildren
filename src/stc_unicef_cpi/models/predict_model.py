@@ -171,12 +171,29 @@ if __name__ == "__main__":
             models[target_name] = model
 
     # load data
-    data_path = Path(DATA_DIR) / f"hexes_{args.country}_res{args.resolution}_*.csv"
-    data_path = next(
-        Path(data_path.parent).expanduser().glob(data_path.name)
-    )  # threshold on 'ground-truth' doesn't matter
-    # so just take first found
-    XY = pd.read_csv(data_path)
+    if args.country != "all":
+        data_path = Path(DATA_DIR) / f"hexes_{args.country}_res{args.resolution}_*.csv"
+        data_path = next(
+            Path(data_path.parent).expanduser().glob(data_path.name)
+        )  # threshold on 'ground-truth' doesn't matter
+        # so just take first found
+        XY = pd.read_csv(data_path)
+    else:
+        print("Using all available data - currently not generalisable:")
+        print("will look for all data in form")
+        print("(expanded_/hexes_)[country]_res[args.resolution]_thres[threshold].csv,")
+        print(f"in specified directory: {DATA_DIR}")
+        clean_name = f"hexes_*_res{args.resolution}_*.csv"
+        all_data = list(Path(DATA_DIR).expanduser().glob(clean_name))
+        try:
+            XY = pd.read_csv(all_data[0])
+        except Exception:
+            XY = pd.read_csv(all_data)
+        if len(all_data) > 1:
+            XY = pd.concat([XY, *list(map(pd.read_csv, all_data[1:]))], axis=0)
+        # arbitrarily remove duplicate hexes
+        XY.drop_duplicates(subset=["hex_code"], inplace=True)
+
     survey_idx = XY.columns.tolist().index("survey")
     X = XY.iloc[:, :survey_idx]
     # add in lat longs as ftrs

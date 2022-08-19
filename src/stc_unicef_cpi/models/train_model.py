@@ -284,7 +284,9 @@ if __name__ == "__main__":
         else:
             print("Using all available data - currently not generalisable:")
             print("will look for all data in form")
-            print("(expanded_/hexes_)[country]_res[resolution]_thres[threshold].csv,")
+            print(
+                "(expanded_/hexes_)[country]_res[args.resolution]_thres[arg.threshold].csv,"
+            )
             print(f"in specified directory: {DATA_DIRECTORY}")
             clean_name = f"hexes_*_res{args.resolution}_thres{args.threshold}.csv"
             all_data = list(Path(DATA_DIRECTORY).expanduser().glob(clean_name))
