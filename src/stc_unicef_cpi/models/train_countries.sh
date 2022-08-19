@@ -5,7 +5,7 @@
 # bash >= 4.4
 # If wanted multiple arguments passed in file, then can
 # expand with e.g. ${args[@]}
-params=("nigeria","senegal","benin","togo","sierra leone","burkina faso","guinea","cameroon","liberia")
+declare -a params=("nigeria","senegal","benin","togo","sierra leone","burkina faso","guinea","cameroon","liberia")
 num_cores=4
 num_procs=6 # max number of runs to try at once
 num_jobs="\j"  # The prompt escape for number of jobs currently running
@@ -15,7 +15,7 @@ for ctry in "${params[@]}";
             wait -n
         done
         python train_model.py \
-                --country $ctry \
+                --country "$ctry" \
                 --cv-type "spatial" \
                 --impute "median" \
                 --standardise "robust" \
