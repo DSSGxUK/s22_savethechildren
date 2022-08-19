@@ -611,7 +611,7 @@ if __name__ == "__main__":
     univ_data = "univ" if args.universal_data_only == "true" else "all"
     ip_data = "ip" if args.interpretable == "true" else "nip"
     if len(Y.shape) == 1:
-        pipeline_desc = f"best_cfg-{args.country}-{args.target}-{args.cv_type}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+        pipeline_desc = f"best_cfg-{args.country}-{args.target}-{args.cv_type}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}.pkl"
         if args.automl_warm_start:
             try:
                 with open(DATA_DIRECTORY.parent / "models" / pipeline_desc, "rb") as f:
@@ -631,7 +631,7 @@ if __name__ == "__main__":
             col = Y.columns[col_idx]
             if args.automl_warm_start:
                 try:
-                    pipeline_desc = f"best_cfg-{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+                    pipeline_desc = f"best_cfg-{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}.pkl"
                     with open(
                         DATA_DIRECTORY.parent / "models" / pipeline_desc, "rb"
                     ) as f:
@@ -820,7 +820,7 @@ if __name__ == "__main__":
                         )
             if args.save_model:
                 if args.target != "all":
-                    model_desc = f"{args.country}-{args.target}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}"
+                    model_desc = f"{args.country}-{args.target}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}"
                     pipeline_desc = f"best_cfg-{model_desc}.pkl"
                     with open(
                         SAVE_DIRECTORY / f"{model_desc}.pkl",
@@ -830,7 +830,7 @@ if __name__ == "__main__":
                     with open(SAVE_DIRECTORY / pipeline_desc, "wb") as f:
                         pickle.dump(automl.best_config_per_estimator, f)
                 else:
-                    model_desc = f"{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}"
+                    model_desc = f"{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}"
                     pipeline_desc = f"best_cfg-{model_desc}.pkl"
                     with open(SAVE_DIRECTORY / f"{model_desc}.pkl", "wb") as f:
                         joblib.dump(pipeline, f)

@@ -124,6 +124,14 @@ if __name__ == "__main__":
         help="Transform target variable(s) prior to fitting model - choices of none (default, leave raw), 'log', 'power' (Yeo-Johnson)",
     )
     parser.add_argument(
+        "--copy-to-nbrs",
+        "-cp2nbr",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        help="Use model trained on expanded dataset",
+    )
+    parser.add_argument(
         "--resolution", "-res", type=int, default=7, help="Resolution of h3 grid"
     )
 
@@ -146,13 +154,13 @@ if __name__ == "__main__":
         else:
             pass
 
-        model_name = f"{args.country}-dep_{args.target}_sev-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+        model_name = f"{args.country}-dep_{args.target}_sev-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}.pkl"
         with open(MODEL_DIR / model_name, "rb") as f:
             # model = pickle.load(f)
             model = joblib.load(f)
         models = {target_name: model}
     else:
-        model_pattern = f"{args.country}-*-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+        model_pattern = f"{args.country}-*-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}.pkl"
         model_names = MODEL_DIR.glob(model_pattern)
         # print(model_pattern)
         models = {}
@@ -161,7 +169,7 @@ if __name__ == "__main__":
                 str(model_path.stem)
                 .replace(f"{args.country}-", "")
                 .replace(
-                    f"-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}",
+                    f"-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}",
                     "",
                 )
             )
@@ -214,5 +222,7 @@ if __name__ == "__main__":
     OUTPUT_DIR = DATA_DIR.parent / "predictions"
     OUTPUT_DIR.mkdir(exist_ok=True)
     output.to_csv(
-        OUTPUT_DIR / f"preds_{args.country}_res{args.resolution}.csv", index=False
+        OUTPUT_DIR
+        / f"preds_{args.country}_res{args.resolution}_expanded-{args.copy_to_nbrs}.csv",
+        index=False,
     )
