@@ -19,7 +19,18 @@ if __name__ == "__main__":
         "--country",
         type=str,
         help="Choice of which country to predict for - options are 'all', 'nigeria' or 'senegal'",
-        choices=["all", "nigeria", "senegal"],
+        choices=[
+            "all",
+            "nigeria",
+            "senegal",
+            "togo",
+            "benin",
+            "guinea",
+            "cameroon",
+            "liberia",
+            "sierra leone",
+            "burkina faso",
+        ],
     )
     MODEL_DIR = Path.cwd().parent.parent.parent / "data" / "models"
     DATA_DIR = MODEL_DIR.parent / "processed"
