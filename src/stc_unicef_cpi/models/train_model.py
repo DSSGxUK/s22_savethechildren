@@ -340,7 +340,7 @@ if __name__ == "__main__":
         expanded_gt.set_index("hex_code", inplace=True)
         # replace original gt with expanded gt
         XY[expanded_gt.columns] = np.nan
-        XY.combine_first(expanded_gt)
+        XY = XY.set_index("hex_code").combine_first(expanded_gt).reset_index()
 
     if args.target != "all":
         if args.target == "av-severity":
