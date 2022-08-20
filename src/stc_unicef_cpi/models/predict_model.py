@@ -165,7 +165,7 @@ if __name__ == "__main__":
         # print(model_pattern)
         models = {}
         for model_path in model_names:
-            print("Loading model at", model_path)
+            # print("Loading model at", model_path)
             target_name = (
                 str(model_path.stem)
                 .replace(f"{args.country}-", "")
@@ -174,7 +174,7 @@ if __name__ == "__main__":
                     "",
                 )
             )
-            print("for target", target_name)
+            # print("for target", target_name)
             with open(model_path, "rb") as f:
                 # model = pickle.load(f)
                 model = joblib.load(f)
