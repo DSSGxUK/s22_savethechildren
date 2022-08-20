@@ -324,8 +324,8 @@ if __name__ == "__main__":
                     ignore_index=True,
                     axis=0,
                 )
-            # arbitrarily remove duplicate hexes
-            expanded_gt.drop_duplicates(subset=["hex_code"], inplace=True)
+        # arbitrarily remove duplicate hexes
+        expanded_gt.drop_duplicates(subset=["hex_code"], inplace=True)
 
         # contains both count and mean value for targets
         # so currently as not using count beyond
@@ -335,12 +335,28 @@ if __name__ == "__main__":
             inplace=True,
         )
         expanded_gt.rename(
-            columns={col: col.replace("_mean", "") for col in expanded_gt.columns}
+            columns={col: col.replace("_mean", "") for col in expanded_gt.columns},
+            inplace=True,
         )
         expanded_gt.set_index("hex_code", inplace=True)
+        cols = expanded_gt.columns.tolist()
+        cols = [col.replace("_prev", "_sev") for col in cols]
+        cols = [
+            "dep_" + col
+            if "_sev" in col and "sumpoor" not in col and "deprived" not in col
+            else col
+            for col in cols
+        ]
+        expanded_gt.columns = cols
+        expanded_gt.drop(
+            columns=[col for col in expanded_gt.columns if "_sev" not in col],
+            inplace=True,
+        )
         # replace original gt with expanded gt
-        XY[expanded_gt.columns] = np.nan
+        col_order = XY.columns.tolist()
+        XY[expanded_gt.columns.tolist()] = np.nan
         XY = XY.set_index("hex_code").combine_first(expanded_gt).reset_index()
+        XY = XY[col_order]  # ensure in correct original order
 
     if args.target != "all":
         if args.target == "av-severity":
