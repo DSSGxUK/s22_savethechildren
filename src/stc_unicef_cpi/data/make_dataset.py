@@ -1,7 +1,6 @@
 import argparse
 import glob as glob
 import logging
-import sys
 import os
 from functools import partial, reduce
 from pathlib import Path
@@ -24,7 +23,13 @@ import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
 from stc_unicef_cpi.data.stream_data import RunStreamer
-from stc_unicef_cpi.features import get_autoencoder_features as gaf
+
+try:
+    from stc_unicef_cpi.features import get_autoencoder_features as gaf
+except ModuleNotFoundError:
+    warnings.warn(
+        "Necessary module for autoencoder features not found: assuming not desired"
+    )
 
 
 def read_input_unicef(path_read):
@@ -99,6 +104,12 @@ def create_target_variable(
         raise ValueError(f"Must have raw survey data available in {read_dir}")
     df = read_input_unicef(source)
     sub = select_country(df, country_code, lat, long)
+    try:
+        assert len(sub) > 0
+    except AssertionError:
+        raise ValueError(
+            f"No geocoded data available in given dataset for {pycountry.countries.get(alpha_3=country_code).name}"
+        )
     # Create variables for two or more deprivations
     for k in range(2, 5):
         sub[f"dep_{k}_or_more_sev"] = sub["sumpoor_sev"] >= k
@@ -146,6 +157,12 @@ def create_target_variable(
         sub_count = sub_count[sub_count.survey >= threshold]
         survey = geo.get_hex_centroid(sub_mean, "hex_code")
         survey_threshold = sub_count.merge(survey, how="left", on="hex_code")
+    if copy_to_nbrs:
+        print(
+            f" -- After expanding, have {len(survey_threshold)} hexes with >= {threshold} surveys"
+        )
+    else:
+        print(f" -- Found {len(survey_threshold)} hexes with >= {threshold} surveys")
     return survey_threshold
 
 
@@ -173,12 +190,14 @@ def change_name_reproject_tiff(
             raise FileNotFoundError(
                 f"Must have GEE data available in {gee_dir} - currently must manually download there from Google Drive."
             )
-        p_r = Path(read_dir) / "gee" / f"cpi_poptotal_{country.lower()}_500.tif"
-        pg.rxr_reproject_tiff_to_target(tiff, p_r, Path(out_dir) / fname, verbose=True)
+    p_r = Path(read_dir) / "gee" / f"cpi_poptotal_{country.lower()}_500.tif"
+    pg.rxr_reproject_tiff_to_target(tiff, p_r, Path(out_dir) / fname, verbose=True)
 
 
 @g.timing
-def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
+def preprocessed_tiff_files(
+    country, read_dir=c.ext_data, out_dir=c.int_data, force=False
+):
     """Preprocess tiff files
     :param country: _description_
     :type country: _type_
@@ -190,7 +209,7 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     g.create_folder(out_dir)
     # clip gdp ppp 30 arc sec
     print(" -- Clipping gdp pp 30 arc sec")
-    if not (Path(read_dir) / (country.lower() + "_gdp_ppp_30.tif")).exists():
+    if not (Path(read_dir) / (country.lower() + "_gdp_ppp_30.tif")).exists() or force:
         net.netcdf_to_clipped_array(
             Path(read_dir) / "gdp_ppp_30.nc", ctry_name=country, save_dir=read_dir
         )
@@ -198,11 +217,16 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     # clip ec and gdp
     print(" -- Clipping ec and gdp")
     tifs = glob.glob(str(Path(read_dir) / "*" / "*" / "2019" / "*.tif"))
-    if not all(
-        [
-            (Path(read_dir) / (country.lower() + "_" + str(Path(tif).name))).exists()
-            for tif in tifs
-        ]
+    if (
+        not all(
+            [
+                (
+                    Path(read_dir) / (country.lower() + "_" + str(Path(tif).name))
+                ).exists()
+                for tif in tifs
+            ]
+        )
+        or force
     ):
         partial_func = partial(
             pg.clip_tif_to_ctry, ctry_name=country, save_dir=read_dir
@@ -213,7 +237,10 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     print(" -- Reprojecting resolution & determining crs")
     econ_tiffs = sorted(glob.glob(str(Path(read_dir) / f"{country.lower()}_*.tif")))
     econ_tiffs = [ele for ele in econ_tiffs if "africa" not in ele]
-    if not all([(Path(out_dir) / Path(fname).name).exists() for fname in econ_tiffs]):
+    if (
+        not all([(Path(out_dir) / Path(fname).name).exists() for fname in econ_tiffs])
+        or force
+    ):
         attributes = [
             ["gdp_2019"],
             ["ec_2019"],
@@ -226,7 +253,7 @@ def preprocessed_tiff_files(country, read_dir=c.ext_data, out_dir=c.int_data):
     print(" -- Reprojecting critical infrastructure data")
     cisi_ctry = Path(read_dir) / f"{country.lower()}_africa.tif"
     fname = Path(cisi_ctry).name
-    if not (Path(out_dir) / fname).exists():
+    if not (Path(out_dir) / fname).exists() or force:
         cisi = glob.glob(str(Path(read_dir) / "*" / "*" / "010_degree" / "africa.tif"))[
             0
         ]
@@ -254,7 +281,7 @@ def preprocessed_speed_test(speed, res, country):
     ).geometry
     # now use low res to roughly clip
     world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
-    ctry = world[world.name == country]
+    ctry = world[world.name == ctry_name]
     bd_series = speed.geometry.str.replace(r"POLYGON\s\(+|\)", "").str.split(r"\s|,\s")
     speed["min_x"] = bd_series.str[0].astype("float")
     speed["max_y"] = bd_series.str[-1].astype("float")
@@ -267,8 +294,11 @@ def preprocessed_speed_test(speed, res, country):
     speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
     speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
     # only now look for intersection, as expensive
-    ctry_geom = gpd.GeoSeries(ctry_geom)
-    ctry_geom.crs = "EPSG:4326"
+    try:
+        ctry_geom = gpd.GeoDataFrame(ctry_geom, columns=["geometry"], crs="EPSG:4326")
+    except ValueError:
+        # problem for single geometry
+        ctry_geom = gpd.GeoDataFrame([ctry_geom], columns=["geometry"], crs="EPSG:4326")
     speed = gpd.sjoin(speed, ctry_geom, how="inner", op="intersects").reset_index(
         drop=True
     )
@@ -302,8 +332,18 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
 
 @g.timing
 def append_features_to_hexes(
-    country, res, encoders, gpu, force=False, audience=False, model_dir=c.base_dir_model, read_dir=c.ext_data, save_dir=c.int_data, tiff_dir=c.tiff_data,
-    hyper_tunning=False
+    country,
+    res,
+    encoders,
+    gpu,
+    force=False,
+    force_download=False,
+    audience=False,
+    read_dir=c.ext_data,
+    save_dir=c.int_data,
+    model_dir=c.base_dir_model,
+    tiff_dir=c.tiff_data,
+    hyper_tuning=False,
 ):
     """Append features to hexagons withing a country
     :param country_code: _description_, defaults to "NGA"
@@ -328,12 +368,12 @@ def append_features_to_hexes(
 
     # Retrieve external data
     print(
-        f"Initiating data retrieval. Audience: {audience}. Forced data gathering: {force}"
+        f"Initiating data retrieval. Audience: {audience}. Forced data recreation: {force}. Forced redownload: {force_download}."
     )
     RunStreamer(
         country,
         res,
-        force,
+        force_download,
         audience,
         read_path=str(c.ext_data),
         name_logger=c.str_log,
@@ -342,14 +382,16 @@ def append_features_to_hexes(
     logger.info(
         f"Please check your 'gee' folder in google drive and download all content to {read_dir}/gee. May take some time to appear."
     )
+    logger.info("Check https://code.earthengine.google.com/tasks to monitor progress.")
 
     # Country hexes
     logger.info(f"Retrieving hexagons for {country} at resolution {res}.")
     hexes_ctry = geo.get_hexes_for_ctry(country, res)
     # expand by 2 hexes to ensure covers all data
     outer_hexes = geo.get_new_nbrs_at_k(hexes_ctry, 2)
-    hexes_ctry = np.concatenate((hexes_ctry, outer_hexes))
+    hexes_ctry = np.concatenate((hexes_ctry, outer_hexes), dtype=int)
     ctry = pd.DataFrame(hexes_ctry, columns=["hex_code"])
+    # ctry.to_csv("./tmp_ctry.csv", index=False)  # temporary file for debugging
 
     # Facebook connectivity metrics
     if audience:
@@ -363,7 +405,7 @@ def append_features_to_hexes(
 
     # Preprocessed tiff files
     logger.info(f"Preprocessing tiff files from {read_dir} and saving to {save_dir}..")
-    preprocessed_tiff_files(country, read_dir, save_dir)
+    preprocessed_tiff_files(country, read_dir, save_dir, force=force)
 
     # Conflict Zones
     logger.info("Reading and computing conflict zone estimates...")
@@ -424,14 +466,21 @@ def append_features_to_hexes(
         rm_prefix=rf"cpi|_|{country.lower()}|500",
         verbose=True,
     )
+    # print("small gee:", len(gee))
+    # print(gee.head())
     for large_file in large_gee:
-        gee = gee.join(
-            pg.rast_to_agg_df(
-                large_file, resolution=res, max_bands=max_bands, verbose=True
-            ),
-            on="hex_code",
-            how="left",
+        large_gee_df = pg.rast_to_agg_df(
+            large_file, resolution=res, max_bands=max_bands, verbose=True
         )
+        # print("just large gee:", len(large_gee_df))
+        # print(large_gee_df.head())
+        gee = gee.join(
+            large_gee_df,
+            on="hex_code",
+            how="outer",
+        )
+    # print("w large gee, pop non-nans:", len(gee.dropna(subset=["population"])))
+    # print(gee.head())
     # gee = reduce(
     #     lambda left, right: pd.merge(
     #         left, right, on=["latitude", "longitude"], how="outer"
@@ -443,12 +492,25 @@ def append_features_to_hexes(
     logger.info("Merging aggregated features from tiff files to hexagons...")
     # econ.to_csv(Path(save_dir) / f"tmp_{country.lower()}_econ.csv")
     # gee.to_csv(Path(save_dir) / f"tmp_{country.lower()}_gee.csv")
+    # print("econ:", len(econ))
+    # print(econ.head())
     images = gee.merge(econ, on=["hex_code"], how="outer")
     del econ
+    # print("images:", len(images))
+    # print(images.head())
 
     # Road density
+    if force:
+        logger.info("Recreating road density estimates...")
+        import stc_unicef_cpi.data.get_osm_data as osm
+
+        road_file_name = "road_density_" + country.lower() + "_res" + str(res) + ".csv"
+        rd = osm.get_road_density(country, res)
+        rd.to_csv(Path(read_dir) / road_file_name, index=False)
     logger.info("Reading road density estimates...")
     road = pd.read_csv(Path(read_dir) / f"road_density_{country.lower()}_res{res}.csv")
+    # print("road:", len(road))
+    # print(road.head())
 
     # Speed Test
     logger.info("Reading speed test estimates...")
@@ -456,11 +518,15 @@ def append_features_to_hexes(
         Path(read_dir) / "connectivity" / "2021-10-01_performance_mobile_tiles.csv"
     )
     speed = preprocessed_speed_test(speed, res, country)
+    # print("speed:", len(speed))
+    # print(speed.head())
 
     # Open Cell Data
     logger.info("Reading open cell data...")
     cell = g.read_csv_gzip(
-        glob.glob(str(Path(read_dir) / f"{country.lower()}_*gz.tmp"))[0]
+        glob.glob(str(Path(read_dir) / f"{country.lower().replace(' ','_')}_*gz.tmp"))[
+            0
+        ]
     )
     cell = geo.get_hex_code(cell, "lat", "long", res)
     cell = cell[["hex_code", "radio", "avg_signal"]]
@@ -471,10 +537,19 @@ def append_features_to_hexes(
         .fillna(0)
         .join(cell.groupby("hex_code").avg_signal.mean())
     ).reset_index()
+    # print("cell: ", len(cell))
+    # print(cell.head())
 
     # Collected Data
     logger.info("Merging all features")
+    # print("ctry:", len(ctry))
+    # print(ctry.head())
+    # print("commuting:", len(commuting))
+    # print(commuting.head())
+    # print("conflict:", len(cz))
+    # print(cz.head())
     dfs = [ctry, commuting, cz, road, speed, cell, images]
+    assert all(["hex_code" in df.columns for df in dfs])
     hexes = reduce(
         lambda left, right: pd.merge(left, right, on="hex_code", how="left"), dfs
     )
@@ -483,16 +558,18 @@ def append_features_to_hexes(
     if encoders:
         tiffs = Path(tiff_dir / country.lower())
         tiffs.mkdir(exist_ok=True)
-        print('--- Copying tiff files to tiff directory')
+        print("--- Copying tiff files to tiff directory")
         gaf.copy_files(c.ext_data / "gee", tiffs, country.lower())
         gaf.copy_files(c.ext_data, tiffs, country.lower())
         # check if model is trained, else train model
         modelname = f"autoencoder_{country.lower()}_res{res}.h5"
         if os.path.exists(Path(model_dir) / modelname):
-            print('--- Model already saved.')
+            print("--- Model already saved.")
         else:
-            print('--- Training auto encoder...')
-            gaf.train_auto_encoder(list(ctry.hex_code), tiffs, hyper_tunning, model_dir, country, res)
+            print("--- Training auto encoder...")
+            gaf.train_auto_encoder(
+                list(ctry.hex_code), tiffs, hyper_tuning, model_dir, country, res
+            )
         # check if autoencoder features have been saved
         filename = f"encodings_{country.lower()}_res{res}.csv"
         if os.path.exists(Path(save_dir) / filename):
@@ -500,18 +577,24 @@ def append_features_to_hexes(
             auto_features = pd.read_csv(Path(save_dir) / filename)
         else:
             print("--- Retrieving autoencoding features...")
-            auto_features = gaf.retrieve_autoencoder_features(list(ctry.hex_code), model_dir, country, res, tiffs, gpu)
-            auto_features = pd.DataFrame(
-                data=auto_features,
-                columns=['f_'+str(i) for i in range(auto_features.shape[1])],
-                index=list(ctry.hex_code)
-            ).reset_index().rename({'index': 'hex_code'}, axis=1)
+            auto_features = gaf.retrieve_autoencoder_features(
+                list(ctry.hex_code), model_dir, country, res, tiffs, gpu
+            )
+            auto_features = (
+                pd.DataFrame(
+                    data=auto_features,
+                    columns=["f_" + str(i) for i in range(auto_features.shape[1])],
+                    index=list(ctry.hex_code),
+                )
+                .reset_index()
+                .rename({"index": "hex_code"}, axis=1)
+            )
             print(f"--- Saving autoencoding features to {save_dir}...")
             auto_features.to_csv(
                 Path(save_dir) / filename,
                 index=False,
             )
-        hexes = hexes.merge(auto_features, on='hex_code', how='left')
+        hexes = hexes.merge(auto_features, on="hex_code", how="left")
 
     zero_fill_cols = [
         "n_conflicts",
@@ -523,7 +606,7 @@ def append_features_to_hexes(
     # where nans mean zero, fill as such
     hexes.fillna(value={col: 0 for col in zero_fill_cols}, inplace=True)
     logger.info("Finishing process...")
-
+    # print("out:", len(hexes))
     return hexes
 
 
@@ -535,8 +618,9 @@ def append_target_variable_to_hexes(
     gpu=False,
     encoders=True,
     force=False,
+    force_download=False,
     audience=False,
-    hyper_tunning=True,
+    hyper_tuning=True,
     lat="latnum",
     long="longnum",
     interim_dir=c.int_data,
@@ -559,10 +643,21 @@ def append_target_variable_to_hexes(
         country_code, res, lat, long, threshold, read_dir_target, copy_to_nbrs=True
     )
     print(
-        f"Appending  features to all hexagons in {country}. This step might take a while...~20 minutes"
+        f"Appending  features to all hexagons in {country}. This step might take a while...~10 minutes"
     )
     complete = append_features_to_hexes(
-        country, res, encoders, gpu, force, audience, model_dir, read_dir, interim_dir, tiff_dir, hyper_tunning
+        country,
+        res,
+        encoders,
+        gpu,
+        force=force,
+        force_download=force_download,
+        audience=audience,
+        read_dir=read_dir,
+        save_dir=interim_dir,
+        model_dir=model_dir,
+        tiff_dir=tiff_dir,
+        hyper_tuning=hyper_tuning,
     )
     print(f"Merging target variable to hexagons in {country}")
     complete = complete.merge(train, on="hex_code", how="left")
@@ -571,6 +666,7 @@ def append_target_variable_to_hexes(
         Path(save_dir) / f"hexes_{country.lower()}_res{res}_thres{threshold}.csv",
         index=False,
     )
+    print("complete:", len(complete))
     train_expanded.to_csv(
         Path(save_dir) / f"expanded_{country.lower()}_res{res}_thres{threshold}.csv",
         index=False,
@@ -599,6 +695,21 @@ if __name__ == "__main__":
         default=7,
     )
 
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force recreation of dataset, without redownloading unless necessary",
+    )
+    parser.add_argument(
+        "--force-download",
+        "-fdl",
+        action="store_true",
+        help="Force (re)download of dataset",
+    )
+    parser.add_argument(
+        "--add-auto", action="store_true", help="Generate autoencoder features also"
+    )
+
     try:
         args = parser.parse_args()
     except argparse.ArgumentError:
@@ -608,6 +719,25 @@ if __name__ == "__main__":
     country_name = country.name
     country_code = country.alpha_3
 
+    if args.add_auto:
+        import tensorflow as tf
+
+        num_gpus = len(tf.config.experimental.list_physical_devices("GPU"))
+        print("Num GPUs Available: ", num_gpus)
+        if num_gpus > 0:
+            gpu = True
+        else:
+            gpu = False
+
+    else:
+        gpu = False
+
     append_target_variable_to_hexes(
-        country_code=country_code, country=country_name, res=args.resolution
+        country_code=country_code,
+        country=country_name,
+        gpu=gpu,
+        res=args.resolution,
+        force=args.force,
+        force_download=args.force_download,
+        encoders=args.add_auto,
     )

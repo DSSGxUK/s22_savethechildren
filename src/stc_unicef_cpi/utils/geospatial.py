@@ -109,7 +109,7 @@ def aggregate_hexagon(df, col_to_agg, name_agg, type):
 
 
 def get_shape_for_ctry(ctry_name):
-    world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
+    # world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
     # ctry_shp = world[world.name == ctry_name]
     shpfilename = shpreader.natural_earth(
         resolution="10m", category="cultural", name="admin_0_countries"
@@ -136,12 +136,18 @@ def get_hexes_for_ctry(ctry_name="Nigeria", res=7):
     try:
         # handle MultiPolygon
         ctry_polys = list(ctry_shp)
-        hexes = [h3.polyfill(poly.__geo_interface__, res) for poly in ctry_polys]
+        hexes = [
+            h3.polyfill(poly.__geo_interface__, res, geo_json_conformant=True)
+            # h3.polyfill(poly.__geo_interface__, res)
+            for poly in ctry_polys
+        ]
         return np.array(list(chain.from_iterable(hexes)), dtype=int)
 
     except TypeError:
+        # only normal Polygon
         ctry_shp = ctry_shp.__geo_interface__
-        return h3.polyfill(ctry_shp, res)
+        return h3.polyfill(ctry_shp, res, geo_json_conformant=True)
+        # return h3.polyfill(ctry_shp, res)
 
 
 def get_new_nbrs_at_k(hexes, k):
@@ -160,7 +166,8 @@ def get_new_nbrs_at_k(hexes, k):
                 chain.from_iterable(
                     [h3.hex_ring(hex, dist) for dist in range(1, k + 1)]
                 )
-            )
+            ),
+            dtype=int,
         )
 
     nbrs_at_k = pd.DataFrame(hexes, columns=["hex_code"]).hex_code.swifter.apply(

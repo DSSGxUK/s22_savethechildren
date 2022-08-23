@@ -1,8 +1,9 @@
 import glob
 import os
 import re
+from os import PathLike
 from pathlib import Path
-from typing import List, Union
+from typing import Callable, List, Optional, Pattern, Type, Union
 
 import cartopy.io.shapereader as shpreader
 import dask.dataframe as dd
@@ -10,6 +11,7 @@ import geopandas as gpd
 import h3.api.numpy_int as h3
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import rasterio
 import rioxarray as rxr
@@ -20,19 +22,21 @@ from pyproj import Transformer
 from rasterio.enums import Resampling
 from rasterio.windows import Window
 from tqdm.auto import tqdm
+from xarray import DataArray, Dataset
 
 
-def print_tif_metadata(rioxarray_rio_obj, name=""):
+def print_tif_metadata(
+    rioxarray_rio_obj: Type[rxr.rio.Dataset], name: Optional[str] = None
+) -> None:
     """View metadata associated with a raster file,
     loaded using rioxarray
 
-    :param rioxarray_rio_obj: rioxarray object
-    :type rioxarray_rio_obj: rioxarray.rio.Dataset
-    :param name: Name of tiff data
-    :type name: str, optional
-
+    :param rioxarray_rio_obj: rioxarray dataset object
+    :type rioxarray_rio_obj: Type[rxr.rio.Dataset]
+    :param name: Name of tiff data, defaults to ""
+    :type name: Optional[str], optional
     """
-    if len(name) == 0:
+    if name is None:
         name = "your data"
 
     print(f"The crs of {name} is:", rioxarray_rio_obj.rio.crs)
@@ -42,17 +46,22 @@ def print_tif_metadata(rioxarray_rio_obj, name=""):
     print(f"The metadata for {name} is:", rioxarray_rio_obj.attrs)
 
 
-def clip_tif_to_ctry(file_path, ctry_name, save_dir=None):
+def clip_tif_to_ctry(
+    file_path: Union[PathLike, str],
+    ctry_name: str,
+    save_dir: Optional[Union[PathLike, str]] = None,
+) -> None:
     """Clip a GeoTIFF to a specified country boundary,
-    and write a new file, with .
+    and write a new file to the specified directory if given,
+    else just plot the clipped tiff. File name is prepended
+    with the country name.
 
-    :param file_path: _description_
-    :type file_path: _type_
-    :param save_dir: _description_, defaults to None
-    :type save_dir: _type_, optional
-    :param ctry_name: _description_
-    :type ctry_name: str, optional
-    :raises ValueError: _description_
+    :param file_path: Path to file to clip
+    :type file_path: Union[PathLike,str]
+    :param ctry_name: Name of country to clip to
+    :type ctry_name: str
+    :param save_dir: Path to directory to save to, defaults to None (just plot)
+    :type save_dir: Optional[Union[PathLike,str]], optional
     """
     fname = Path(file_path).name
     # world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
@@ -69,10 +78,16 @@ def clip_tif_to_ctry(file_path, ctry_name, save_dir=None):
             # NB assumes that no CRS corresponds to EPSG:4326 (as standard)
             ctry_shp = gpd.GeoSeries(ctry_shp)
             ctry_shp.crs = "EPSG:4326"
-            ctry_shp.to_crs(tif_file.crs)
+            ctry_shp = ctry_shp.to_crs(tif_file.crs).geometry
         # world = world.to_crs(tif_file.crs)
         # ctry_shp = world[world.name == ctry_name].geometry
-        out_image, out_transform = rasterio.mask.mask(tif_file, ctry_shp, crop=True)
+        try:
+            out_image, out_transform = rasterio.mask.mask(tif_file, ctry_shp, crop=True)
+        except TypeError:
+            # polygon not iterable
+            out_image, out_transform = rasterio.mask.mask(
+                tif_file, [ctry_shp], crop=True
+            )
         out_meta = tif_file.meta
 
     if save_dir is not None:
@@ -92,14 +107,30 @@ def clip_tif_to_ctry(file_path, ctry_name, save_dir=None):
         plt.imshow(out_image.squeeze())
         plt.show()
         # raise ValueError("Must specify save_dir")
+    return None
 
 
 def rxr_reproject_tiff_to_target(
-    src_tiff_file: Union[str, Path],
-    target_tiff_file: Union[str, Path],
-    dest_path: Union[str, Path] = None,
-    verbose=False,
-):
+    src_tiff_file: Union[str, PathLike],
+    target_tiff_file: Union[str, PathLike],
+    dest_path: Optional[Union[str, PathLike]] = None,
+    verbose: bool = False,
+) -> Union[Dataset, DataArray, List[Dataset], None]:
+    """Use rioxarray and an example (target) tiff to
+    reproject the given (source) tiff to the same CRS
+    and resolution.
+
+    :param src_tiff_file: Path to tiff file you want to reproject
+    :type src_tiff_file: Union[str, PathLike]
+    :param target_tiff_file: Path to tiff file that is example of desired projection and resolution
+    :type target_tiff_file: Union[str, PathLike]
+    :param dest_path: Path to write reprojected tiff to, defaults to None (just return reprojected raster)
+    :type dest_path: Optional[Union[str, PathLike]], optional
+    :param verbose: Verbosity, defaults to False
+    :type verbose: bool, optional
+    :return: Either None (if dest_path is not None) or reprojected raster
+    :rtype:Union[Dataset, DataArray, List[Dataset], None]
+    """
     # f"shape: {raster.rio.shape}\n"
     # f"resolution: {raster.rio.resolution()}\n"
     # f"bounds: {raster.rio.bounds()}\n"
@@ -130,30 +161,41 @@ def rxr_reproject_tiff_to_target(
         if dest_path is not None:
             dest_path = Path(dest_path)
             rxr_match.rio.to_raster(dest_path)
+            return None
         else:
             return rxr_match
 
 
 def geotiff_to_df(
-    geotiff_filepath: str,
-    spec_band_names: List[str] = None,
-    max_bands=5,
-    rm_prefix=None,
-    verbose=False,
-):
+    geotiff_filepath: Union[str, PathLike],
+    spec_band_names: Optional[List[str]] = None,
+    max_bands: int = 5,
+    rm_prefix: Union[str, Pattern[str]] = "",
+    verbose: bool = False,
+) -> pd.DataFrame:
     """Convert a geotiff file to a pandas dataframe,
     and print some additional info.
 
     :param geotiff_filepath: path to a geotiff file
-    :type geotiff_filepath: str
+    :type geotiff_filepath: Union[str, PathLike]
     :param spec_band_names: Specified band names - only used
                             if these are not specified in
                             the GeoTIFF itself, at which
-                            point they are mandatory
-    :type spec_band_names: List[str], optional
+                            point they are mandatory, defaults to None
+    :type spec_band_names: Optional[List[str]], optional
+    :param max_bands: Max allowable bands before requires use of rast_to_agg_df, defaults to 5
+    :type max_bands: Optional[int], optional
+    :param rm_prefix: Prefix (or regex pattern) to replace in file name, defaults to None
+    :type rm_prefix: Union[str, Pattern[str]], optional
     :param verbose: verbose output, defaults to False
     :type verbose: bool, optional
-    :returns: pandas dataframe
+    :raises ValueError: No band names provided but none found either
+    :raises ValueError: Number of band names provided when none found does not match number of bands
+    :raises ValueError: Too many bands to handle without excessive memory - use rast_to_agg_df instead
+    :raises ValueError: Problem with index resulting from conversion to df
+    :raises ValueError: Problem converting bands
+    :return: pandas dataframe of lat, long, val for each band
+    :rtype: pd.DataFrame
     """
     # # NB quadkeys are defined on Mercator projection, so must reproject
     # world = world.to_crs("EPSG:3395")  # world.to_crs(epsg=3395) would also work
@@ -171,8 +213,12 @@ def geotiff_to_df(
             else:
                 print("Reprojection to lat/lon required: completing...")
                 reproj = True
-                if not open_file.crs.epsg_treats_as_latlong():
-                    print("Warning")
+                try:
+                    if not open_file.crs.epsg_treats_as_latlong():
+                        print("Warning")
+                except:
+                    print("Rasterio version available does not include epsg check:")
+                    print("Warning: change of flipped crs")
         open_file = open_file.squeeze()
         open_file.name = "data"
         try:
@@ -245,8 +291,10 @@ def geotiff_to_df(
 
     if len(df.index.names) == 3:
         # TO SORT FOR OTHER ORDERING
+        assert df.index.names == ["band", "y", "x"]
         df.index.set_names(["band", "latitude", "longitude"], inplace=True)
     elif len(df.index.names) == 2:
+        assert df.index.names == ["y", "x"]
         df.index.set_names(["latitude", "longitude"], inplace=True)
     else:
         raise ValueError("Unexpected number of index levels")
@@ -259,6 +307,10 @@ def geotiff_to_df(
         # Single band, but check to make sure, then rename data
         # suitably
         nbands = df.band.nunique()
+        if nbands == 0:
+            # undefined band names
+            with rasterio.open(geotiff_filepath) as rast_file:
+                nbands = len(rast_file.indexes)
         title = re.sub(rm_prefix, "", name).replace(".tif", "", 1)
         print(f"{nbands} bands found in {title}")
         if nbands > 1:
@@ -270,32 +322,43 @@ def geotiff_to_df(
 
     if reproj:
         # do reprojection of coords to lat/lon
+        if verbose:
+            print("REPROJECTING")
         transformer = Transformer.from_crs(og_proj, "EPSG:4326")
         coords = [
             transformer.transform(x, y) for x, y in df[["latitude", "longitude"]].values
         ]
         df[["latitude", "longitude"]] = coords
 
+    df.dropna(inplace=True)
     # print(df.head())
     return df
 
 
-def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose=False):
+def rast_to_agg_df(
+    tiff_file: Union[str, Path, bytes],
+    agg_fn: Callable[[npt.NDArray], npt.NDArray] = np.mean,
+    resolution: int = 7,
+    max_bands: int = 3,
+    verbose: bool = False,
+) -> pd.DataFrame:
     """Likely slower than using rioxarray fns, but
     benefit of handling groups of bands at a time, rather
     than all at once (v memory expensive) - only to be
     used for tiffs with many bands.
 
-    :param tiff_file: _description_
-    :type tiff_file: _type_
-    :param agg_fn: _description_, defaults to np.mean
-    :type agg_fn: _type_, optional
-    :param resolution: _description_, defaults to 7
+    :param tiff_file: Path to (many banded, large) tiff file
+    :type tiff_file: Union[str, PathLike]
+    :param agg_fn: Aggregation function, defaults to np.mean
+    :type agg_fn: Callable[[npt.NDArray], npt.NDArray], optional
+    :param resolution: Resolution of H3 grid to aggregate to, defaults to 7
     :type resolution: int, optional
-    :param max_bands: _description_, defaults to 3
+    :param max_bands: Max number of bands to process at one time, defaults to 3
     :type max_bands: int, optional
-    :param verbose: be verbose, defaults to False
+    :param verbose: Verbose, defaults to False
     :type verbose: bool, optional
+    :return: Dataframe of aggregated data
+    :rtype: pd.DataFrame
     """
     with rasterio.open(tiff_file) as raster:
         band_names = np.array(raster.descriptions)
@@ -317,7 +380,7 @@ def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose
         del tmp
         # All eastings and northings (there is probably a faster way to do this)
         eastings, northings = np.vectorize(rc2en, otypes=[float, float])(rows, cols)
-        transformer = Transformer.from_crs(raster.crs, "WGS84")
+        transformer = Transformer.from_crs(raster.crs, "EPSG:4326")
         longs, lats = transformer.transform(eastings, northings)
         del eastings, northings
         latlongs = np.dstack((lats, longs))
@@ -349,7 +412,7 @@ def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose
                 columns=band_cols,
             )
             df["hex_code"] = hex_codes.reshape(-1)
-            df.dropna(inplace=True)
+            df.dropna(how="all", inplace=True)
             del array
             if verbose:
                 print("Aggregating...")
@@ -359,22 +422,23 @@ def rast_to_agg_df(tiff_file, agg_fn=np.mean, resolution=7, max_bands=3, verbose
             else:
                 if verbose:
                     print("Joining to previous aggregations...")
-                res_df = res_df.join(df)
+                res_df = res_df.join(df, how="outer")
                 del df
             ctr += max_bands
+    res_df.dropna(how="all", inplace=True)  # type: ignore
     return res_df
 
 
 def agg_tif_to_df(
-    df,
-    tiff_dir,
-    rm_prefix="cpi",
-    agg_fn=np.mean,
-    max_records=int(1e5),
-    replace_old=True,
-    resolution=7,
-    verbose=False,
-):
+    df: pd.DataFrame,
+    tiff_dir: Union[str, PathLike],
+    rm_prefix: Union[str, Pattern[str]] = "cpi",
+    agg_fn: Callable[[npt.NDArray], npt.NDArray] = np.mean,
+    max_records: int = int(1e5),
+    replace_old: bool = True,
+    resolution: int = 7,
+    verbose: bool = False,
+) -> pd.DataFrame:
     """Pass df with hex_code column of numpy_int type h3 codes,
     and a directory with tiff files, then aggregate pixels from tiffs
     within each hexagon according to given function.
@@ -391,13 +455,13 @@ def agg_tif_to_df(
     :param tiff_dir: Either directory containing .tifs, a
                      single .tif file, or a list of .tif
                      files to aggregate to given df
-    :type tiff_dir: _type_
-    :param rm_prefix: Prefix to remove from file string when naming variables,
+    :type tiff_dir: Union[str, PathLike]
+    :param rm_prefix: Prefix or regex pattern to remove from file string when naming variables,
                       defaults to "cpi"
-    :type rm_prefix: str, optional
+    :type rm_prefix: Union[str, Pattern[str]], optional
     :param agg_fn: Function to use when aggregating tiff pixels within cells,
                    defaults to np.mean
-    :type agg_fn: _type_, optional
+    :type agg_fn: Callable[[npt.NDArray], npt.NDArray], optional
     :param max_records: Max number of pixels in clipped tiff before using dask,
                         defaults to int(1e5)
     :type max_records: int, optional
@@ -408,9 +472,9 @@ def agg_tif_to_df(
     :type resolution: int, optional
     :param verbose: Verbose output, defaults to False
     :type verbose: bool, optional
-    :raises ValueError: _description_
-    :return: _description_
-    :rtype: _type_
+    :raises ValueError: hex_code column not in df
+    :return: Original dataframe with new columns added from aggregated values of tiffs in hexes
+    :rtype: pd.DataFrame
     """
     try:
         assert "hex_code" in df.columns
@@ -423,7 +487,7 @@ def agg_tif_to_df(
             path = Path(tiff_dir) / "*.tif"
             tif_files = glob.glob(str(path))
         elif os.path.isfile(tiff_dir):
-            tif_files = [tiff_dir]
+            tif_files = [tiff_dir]  # type: ignore
     except TypeError:
         # list of tiff files passed directly
         assert type(tiff_dir) == list
@@ -452,7 +516,7 @@ def agg_tif_to_df(
             print("Large dataframe, using dask instead...")
             try:
                 with Client(
-                    "tcp://localhost:8786", timeout="2s"
+                    "dask-scheduler:8786", timeout="2s"
                 ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
                     # NB ideal to have partitions around 100MB in size
                     # client.restart()
@@ -468,7 +532,7 @@ def agg_tif_to_df(
                             row["latitude"], row["longitude"], resolution
                         ),
                         axis=1,
-                        meta=(None, "int64"),
+                        meta=(None, int),
                     )
                     ddf = ddf.drop(columns=["latitude", "longitude"])
                     print("Done!")
@@ -478,39 +542,58 @@ def agg_tif_to_df(
                     )
                     tmp = ddf.compute()
             except OSError:
-                cluster = LocalCluster(
-                    scheduler_port=8786,
-                    n_workers=4,
-                    threads_per_worker=1,
-                    memory_limit="1GB",
-                )
-                with Client(
-                    cluster,
-                    timeout="2s",
-                ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
-                    # client.restart()
-                    # NB ideal to have partitions around 100MB in size
-                    ddf = dd.from_pandas(
-                        tmp,
-                        npartitions=max(
-                            [4, int(tmp.memory_usage(deep=True).sum() // int(1e8))]
-                        ),
-                    )  # chunksize = max_records(?)
-                    print(f"Using {ddf.npartitions} partitions")
-                    ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
-                        lambda row: h3.geo_to_h3(
-                            row["latitude"], row["longitude"], resolution
-                        ),
-                        axis=1,
-                        meta=(None, "int64"),
+                try:
+                    cluster = LocalCluster(
+                        scheduler_port=8786,
+                        n_workers=2,
+                        threads_per_worker=1,
+                        memory_limit="2GB",
                     )
-                    ddf = ddf.drop(columns=["latitude", "longitude"])
+                    with Client(
+                        cluster,
+                        timeout="2s",
+                    ) as client:  # add options (?) e.g. n_workers=4, memory_limit="4GB"
+                        # client.restart()
+                        # NB ideal to have partitions around 100MB in size
+                        ddf = dd.from_pandas(
+                            tmp,
+                            npartitions=max(
+                                [4, int(tmp.memory_usage(deep=True).sum() // int(1e8))]
+                            ),
+                        )  # chunksize = max_records(?)
+                        print(f"Using {ddf.npartitions} partitions")
+                        ddf["hex_code"] = ddf[["latitude", "longitude"]].apply(
+                            lambda row: h3.geo_to_h3(
+                                row["latitude"], row["longitude"], resolution
+                            ),
+                            axis=1,
+                            meta=(None, int),
+                        )
+                        ddf = ddf.drop(columns=["latitude", "longitude"])
+                        print("Done!")
+                        print("Aggregating within cells...")
+                        ddf = ddf.groupby("hex_code").agg(
+                            {col: agg_fn for col in ddf.columns if col != "hex_code"}
+                        )
+                        tmp = ddf.compute()
+                except RuntimeError:
+                    # scheduler for dask failed to start, just use numpy + pandas
+                    print("dask failed, switching back to numpy + pandas")
+                    tmp["hex_code"] = np.apply_along_axis(
+                        lambda row: h3.geo_to_h3(*row, 7),
+                        arr=tmp[["latitude", "longitude"]].values,
+                        axis=1,
+                    )
+                    tmp["hex_code"] = tmp.hex_code.astype(
+                        int
+                    )  # ensure converted to int
+                    tmp.drop(columns=["latitude", "longitude"], inplace=True)
                     print("Done!")
                     print("Aggregating within cells...")
-                    ddf = ddf.groupby("hex_code").agg(
-                        {col: agg_fn for col in ddf.columns if col != "hex_code"}
+                    tmp = tmp.groupby(by=["hex_code"]).agg(
+                        {col: agg_fn for col in tmp.columns if col != "hex_code"}
                     )
-                    tmp = ddf.compute()
+
         else:
             tmp["hex_code"] = tmp[["latitude", "longitude"]].swifter.apply(
                 lambda row: h3.geo_to_h3(row["latitude"], row["longitude"], resolution),
@@ -536,6 +619,12 @@ def agg_tif_to_df(
             how="left",
             on="hex_code",
         )
+        if verbose:
+            print(
+                "Non-nans in block after join:",
+                len(df.dropna(subset=tmp.columns, how="all")),
+            )
+            # print(df.dropna(subset=tmp.columns).head())
         print("Done!")
     return df
 
@@ -569,47 +658,65 @@ def agg_tif_to_df(
 
 
 def extract_image_at_coords(
-    dataset, lat: float, long: float, dim_x=256, dim_y=256, verbose=False
-):
+    dataset: Union[Dataset, DataArray, List[Dataset], rasterio.io.DatasetReader],
+    lat: float,
+    long: float,
+    dim_x: int = 256,
+    dim_y: int = 256,
+    verbose: bool = False,
+) -> npt.NDArray:
     """Extract an array of specified dimensions (num pixels) about
     specified lat/long - centered by default
 
-    :param dataset: _description_
-    :type dataset: rxr.rio.Dataset or rasterio dataset
-    :param lat: _description_
+    :param dataset: rioxarray or rasterio dataset (open tiff file)
+    :type dataset: Union[Dataset, DataArray, List[Dataset], rasterio.io.DatasetReader]
+    :param lat: Latitude of center point about which to extract image
     :type lat: float
-    :param long: _description_
+    :param long: Longitude of center point about which to extract image
     :type long: float
-    :param dim_x: _description_
-    :type dim_x: int
-    :param dim_y: _description_
-    :type dim_y: int
-    :param centered: _description_, defaults to True
-    :type centered: bool, optional
+    :param dim_x: x dimension (pixel width) of extracted image, defaults to 256
+    :type dim_x: int, optional
+    :param dim_y: y dimension (pixel height) of extracted image, defaults to 256
+    :type dim_y: int, optional
+    :param verbose: Verbose, defaults to False
+    :type verbose: bool, optional
+    :return: Array of tiff values ('image') at specified coordinates, of given size
+    :rtype: npt.NDArray
     """
-
-    og_proj = dataset.crs
-    if og_proj != "EPSG:4326":
+    try:
+        og_proj = dataset.crs  # type: ignore
+        assert og_proj is not None
+    except AttributeError:
+        print("No crs attribute, assuming EPSG:4326")
+        og_proj = "EPSG:4326"
+    except AssertionError:
+        print("No crs specified, assuming EPSG:4326")
+        og_proj = "EPSG:4326"
+    if og_proj != "EPSG:4326" and og_proj is not None:
         if verbose:
             print("WARNING, tiff not in lat/long")
         # reproject lat/lon given to tiff crs
         transformer = Transformer.from_crs("EPSG:4326", og_proj)
-        if dataset.crs.epsg_treats_as_latlong():
-            # TODO: Check handling transformations correctly
+        try:
+            if not dataset.crs.epsg_treats_as_latlong():  # type: ignore
+                print("Warning")
+        except:
+            print("Rasterio version available does not include epsg check:")
+            print("Warning: change of flipped crs")
+            # TODO: Check handling transformations correctly, and check again if lat long transformation correct
             # assignees: fitzgeraldja
             # labels: data, IMPORTANT
             # Important! Some bands suggest this is not the case,
             # but luckily not a huge problem as only transforming
             # one tiff currently.
-            pass
         lat, long = transformer.transform(lat, long)
     # TODO: Add try, except block for when out of bounds error thrown
-    row, col = dataset.index(long, lat)
-    max_i, max_j = dataset.height, dataset.width
+    row, col = dataset.index(long, lat)  # type: ignore
+    max_i, max_j = dataset.height, dataset.width  # type: ignore
     left = col - dim_x // 2
     top = row - dim_y // 2
     window = Window(left, top, dim_x, dim_y)
-    subset = dataset.read(window=window)
+    subset = dataset.read(window=window)  # type: ignore
     return subset
 
 
@@ -630,31 +737,30 @@ def extract_image_at_coords(
 
 
 def extract_ims_from_hex_codes(
-    datasets: Union[List[str], List[bytes]],
-    hex_codes: List[int],
-    width=256,
-    height=256,
-    verbose=False,
-):
+    datasets: Union[List[str], List[PathLike]],
+    hex_codes: Union[List[int], npt.NDArray[np.int_]],
+    width: int = 256,
+    height: int = 256,
+    verbose: bool = False,
+) -> npt.NDArray:
     """For a set of datasets, specified by file path, and
     a set of h3 hex codes, extract centered
     images of specified size and return a 4D array
     in shape
         (image_idx,band,i,j).
 
-
-    :param datasets: _description_
-    :type datasets: list[str]
-    :param hex_codes: _description_
-    :type hex_codes: list[int]
-    :param width: _description_, defaults to 256
+    :param datasets: List of paths to tiff files for which you want to extract (and stack) 'image' bands
+    :type datasets: Union[List[str], List[PathLike]]
+    :param hex_codes: Set of H3 hex codes in numpy_int format for which you wish to extract images
+    :type hex_codes: Union[List[int], npt.NDArray[np.int_]]
+    :param width: Width of extracted images in pixels, defaults to 256
     :type width: int, optional
-    :param height: _description_, defaults to 256
+    :param height: Height of extracted images in pixels, defaults to 256
     :type height: int, optional
-    :param verbose: _description_, defaults to False
+    :param verbose: Verbose, defaults to False
     :type verbose: bool, optional
-    :return: _description_
-    :rtype: _type_
+    :return: Extracted images in shape (image_idx,band,i,j)
+    :rtype: npt.NDArray
     """
     nbands = 0
     for dataset in datasets:
@@ -699,8 +805,11 @@ def extract_ims_from_hex_codes(
 
 
 def convert_tiffs_to_image_dataset(
-    tiff_dir: str, hex_codes: List[int], dim_x=256, dim_y=256
-) -> np.ndarray:
+    tiff_dir: Union[str, PathLike],
+    hex_codes: Union[List[int], npt.NDArray[np.int_]],
+    dim_x: int = 256,
+    dim_y: int = 256,
+) -> npt.NDArray:
     """Convert set of GeoTIFFs to a 4D numpy array according
     to specified dataset - expect the path to a directory
     containing all relevant GeoTIFFs with extension '.tif',
@@ -713,15 +822,15 @@ def convert_tiffs_to_image_dataset(
 
     :param tiff_dir: Path to GeoTIFF directory, with file
                      extensions '.tif'
-    :type tiff_dir: str
-    :param df_file_path: _description_
-    :type df_file_path: str
-    :param dim_x: _description_, defaults to 256
+    :type tiff_dir: Union[str, PathLike]
+    :param hex_codes: Set of H3 hex codes for which you wish to extract images
+    :type hex_codes: Union[List[int], npt.NDArray[np.int_]]
+    :param dim_x: Pixel width of extracted images, defaults to 256
     :type dim_x: int, optional
-    :param dim_y: _description_, defaults to 256
+    :param dim_y: Pixel height of extracted images, defaults to 256
     :type dim_y: int, optional
-    :return: _description_
-    :rtype: np.ndarray
+    :return: Array of images at hex coords, in shape (hex_id, band, i, j)
+    :rtype: npt.NDArray
     """
     # absolute path to search for all tiff files inside a specified folder
     path = Path(tiff_dir) / "*.tif"
@@ -732,7 +841,22 @@ def convert_tiffs_to_image_dataset(
     return all_ims
 
 
-def resample_tif(tif_file_path, dest_dir, rescale_factor=2):
+def resample_tif(
+    tif_file_path: Union[str, PathLike],
+    dest_dir: Union[str, PathLike],
+    rescale_factor: Optional[float] = 2.0,
+) -> None:
+    """Resample a tiff file by a given factor, using bilinear resampling
+    - greater than 1 corresponds to increased resolution,
+    less than 1 decreased.
+
+    :param tif_file_path: Path to tiff file to resample
+    :type tif_file_path: Union[str, PathLike]
+    :param dest_dir: Destination directory for resampled tiff file to be written to
+    :type dest_dir: Union[str, PathLike]
+    :param rescale_factor: Rescale factor, defaults to 2
+    :type rescale_factor: Optional[int], optional
+    """
     with rasterio.open(tif_file_path) as dataset:
         # resample data to target shape
         data = dataset.read(

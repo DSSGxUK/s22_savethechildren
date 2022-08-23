@@ -1,3 +1,4 @@
+import numpy as np  # isort:skip
 import argparse
 import pickle
 import sys
@@ -10,7 +11,6 @@ import h3.api.numpy_int as h3
 import joblib
 import matplotlib.pyplot as plt
 import mlflow
-import numpy as np
 import pandas as pd
 import pycountry
 import seaborn as sns
@@ -80,7 +80,18 @@ if __name__ == "__main__":
         type=str,
         help="Choice of which country to use for training - options are 'all', 'nigeria' or 'senegal'",
         default="all",
-        choices=["all", "nigeria", "senegal"],
+        choices=[
+            "all",
+            "nigeria",
+            "senegal",
+            "togo",
+            "benin",
+            "guinea",
+            "cameroon",
+            "liberia",
+            "sierra leone",
+            "burkina faso",
+        ],
     )
     parser.add_argument(
         "-ip",
@@ -222,7 +233,7 @@ if __name__ == "__main__":
         help="Produce scatter plot(s) of predicted vs actual values on test set",
     )
     parser.add_argument("--ncores", type=int, default=4, help="Number of cores to use")
-    # NB not sensible to use this in current setup
+    # NB not sensible to use the following in current setup
     # given trying overall pipeline hyperparams
     # in parallel using shell script
     # parser.add_argument(
@@ -273,7 +284,9 @@ if __name__ == "__main__":
         else:
             print("Using all available data - currently not generalisable:")
             print("will look for all data in form")
-            print("(expanded_/hexes_)[country]_res[resolution]_thres[threshold].csv,")
+            print(
+                "(expanded_/hexes_)[country]_res[args.resolution]_thres[arg.threshold].csv,"
+            )
             print(f"in specified directory: {DATA_DIRECTORY}")
             clean_name = f"hexes_*_res{args.resolution}_thres{args.threshold}.csv"
             all_data = list(Path(DATA_DIRECTORY).expanduser().glob(clean_name))
@@ -285,7 +298,11 @@ if __name__ == "__main__":
         except Exception:
             XY = pd.read_csv(all_data)
         if len(all_data) > 1:
-            XY = pd.concat([XY, *list(map(pd.read_csv, all_data[1:]))], axis=0)
+            XY = pd.concat(
+                [XY, *list(map(pd.read_csv, all_data[1:]))], ignore_index=True, axis=0
+            )
+        # arbitrarily remove duplicate hexes
+        XY.drop_duplicates(subset=["hex_code"], inplace=True)
     if args.copy_to_nbrs == "true":
         if args.country != "all":
             expanded_gt = pd.read_csv(
@@ -304,8 +321,11 @@ if __name__ == "__main__":
             if len(all_expanded_data) > 1:
                 expanded_gt = pd.concat(
                     [expanded_gt, *list(map(pd.read_csv, all_expanded_data[1:]))],
+                    ignore_index=True,
                     axis=0,
                 )
+        # arbitrarily remove duplicate hexes
+        expanded_gt.drop_duplicates(subset=["hex_code"], inplace=True)
 
         # contains both count and mean value for targets
         # so currently as not using count beyond
@@ -315,12 +335,28 @@ if __name__ == "__main__":
             inplace=True,
         )
         expanded_gt.rename(
-            columns={col: col.replace("_mean", "") for col in expanded_gt.columns}
+            columns={col: col.replace("_mean", "") for col in expanded_gt.columns},
+            inplace=True,
         )
         expanded_gt.set_index("hex_code", inplace=True)
+        cols = expanded_gt.columns.tolist()
+        cols = [col.replace("_prev", "_sev") for col in cols]
+        cols = [
+            "dep_" + col
+            if "_sev" in col and "sumpoor" not in col and "deprived" not in col
+            else col
+            for col in cols
+        ]
+        expanded_gt.columns = cols
+        expanded_gt.drop(
+            columns=[col for col in expanded_gt.columns if "_sev" not in col],
+            inplace=True,
+        )
         # replace original gt with expanded gt
-        XY[expanded_gt.columns] = np.nan
-        XY.combine_first(expanded_gt)
+        col_order = XY.columns.tolist()
+        XY[expanded_gt.columns.tolist()] = np.nan
+        XY = XY.set_index("hex_code").combine_first(expanded_gt).reset_index()
+        XY = XY[col_order]  # ensure in correct original order
 
     if args.target != "all":
         if args.target == "av-severity":
@@ -341,7 +377,7 @@ if __name__ == "__main__":
             target_name = f"dep_{args.target}_sev"
         XY.dropna(subset=[target_name], inplace=True)
     else:
-        XY.dropna(subset=["sumpoor_sev"], inplace=True)
+        XY.dropna(subset=["hex_code", "sumpoor_sev"], inplace=True)
     if args.country != "all":
         # Want to either use preexisting data in location specified,
         # else produce data from scratch
@@ -363,7 +399,6 @@ if __name__ == "__main__":
             ).swifter.apply(lambda pt: pt.within(ctry_geom))
         ]
 
-    # TODO: consider including hex count threshold here
     # thr_df = pd.read_csv(thr_data)
     # thr_all = all_df.set_index('hex_code').loc[thr_df.hex_code].reset_index()
     #### Select features to use
@@ -418,6 +453,7 @@ if __name__ == "__main__":
     # generate train / test split
     # choices = ["normal", "stratified", "spatial"]
     if args.eval_split_type == "normal":
+        # TODO: rerun without fixing random state for general splits
         X_train, X_test, Y_train, Y_test = train_test_split(
             X, Y, test_size=args.test_size, random_state=42
         )
@@ -591,7 +627,7 @@ if __name__ == "__main__":
     univ_data = "univ" if args.universal_data_only == "true" else "all"
     ip_data = "ip" if args.interpretable == "true" else "nip"
     if len(Y.shape) == 1:
-        pipeline_desc = f"best_cfg-{args.country}-{args.target}-{args.cv_type}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+        pipeline_desc = f"best_cfg-{args.country}-{args.target}-{args.cv_type}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}.pkl"
         if args.automl_warm_start:
             try:
                 with open(DATA_DIRECTORY.parent / "models" / pipeline_desc, "rb") as f:
@@ -611,7 +647,7 @@ if __name__ == "__main__":
             col = Y.columns[col_idx]
             if args.automl_warm_start:
                 try:
-                    pipeline_desc = f"best_cfg-{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}.pkl"
+                    pipeline_desc = f"best_cfg-{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}.pkl"
                     with open(
                         DATA_DIRECTORY.parent / "models" / pipeline_desc, "rb"
                     ) as f:
@@ -800,7 +836,7 @@ if __name__ == "__main__":
                         )
             if args.save_model:
                 if args.target != "all":
-                    model_desc = f"{args.country}-{args.target}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}"
+                    model_desc = f"{args.country}-{args.target}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}"
                     pipeline_desc = f"best_cfg-{model_desc}.pkl"
                     with open(
                         SAVE_DIRECTORY / f"{model_desc}.pkl",
@@ -810,7 +846,7 @@ if __name__ == "__main__":
                     with open(SAVE_DIRECTORY / pipeline_desc, "wb") as f:
                         pickle.dump(automl.best_config_per_estimator, f)
                 else:
-                    model_desc = f"{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}"
+                    model_desc = f"{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}"
                     pipeline_desc = f"best_cfg-{model_desc}.pkl"
                     with open(SAVE_DIRECTORY / f"{model_desc}.pkl", "wb") as f:
                         joblib.dump(pipeline, f)

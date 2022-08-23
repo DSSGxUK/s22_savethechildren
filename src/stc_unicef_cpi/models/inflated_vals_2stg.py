@@ -1,8 +1,13 @@
+from __future__ import annotations
+
+from typing import Dict, List, Optional, Union
+
 import numpy as np
 import pandas as pd
 from flaml import AutoML
 from sklearn.base import (
     BaseEstimator,
+    ClassifierMixin,
     RegressorMixin,
     clone,
     is_classifier,
@@ -61,32 +66,32 @@ class InflatedValsRegressor(BaseEstimator, RegressorMixin):
     array([4.91483294, 0.        , 0.        , 0.04941909, 0.        ])
     """
 
-    def __init__(self, classifier, regressor) -> None:
+    def __init__(self, classifier: ClassifierMixin, regressor: RegressorMixin) -> None:
         """Initialize."""
         self.classifier = classifier
         self.regressor = regressor
 
     def fit(
         self,
-        X,
-        y,
-        inflated_vals=[0],
-        sample_weight=None,
-        allow_nan=True,
-        cls_fit_kwargs=None,
-        reg_fit_kwargs=None,
-    ):
+        X: np.ndarray | pd.DataFrame,
+        y: np.ndarray | pd.Series,
+        inflated_vals: list[float] | np.ndarray = [0],
+        sample_weight: np.ndarray | None = None,
+        allow_nan: bool = True,
+        cls_fit_kwargs: dict | None = None,
+        reg_fit_kwargs: dict | None = None,
+    ) -> InflatedValsRegressor:
         """
         Fit the model.
 
-        :param X: The training data.
-        :type X: np.ndarray of shape (n_samples, n_features)
-        :param y: The target values.
-        :type y: np.ndarray, 1-dimensional
+        :param X: The training data in shape (n_samples, n_features).
+        :type X: Union[np.ndarray, pd.DataFrame]
+        :param y: The target values, 1-dimensional.
+        :type y: Union[np.ndarray, pd.Series]
         :param inflated_vals: Inflated values, defaults to [0]
-        :type inflated_vals: list, optional
+        :type inflated_vals: Union[List[float], np.ndarray], optional
         :param sample_weight: Individual weights for each sample, defaults to None
-        :type sample_weight: np.ndarray, optional
+        :type sample_weight: Optional[np.ndarray], optional
         :raises ValueError: If `classifier` is not a classifier or `regressor` is not a regressor.
         :return: Fitted regressor.
         :rtype: InflatedValsRegressor
@@ -157,11 +162,16 @@ class InflatedValsRegressor(BaseEstimator, RegressorMixin):
 
         return self
 
-    def predict(self, X, weighted=False, allow_nan=True):
+    def predict(
+        self,
+        X: np.ndarray | pd.DataFrame,
+        weighted: bool = False,
+        allow_nan: bool = True,
+    ) -> np.ndarray:
         """Make predictions.
 
-        :param X: Samples to get predictions of.
-        :type X: np.ndarray, shape (n_samples, n_features)
+        :param X: Samples to get predictions of, shape (n_samples, n_features).
+        :type X: Union[np.ndarray, pd.DataFrame]
         :param weighted: Weight output, or use strict class predictions, defaults to False
         :type weighted: bool, optional
         :return: The predicted values.
@@ -210,7 +220,23 @@ class InflatedValsRegressor(BaseEstimator, RegressorMixin):
 
         return output
 
-    def get_cls_labels(self, y, inflated_vals, init=True):
+    def get_cls_labels(
+        self,
+        y: np.ndarray | pd.Series,
+        inflated_vals: list[float] | np.ndarray,
+        init=True,
+    ) -> pd.Series:
+        """Get class labels of targets, y, according to inflated values passed
+
+        :param y: Target values
+        :type y: Union[np.ndarray, pd.Series]
+        :param inflated_vals: Inflated values
+        :type inflated_vals: Union[List[float], np.ndarray]
+        :param init: Initialise, defaults to True
+        :type init: bool, optional
+        :return: Class labels
+        :rtype: pd.Series
+        """
         y_cls = np.zeros_like(y)
         # in general, n unique values partition \mathbb{R} into n+1 parts
         # so overall would have 2n + 1 (ordinal) classes - each of these

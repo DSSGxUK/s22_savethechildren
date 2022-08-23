@@ -106,7 +106,11 @@ def assign_cluster(
     """
     hexes = pd.DataFrame(get_hexes_for_ctry(country, res), columns=[hex_code_col])
     hexes = get_poly_boundary(hexes, hex_code_col)
-    results = get_hex_code(results, lat, long, res)
+    try:
+        results = get_hex_code(results, lat, long, res)
+    except KeyError:
+        print(results.head())
+        raise ValueError("Problem w OSM data format")
     temp = results.groupby([hex_code_col])["length"].sum().reset_index()
     temp["length_km"] = temp["length"] / 1000
     temp.drop(columns="length", inplace=True)

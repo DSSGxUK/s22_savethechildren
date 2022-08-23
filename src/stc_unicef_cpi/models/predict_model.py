@@ -19,7 +19,18 @@ if __name__ == "__main__":
         "--country",
         type=str,
         help="Choice of which country to predict for - options are 'all', 'nigeria' or 'senegal'",
-        choices=["all", "nigeria", "senegal"],
+        choices=[
+            "all",
+            "nigeria",
+            "senegal",
+            "togo",
+            "benin",
+            "guinea",
+            "cameroon",
+            "liberia",
+            "sierra leone",
+            "burkina faso",
+        ],
     )
     MODEL_DIR = Path.cwd().parent.parent.parent / "data" / "models"
     DATA_DIR = MODEL_DIR.parent / "processed"
@@ -45,7 +56,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--universal-data-only",
         "-univ",
-        action="store_true",
+        type=str,
+        default="false",
+        choices=["true", "false"],
         help="Use only universal data (i.e. no country-specific data) - only applicable if --country!=all",
     )
     parser.add_argument(
@@ -111,6 +124,14 @@ if __name__ == "__main__":
         help="Transform target variable(s) prior to fitting model - choices of none (default, leave raw), 'log', 'power' (Yeo-Johnson)",
     )
     parser.add_argument(
+        "--copy-to-nbrs",
+        "-cp2nbr",
+        type=str,
+        default="false",
+        choices=["true", "false"],
+        help="Use model trained on expanded dataset",
+    )
+    parser.add_argument(
         "--resolution", "-res", type=int, default=7, help="Resolution of h3 grid"
     )
 
@@ -122,7 +143,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     # load model
-    univ_data = "univ" if args.universal_data_only else "all"
+    univ_data = "univ" if args.universal_data_only == "true" else "all"
     ip_data = "ip" if args.interpretable else "nip"
 
     MODEL_DIR = Path(args.model_dir)
@@ -132,36 +153,59 @@ if __name__ == "__main__":
             target_name = args.target
         else:
             pass
-        model_name = (
-            f"nigeria-dep_{target_name}_sev-normal-True-univ-nip-mean-standard-none.pkl"
-        )
+
+        model_name = f"{args.country}-dep_{args.target}_sev-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}.pkl"
         with open(MODEL_DIR / model_name, "rb") as f:
             # model = pickle.load(f)
             model = joblib.load(f)
         models = {target_name: model}
     else:
-        model_names = MODEL_DIR.glob(
-            "nigeria-*-normal-True-univ-nip-mean-standard-none.pkl"
-        )
+        model_pattern = f"{args.country}-*-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}.pkl"
+        model_names = MODEL_DIR.glob(model_pattern)
+        # print(model_pattern)
         models = {}
         for model_path in model_names:
+            # print("Loading model at", model_path)
             target_name = (
                 str(model_path.stem)
-                .replace("nigeria-", "")
-                .replace("-normal-True-univ-nip-mean-standard-none", "")
+                .replace(f"{args.country}-", "")
+                .replace(
+                    f"-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}",
+                    "",
+                )
             )
+            # print("for target", target_name)
             with open(model_path, "rb") as f:
                 # model = pickle.load(f)
                 model = joblib.load(f)
             models[target_name] = model
 
     # load data
-    data_path = Path(DATA_DIR) / f"hexes_{args.country}_res{args.resolution}_*.csv"
-    data_path = next(
-        Path(data_path.parent).expanduser().glob(data_path.name)
-    )  # threshold on 'ground-truth' doesn't matter
-    # so just take first found
-    XY = pd.read_csv(data_path)
+    if args.country != "all":
+        data_path = Path(DATA_DIR) / f"hexes_{args.country}_res{args.resolution}_*.csv"
+        data_path = next(
+            Path(data_path.parent).expanduser().glob(data_path.name)
+        )  # threshold on 'ground-truth' doesn't matter
+        # so just take first found
+        XY = pd.read_csv(data_path)
+    else:
+        print("Using all available data - currently not generalisable:")
+        print("will look for all data in form")
+        print("(expanded_/hexes_)[country]_res[args.resolution]_thres[threshold].csv,")
+        print(f"in specified directory: {DATA_DIR}")
+        clean_name = f"hexes_*_res{args.resolution}_*.csv"
+        all_data = list(Path(DATA_DIR).expanduser().glob(clean_name))
+        try:
+            XY = pd.read_csv(all_data[0])
+        except Exception:
+            XY = pd.read_csv(all_data)
+        if len(all_data) > 1:
+            XY = pd.concat(
+                [XY, *list(map(pd.read_csv, all_data[1:]))], ignore_index=True, axis=0
+            )
+        # arbitrarily remove duplicate hexes
+        XY.drop_duplicates(subset=["hex_code"], inplace=True)
+
     survey_idx = XY.columns.tolist().index("survey")
     X = XY.iloc[:, :survey_idx]
     # add in lat longs as ftrs
@@ -180,5 +224,7 @@ if __name__ == "__main__":
     OUTPUT_DIR = DATA_DIR.parent / "predictions"
     OUTPUT_DIR.mkdir(exist_ok=True)
     output.to_csv(
-        OUTPUT_DIR / f"preds_{args.country}_res{args.resolution}.csv", index=False
+        OUTPUT_DIR
+        / f"preds_{args.country}_res{args.resolution}_expanded-{args.copy_to_nbrs}.csv",
+        index=False,
     )

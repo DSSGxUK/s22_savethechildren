@@ -1,11 +1,13 @@
-# -*- coding: utf-8 -*-
 import ee
+import pycountry
 
 
-class SatelliteImages():
+class SatelliteImages:
     """Get Satellite Images From Google Earth Engine"""
 
-    def __init__(self, country, folder, res, start, end):
+    def __init__(
+        self, country, folder="gee", res=500, start="2010-01-01", end="2020-01-01"
+    ):
         """Initialize class
         :param country: country
         :type country: str
@@ -18,8 +20,10 @@ class SatelliteImages():
         :param end: ending date
         :type end: str
         """
-        self.country = country
-        self.folder = folder
+        country_record = pycountry.countries.search_fuzzy(country)[0]
+        self.country = country_record.name
+        self.country_code = country_record.alpha_3
+        self.folder = folder + "/" + self.country
         self.res = res
         self.start = start
         self.end = end
@@ -35,23 +39,25 @@ class SatelliteImages():
 
     def get_projection(self):
         """Get country projections downloaded image"""
-        pop_tot = ee.Image('WorldPop/GP/100m/pop_age_sex/NGA_2020')
-        proj = pop_tot.select('population').projection().getInfo()
+        pop_tot = ee.Image(
+            f"WorldPop/GP/100m/pop_age_sex/{self.country_code.upper()}_2020"
+        )
+        proj = pop_tot.select("population").projection().getInfo()
 
-        return proj['transform'], proj['crs']
+        return proj["transform"], proj["crs"]
 
     def task_config(self, geo, name, image, transform, proj):
-        """"Determine countries parameters"""
+        """ "Determine countries parameters"""
         config = {
-            'region': geo,
-            'description': f"{name}_{self.country.lower()}_{self.res}",
-            'crs': proj,
-            'crsTransform': transform,
-            'fileFormat': 'GeoTIFF',
-            'folder': self.folder,
-            'scale': self.res,
-            'image': image,
-            'maxPixels': 9e8
+            "region": geo,
+            "description": f"{name}_{self.country.lower()}_{self.res}",
+            "crs": proj,
+            "crsTransform": transform,
+            "fileFormat": "GeoTIFF",
+            "folder": self.folder,
+            "scale": self.res,
+            "image": image,
+            "maxPixels": 9e8,
         }
         return config
 
@@ -65,80 +71,129 @@ class SatelliteImages():
 
         return task
 
-    def get_pop_data(self, transform, proj, geo, name='cpi_poptotal'):
-        """Get Population in Nigeria"""
+    def get_pop_data(self, transform, proj, geo, name="cpi_poptotal"):
+        """Get 2020 population estimates in country, by age and sex"""
         ctry, geo = self.get_country_boundaries()
         transform, proj = self.get_projection()
-        pop_tot = ee.Image('WorldPop/GP/100m/pop_age_sex/NGA_2020').clip(ctry)
+        pop_tot = ee.Image(
+            f"WorldPop/GP/100m/pop_age_sex/{self.country_code.upper()}_2020"
+        ).clip(ctry)
         config = self.task_config(geo, name, pop_tot, transform, proj)
         task = self.export_drive(config)
-        
+
         return task
 
     def get_precipitation_data(self, transform, proj, ctry, geo, start_date, end_date):
         # nasa data
-        precip = ee.ImageCollection('NASA/GPM_L3/IMERG_MONTHLY_V06').\
-            select('precipitation').filterBounds(ctry).filterDate(start_date, end_date).\
-            select('precipitation')
+        precip = (
+            ee.ImageCollection("NASA/GPM_L3/IMERG_MONTHLY_V06")
+            .select("precipitation")
+            .filterBounds(ctry)
+            .filterDate(start_date, end_date)
+            .select("precipitation")
+        )
         precip_mean = precip.reduce(ee.Reducer.mean()).resample().clip(ctry)
         precip_std = precip.reduce(ee.Reducer.stdDev()).resample().clip(ctry)
-    
-        # idaho data  
-        terra_climate = ee.ImageCollection('IDAHO_EPSCOR/TERRACLIMATE').\
-            filterBounds(ctry).filterDate(start_date, end_date)
-        climate_evap = terra_climate.select('aet').reduce(ee.Reducer.mean()).resample().clip(ctry)
-        climate_preci = terra_climate.select('pr').reduce(ee.Reducer.mean()).resample().clip(ctry)
-        latest_image = terra_climate.limit(1, 'system:time_start', False).first()
-        drought = latest_image.select('pdsi').resample().clip(ctry)
-        
+
+        # idaho data
+        terra_climate = (
+            ee.ImageCollection("IDAHO_EPSCOR/TERRACLIMATE")
+            .filterBounds(ctry)
+            .filterDate(start_date, end_date)
+        )
+        climate_evap = (
+            terra_climate.select("aet").reduce(ee.Reducer.mean()).resample().clip(ctry)
+        )
+        climate_preci = (
+            terra_climate.select("pr").reduce(ee.Reducer.mean()).resample().clip(ctry)
+        )
+        latest_image = terra_climate.limit(1, "system:time_start", False).first()
+        drought = latest_image.select("pdsi").resample().clip(ctry)
+
         # collect data
         images = [precip_std, precip_mean, climate_preci, climate_evap, drought]
-        names = ['cpi_preci_mean', 'cpi_preci_std', 'cpi_precipi_acc', 'cpi_evapo_trans', 'cpi_pdsi']
+        names = [
+            "cpi_preci_mean",
+            "cpi_preci_std",
+            "cpi_precipi_acc",
+            "cpi_evapo_trans",
+            "cpi_pdsi",
+        ]
         collections = zip(images, names)
         for image, name in collections:
             config = self.task_config(geo, name, image, transform, proj)
             task = self.export_drive(config)
         return task
 
-    def get_copernicus_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_cop_land'):
-        cop_land_use = ee.ImageCollection("COPERNICUS/Landcover/100m/Proba-V-C3/Global").\
-            select('discrete_classification').filterDate(start_date, end_date).filterBounds(ctry)
+    def get_copernicus_data(
+        self, transform, proj, ctry, geo, start_date, end_date, name="cpi_cop_land"
+    ):
+        cop_land_use = (
+            ee.ImageCollection("COPERNICUS/Landcover/100m/Proba-V-C3/Global")
+            .select("discrete_classification")
+            .filterDate(start_date, end_date)
+            .filterBounds(ctry)
+        )
         cop_land_use = cop_land_use.reduce(ee.Reducer.mean()).clip(ctry)
         config = self.task_config(geo, name, cop_land_use, transform, proj)
         task = self.export_drive(config)
 
         return task
 
-    def get_land_use_data(self, transform, proj, ctry, geo, name='cpi_ghsl'):
-        ghsl_land_use = ee.Image("JRC/GHSL/P2016/BUILT_LDSMT_GLOBE_V1").select('built', 'cnfd').clip(ctry)
+    def get_land_use_data(self, transform, proj, ctry, geo, name="cpi_ghsl"):
+        ghsl_land_use = (
+            ee.Image("JRC/GHSL/P2016/BUILT_LDSMT_GLOBE_V1")
+            .select("built", "cnfd")
+            .clip(ctry)
+        )
         config = self.task_config(geo, name, ghsl_land_use, transform, proj)
         task = self.export_drive(config)
 
         return task
 
-    def get_ndwi_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_ndwi'):
-        ndwi = ee.ImageCollection('LANDSAT/LC08/C01/T1_ANNUAL_NDWI').\
-            filterDate(start_date, end_date).\
-                filterBounds(ctry).select('NDWI')
+    def get_ndwi_data(
+        self, transform, proj, ctry, geo, start_date, end_date, name="cpi_ndwi"
+    ):
+        ndwi = (
+            ee.ImageCollection("LANDSAT/LC08/C01/T1_ANNUAL_NDWI")
+            .filterDate(start_date, end_date)
+            .filterBounds(ctry)
+            .select("NDWI")
+        )
         ndwi = ndwi.reduce(ee.Reducer.mean()).clip(ctry)
         config = self.task_config(geo, name, ndwi, transform, proj)
         task = self.export_drive(config)
         return task
 
-    def get_ndvi_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_ndvi'):
-        ndvi = ee.ImageCollection('LANDSAT/LC08/C01/T1_32DAY_NDVI').\
-            select('NDVI').filterDate(start_date, end_date).filterBounds(ctry)
+    def get_ndvi_data(
+        self, transform, proj, ctry, geo, start_date, end_date, name="cpi_ndvi"
+    ):
+        ndvi = (
+            ee.ImageCollection("LANDSAT/LC08/C01/T1_32DAY_NDVI")
+            .select("NDVI")
+            .filterDate(start_date, end_date)
+            .filterBounds(ctry)
+        )
         ndvi = ndvi.reduce(ee.Reducer.mean()).clip(ctry)
         config = self.task_config(geo, name, ndvi, transform, proj)
-        task = self.export_drive(config)  
+        task = self.export_drive(config)
         return task
 
-    def get_pollution_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_pollution'):
+    def get_pollution_data(
+        self, transform, proj, ctry, geo, start_date, end_date, name="cpi_pollution"
+    ):
         def func_pio(m):
-            collection = ee.ImageCollection('MODIS/006/MCD19A2_GRANULES').\
-                filterDate(start_date, end_date).filter(ee.Filter.calendarRange(m, m, 'month')).\
-                filterBounds(ctry).select('Optical_Depth_047', 'Optical_Depth_055').mean().set('month', m)
+            collection = (
+                ee.ImageCollection("MODIS/006/MCD19A2_GRANULES")
+                .filterDate(start_date, end_date)
+                .filter(ee.Filter.calendarRange(m, m, "month"))
+                .filterBounds(ctry)
+                .select("Optical_Depth_047", "Optical_Depth_055")
+                .mean()
+                .set("month", m)
+            )
             return collection
+
         months = ee.List.sequence(1, 12)
         pollution = ee.ImageCollection.fromImages(months.map(func_pio))
         pollution = pollution.mean().clip(ctry)
@@ -147,25 +202,31 @@ class SatelliteImages():
         return task
 
     def get_topography_data(self, transform, proj, ctry, geo):
-        elevation = ee.Image('CGIAR/SRTM90_V4').select('elevation').clip(ctry)
+        elevation = ee.Image("CGIAR/SRTM90_V4").select("elevation").clip(ctry)
         slope = ee.Terrain.slope(elevation)
-        images, names = [elevation, slope], ['cpi_elevation', 'cpi_slope']
+        images, names = [elevation, slope], ["cpi_elevation", "cpi_slope"]
         collections = zip(images, names)
         for image, name in collections:
             config = self.task_config(geo, name, image, transform, proj)
             task = self.export_drive(config)
         return task
 
-    def get_nighttime_data(self, transform, proj, ctry, geo, start_date, end_date, name='cpi_nighttime'):
-        night_time = ee.ImageCollection('NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG').\
-            filterDate(start_date, end_date).filterBounds(ctry).select('avg_rad', 'cf_cvg')
+    def get_nighttime_data(
+        self, transform, proj, ctry, geo, start_date, end_date, name="cpi_nighttime"
+    ):
+        night_time = (
+            ee.ImageCollection("NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG")
+            .filterDate(start_date, end_date)
+            .filterBounds(ctry)
+            .select("avg_rad", "cf_cvg")
+        )
         night_time = night_time.mean().toFloat().clip(ctry)
         config = self.task_config(geo, name, night_time, transform, proj)
         task = self.export_drive(config)
         return task
 
-    def get_healthcare_data(self, transform, proj, ctry, geo, name='cpi_health_acc'):
-        health_acc = ee.Image('Oxford/MAP/accessibility_to_healthcare_2019').clip(ctry)
+    def get_healthcare_data(self, transform, proj, ctry, geo, name="cpi_health_acc"):
+        health_acc = ee.Image("Oxford/MAP/accessibility_to_healthcare_2019").clip(ctry)
         config = self.task_config(geo, name, health_acc, transform, proj)
         task = self.export_drive(config)
         return task

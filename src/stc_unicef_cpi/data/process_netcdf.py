@@ -1,30 +1,40 @@
+from os import PathLike
 from pathlib import Path
+from typing import Optional, Union
 
 import cartopy.io.shapereader as shpreader
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import rasterio
 import rasterio.mask
 
 
-def netcdf_to_clipped_array(file_path, *, ctry_name, save_dir=None, plot=False):
+def netcdf_to_clipped_array(
+    file_path: Union[str, PathLike],
+    *,
+    ctry_name: str = "Nigeria",
+    save_dir: Optional[Union[str, PathLike]] = None,
+    plot: bool = False,
+) -> Union[None, npt.NDArray]:
     """Read netCDF file and return either array clipped to
     specified country, or a GeoTIFF clipped to this country
     and saved in the specified directory with same name as
     before
 
-    :param file_path: _description_
-    :type file_path: _type_
-    :param save_dir: _description_, defaults to None
-    :type save_dir: _type_, optional
-    :param ctry_name: _description_
+    :param file_path: Path to netCDF file to reproject and clip
+    :type file_path: Union[str, PathLike]
+    :param ctry_name: Country to clip to, defaults to "Nigeria"
     :type ctry_name: str, optional
-    :param plot: _description_, defaults to True
+    :param save_dir: Directory to save to, defaults to None (just return clipped array)
+    :type save_dir: Optional[Union[str, PathLike]], optional
+    :param plot: Visualise clipped array, defaults to False
     :type plot: bool, optional
-    :return: _description_
-    :rtype: _type_
+    :return: Either None if save_dir is not None, or clipped array
+    :rtype: Union[None, npt.NDArray]
     """
+
     fname = Path(file_path).name
     # world = gpd.read_file(gpd.datasets.get_path("naturalearth_lowres"))
     # use high res version to avoid clipping
@@ -41,7 +51,7 @@ def netcdf_to_clipped_array(file_path, *, ctry_name, save_dir=None, plot=False):
             # NB assumes that no CRS corresponds to EPSG:4326 (as standard)
             ctry_shp = gpd.GeoSeries(ctry_shp)
             ctry_shp.crs = "EPSG:4326"
-            ctry_shp.to_crs(netf.crs)
+            ctry_shp = ctry_shp.to_crs(netf.crs).geometry
         print(
             f"Pixel scale in crs {netf.crs}: {netf.res}"
         )  # shows pixel scale in crs units
@@ -50,7 +60,11 @@ def netcdf_to_clipped_array(file_path, *, ctry_name, save_dir=None, plot=False):
         # print(nga_subset[-1].min(),nga_subset[-1].max())
         # plt.imshow(np.log(nga_subset[-1,:,:]+10),cmap='PiYG')
         # plt.show()
-        out_image, out_transform = rasterio.mask.mask(netf, ctry_shp, crop=True)
+        try:
+            out_image, out_transform = rasterio.mask.mask(netf, ctry_shp, crop=True)
+        except TypeError:
+            # polygon not iterable
+            out_image, out_transform = rasterio.mask.mask(netf, [ctry_shp], crop=True)
         if plot:
             plt.imshow(
                 np.log(out_image[-1, :, :] - out_image[-1].min() + 1), cmap="PiYG"
@@ -75,5 +89,6 @@ def netcdf_to_clipped_array(file_path, *, ctry_name, save_dir=None, plot=False):
             **out_meta,
         ) as dest:
             dest.write(out_image)
+        return None
     else:
         return out_image
