@@ -3,7 +3,6 @@ import glob as glob
 import logging
 import sys
 import os
-import time
 from functools import partial, reduce
 from pathlib import Path
 
@@ -17,7 +16,7 @@ import rasterio
 import rioxarray as rxr
 import shapely.wkt
 from art import *
-from rich import pretty, print
+from rich import print
 
 import stc_unicef_cpi.data.process_geotiff as pg
 import stc_unicef_cpi.data.process_netcdf as net
@@ -29,11 +28,11 @@ from stc_unicef_cpi.features import get_autoencoder_features as gaf
 
 
 def read_input_unicef(path_read):
-    """read_input_unicef _summary_
-    :param path_read: _description_
-    :type path_read: _type_
-    :return: _description_
-    :rtype: _type_
+    """Read source data provided by STC and UNICEF
+    :param path_read: path to read data from
+    :type path_read: str
+    :return: database with target variable
+    :rtype: dataframe
     """
     df = pd.read_csv(path_read, low_memory=False)
     return df
@@ -41,16 +40,16 @@ def read_input_unicef(path_read):
 
 def select_country(df, country_code, lat, long):
     """Select country of interest
-    :param df: _description_
-    :type df: _type_
-    :param country_code: _description_
-    :type country_code: _type_
-    :param lat: _description_
-    :type lat: _type_
-    :param long: _description_
-    :type long: _type_
-    :return: _description_
-    :rtype: _type_
+    :param df: input provided by UNICEF and STC
+    :type df: dataframe
+    :param country_code: country code
+    :type country_code: str
+    :param lat: colname containing latitude measures
+    :type lat: numerical
+    :param long: colname containing longitude measures
+    :type long: numerical
+    :return: database with info related to country of interest
+    :rtype: dataframe
     """
     df.columns = df.columns.str.lower()
     subset = df[df["countrycode"].str.strip() == country_code].copy()
@@ -59,11 +58,11 @@ def select_country(df, country_code, lat, long):
 
 
 def aggregate_dataset(df):
-    """aggregate_dataset _summary_
-    :param df: _description_
-    :type df: _type_
-    :return: _description_
-    :rtype: _type_
+    """Aggregate dataset 
+    :param df: input required to aggregate
+    :type df: dataframe
+    :return: agg mean, agg count
+    :rtype: dataframe, dataframe
     """
     df_mean = df.groupby(by=["hex_code"], as_index=False).mean()
     df_count = df.groupby(by=["hex_code"], as_index=False).count()[
@@ -75,6 +74,25 @@ def aggregate_dataset(df):
 def create_target_variable(
     country_code, res, lat, long, threshold, read_dir, copy_to_nbrs=False
 ):
+    """Create target variable
+    :param country_code: country code related to country of interest
+    :type country_code: str
+    :param res: resolution of country of interest
+    :type res: int
+    :param lat: latitude of country of interest
+    :type lat: numeric
+    :param long: longitude of country of interest
+    :type long: numeric
+    :param threshold: minimal number of surveys per hexagon
+    :type threshold: int
+    :param read_dir: directory from where to read dataset
+    :type read_dir: str
+    :param copy_to_nbrs: include neighbouring resolution, defaults to False
+    :type copy_to_nbrs: bool, optional
+    :raises ValueError: no raw survey data available
+    :return: dataset with observations satisfying conditions
+    :rtype: dataframe
+    """
     try:
         source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
     except FileNotFoundError:
@@ -101,7 +119,6 @@ def create_target_variable(
         ]
         agg_dict = {col: "mean" for col in other_cols}
         agg_dict.update({idx: ["mean", "count"] for idx in sev_cols})
-        # agg_dict.update({"hhid": "count"})
         sub = sub.explode("hex_incl_nbrs").groupby(by=["hex_incl_nbrs"]).agg(agg_dict)
         sub.columns = ["_".join(col) for col in sub.columns.values]
         sub.rename(
@@ -135,15 +152,15 @@ def create_target_variable(
 def change_name_reproject_tiff(
     tiff, attribute, country, read_dir=c.ext_data, out_dir=c.int_data
 ):
-    """Rename attributes and reproject Tiff file
-    :param tiff: _description_
-    :type tiff: _type_
-    :param attributes: _description_
-    :type attributes: _type_
-    :param country: _description_
-    :type country: _type_
-    :param read_dir: _description_, defaults to c.ext_data
-    :type read_dir: _type_, optional
+    """Rename attributes and reprojection of Tiff file
+    :param tiff: path to tiff file
+    :type tiff: str
+    :param attributes: attributes names
+    :type attributes: list of lists
+    :param country: contry of interest
+    :type country: str
+    :param read_dir: path to read external data from, defaults to c.ext_data
+    :type read_dir: str, optional
     """
     with rxr.open_rasterio(tiff) as data:
         fname = Path(tiff).name
@@ -360,10 +377,9 @@ def append_features_to_hexes(
     logger.info("Reading and computing commuting zone estimates...")
     commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
 
-    ## Economic data
+    # Economic data
     logger.info("Retrieving features from economic tif files...")
     econ_files = glob.glob(str(Path(save_dir) / f"{country.lower()}*.tif"))
-    # econ_files = [ele for ele in econ_files if "ppp" not in ele]
 
     econ = pg.agg_tif_to_df(
         ctry,
@@ -566,13 +582,6 @@ def append_target_variable_to_hexes(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
-    # parser.add_argument(
-    #     "-cc",
-    #     "--country_code",
-    #     type=str,
-    #     help="Country code to make dataset for, default is NGA",
-    #     default="NGA",
-    # )
 
     parser.add_argument(
         "-c",
@@ -602,17 +611,3 @@ if __name__ == "__main__":
     append_target_variable_to_hexes(
         country_code=country_code, country=country_name, res=args.resolution
     )
-
-## Health Sites
-# hh = pd.read_csv("nga_health.csv")
-# hh = hh[~hh.X.isna()]
-# hh = create_geometry(hh, "X", "Y")
-# hh = get_hex_code(hh, "X", "Y")
-# hh = aggregate_hexagon(hh, "geometry", "n_health", "count")
-#
-#
-## Education Facilities
-# edu = gpd.read_file("nga_education")
-# edu = get_lat_long(edu, "geometry")
-# edu = get_hex_code(edu, "lat", "long")
-# edu = aggregate_hexagon(edu, "geometry", "n_education", "count")
