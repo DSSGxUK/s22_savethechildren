@@ -26,7 +26,7 @@ We will publish to PyPI to allow direct installation shortly!
 .. _data:
 
 Getting data
-----------------
+------------
 
 To obtain the necessary data for a given country,
 you can use the script ``make_dataset.py`` in ``./src/stc_unicef_cpi/data``.
@@ -54,6 +54,7 @@ We recommend using resolution 6 or 7, as these appear to be a reasonable tradeof
 and small survey sample sizes. We would caution that adding autoencoder features can take a considerable time
 to both train and make predictions for full countries (especially without a GPU!), often for minimal improvement,
 but in some cases can help considerably.
+
 
 
 
@@ -156,4 +157,4 @@ This has the following command line arguments:
 .. _predict:
 
 Making predictions
-----------------
+------------------

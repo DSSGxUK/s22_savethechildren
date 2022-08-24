@@ -21,6 +21,7 @@ of a country.
 The simple architecture used is as follows:
 
 .. code-block:: console
+
     Model: "autoencoder-v1"
     _________________________________________________________________
     Layer (type)                Output Shape              Param #

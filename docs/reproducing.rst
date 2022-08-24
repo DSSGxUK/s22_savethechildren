@@ -1,5 +1,5 @@
 Reproducing results
-===============
+===================
 
 .. _reproducing data:
 
@@ -13,7 +13,7 @@ Pass
 .. _reproducing models:
 
 Reproducing models
-----------------
+------------------
 
 To train models with the same pipeline as we used, for the same countries, simply run ``bash train_countries.sh``.
 
