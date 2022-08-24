@@ -2,6 +2,39 @@
 
 A package to produce a high-resolution multi-dimensional child poverty index estimates.
 
+# Table of contents
+
+- [Project-Scope](#Project-Scope)
+- [The Data](#The-Data)
+
+  - [Demographics Health Survey](#Demographic-Health-Surveys)
+  - [Open Street Maps Data](#Open-Street-Maps-Data)
+  - [Night-Time Light Data](#Night-Time-Light-Data)
+
+- [Project Methodology](#Project-Methodology)
+
+  - [Data Preparation](#Data-Preparation)
+  - [Evaluation Strategy](#Evaluation-Strategy)
+  - [Label Transformation](#Label-Transformation)
+  - [Explainable Machine learning pipeline](#Explainable-Machine-Learning-Pipeline)
+
+- [Results](#Results)
+
+  - [Conclusions](#Conclusions)
+  - [Deliverables](#Deliverables)
+  - [Future Work](#Future-Work)
+
+- [Development](#development)
+
+  - [Getting Started](#getting-started)
+  - [Main Components](#main-components)
+  - [Contribution Guidelines](#contribution-guidelines)
+
+- [Project Organization](#Project-Organization)
+- [Bibliography](#Bibliography)
+
+## Project Scope
+
 ## Getting started
 
 To set up pre-commit to run, just `pip install pre-commit`, navigate to top-level directory, then run `pre-commit install` to be good to go.
