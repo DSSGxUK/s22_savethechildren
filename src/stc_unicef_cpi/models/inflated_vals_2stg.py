@@ -18,8 +18,7 @@ from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 
 class InflatedValsRegressor(BaseEstimator, RegressorMixin):
-    """
-    A meta regressor for datasets with inflated values, i.e. the
+    """A meta regressor for datasets with inflated values, i.e. the
     targets contain certain values with much higher frequency than others.
 
     `InflatedValsRegressor` consists of a classifier and a regressor.
@@ -32,42 +31,47 @@ class InflatedValsRegressor(BaseEstimator, RegressorMixin):
 
     At prediction time, the classifier is first asked if the output should be one of the
     inflated values. Depending on the mode selected, either
+
         (i) output that value, or
         (ii) use the estimated class probabilities to weight the output.
+
     If not predicted to be an inflated value, in case (i) ask the regressor
     for its prediction and output it.
 
-    Parameters
-    ----------
-    classifier : Any, scikit-learn classifier
-        A classifier that answers the question "Should the output be an inflated value?".
-        For the second mode (weighted output), the classifier must have a `predict_proba` method.
-
-    regressor : Any, scikit-learn regressor
-        A regressor for predicting the target, particularly if not an inflated value.
-        In the strict mode, its prediction is only used if `classifier` says that
-        the output is not an inflated value.
 
     Examples
-    --------
-    >>> import numpy as np
-    >>> from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
-    >>> np.random.seed(0)
-    >>> X = np.random.randn(10000, 4)
-    >>> y = ((X[:, 0]>0) & (X[:, 1]>0)) * np.abs(X[:, 2] * X[:, 3]**2)
-    >>> z = InflatedValsRegressor(
-    ... classifier=ExtraTreesClassifier(random_state=0),
-    ... regressor=ExtraTreesRegressor(random_state=0)
-    ... )
-    >>> z.fit(X, y)
-    InflatedValsRegressor(classifier=ExtraTreesClassifier(random_state=0),
-                          regressor=ExtraTreesRegressor(random_state=0))
-    >>> z.predict(X)[:5]
-    array([4.91483294, 0.        , 0.        , 0.04941909, 0.        ])
+
+    .. code-block:: python
+
+        import numpy as np
+        from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor
+
+        np.random.seed(0)
+        X = np.random.randn(10000, 4)
+        y = ((X[:, 0] > 0) & (X[:, 1] > 0)) * np.abs(X[:, 2] * X[:, 3] ** 2)
+        z = InflatedValsRegressor(
+            classifier=ExtraTreesClassifier(random_state=0),
+            regressor=ExtraTreesRegressor(random_state=0),
+        )
+        z.fit(X, y)
+        # InflatedValsRegressor(classifier=ExtraTreesClassifier(random_state=0),
+        #                     regressor=ExtraTreesRegressor(random_state=0))
+        z.predict(X)[:5]
+        # array([4.91483294, 0.        , 0.        , 0.04941909, 0.        ])
+
     """
 
     def __init__(self, classifier: ClassifierMixin, regressor: RegressorMixin) -> None:
-        """Initialize."""
+        """Initialise
+
+        :param classifier: A classifier that answers the question "Should the output be an inflated value?".
+        For the second mode (weighted output), the classifier must have a `predict_proba` method.
+        :type classifier: ClassifierMixin
+        :param regressor: A regressor for predicting the target, particularly if not an inflated value.
+        In the strict mode, its prediction is only used if `classifier` says that
+        the output is not an inflated value.
+        :type regressor: RegressorMixin
+        """
         self.classifier = classifier
         self.regressor = regressor
 

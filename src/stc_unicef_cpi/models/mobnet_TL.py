@@ -7,13 +7,15 @@
 # (ii) replace FC layer at end with alt trainable FC
 # layer, that outputs to desired num classes (base
 # assumed 5, for quintiles)
-from torchvision.models import MobileNet_V2_Weights, mobilenet_v2
 
-print("MobNet orig:")
-print(mobilenet_v2())
+if __name__ == "__main__":
+    from torchvision.models import MobileNet_V2_Weights, mobilenet_v2
 
-print("MobNet transforms:")
-print(MobileNet_V2_Weights.DEFAULT.transforms())
+    print("MobNet orig:")
+    print(mobilenet_v2())
+
+    print("MobNet transforms:")
+    print(MobileNet_V2_Weights.DEFAULT.transforms())
 
 # ResNet50 example
 # from torchvision.io import read_image
