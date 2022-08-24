@@ -64,8 +64,21 @@ if current_dir.name == "data" and current_dir.parent.name == "stc_unicef_cpi":
     tiff_data.mkdir(exist_ok=True)
 
 else:
+    # just make objects none so no import errors
     # true if not importing from notebook
-    pass
+    base_dir_data = None  # type: ignore
+    # base directory for autoencoder models
+    base_dir_model = None  # type: ignore
+    # external data
+    ext_data = None  # type: ignore
+    # interim data
+    int_data = None  # type: ignore
+    # processed data
+    proc_data = None  # type: ignore
+    # raw data
+    raw_data = None  # type: ignore
+    # tiff files
+    tiff_data = None  # type: ignore
     # importing_file = Path(__file__).name
     # if importing_file == "make_dataset.py":
     # base_dir_data = current_dir / "data"
