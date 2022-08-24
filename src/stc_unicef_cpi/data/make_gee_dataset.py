@@ -8,11 +8,11 @@ import click
 import ee
 import folium
 import matplotlib.pyplot as plt
-import quadkey
 import rasterio
 import requests  # type: ignore
 import rioxarray as rxr
 from humanfriendly import format_size
+from pyquadkey2 import quadkey
 from rasterio.plot import show
 from tqdm import tqdm
 

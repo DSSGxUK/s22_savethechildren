@@ -28,12 +28,11 @@ Contents
 --------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 3
 
    getting-started
    reproducing
    dl_steps
-   api
    api/modules
 
 

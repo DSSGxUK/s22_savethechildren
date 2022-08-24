@@ -1,12 +1,25 @@
 import glob
 import os
+import warnings
 from pathlib import Path
 
 import pandas as pd
-import torch
-from torch.utils.data import Dataset, TensorDataset
 
 from .process_geotiff import extract_ims_from_hex_codes
+
+try:
+    import torch
+    from torch.utils.data import Dataset, TensorDataset
+except ImportError:
+    warnings.warn(
+        "Necessary imports for torch dataloader not found - assumed not desired"
+    )
+
+    class Dataset:  # type: ignore
+        def __init__(
+            self,
+        ):
+            pass
 
 
 def make_torch_dataloader_from_numpy(images, labels, bs=64, shuffle=False):

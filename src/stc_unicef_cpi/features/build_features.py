@@ -17,11 +17,12 @@ def add_group_features(*dfs, join_on=""):
     both fully augmented and subset of augmented data. Best generalised performance seems to be
     on subselection of features, as one might expect.
 
-    Args:
-        X (_type_): pandas df of responses
-
-    Returns:
-        _type_: _description_
+    :param dfs: any number of pandas dataframes to join for group features
+    :type: dfs: pd.DataFrame
+    :param join_on: column for entity sets to join on, defaults to ""
+    :type join_on: str, optional
+    :return: _description_
+    :rtype: _type_
     """
     # responses = (
     #     X.melt(var_name="facet", ignore_index=False)
@@ -116,34 +117,28 @@ def boruta_shap_ftr_select(
     """Simple wrapper to BorutaShap feature selection to also show feature plot
     (more interesting at this point)
 
-    Args:
-        X (_type_): _description_
-        y (_type_): _description_
-        base_model (_type_, optional): _description_. Defaults to lgb.LGBMRegressor().
-    Feature selector parameters:
-        sample: Boolean
-            if true then a row-wise sample of the data will be used to calculate
-            the feature importance values
-
-        sample_fraction: float
-            The sample fraction of the original data used in calculating the feature
-            importance values
-                only used if Sample==True.
-
-        train_or_test: string
-            Decides whether the feature importance should be calculated on out of
-            sample data - see the dicussion here
-                https://compstat-lmu.github.io/iml_methods_limitations/pfi-data.html#introduction-to-test-vs.training-data
-
-        normalize: boolean
-            if true the importance values will be normalized using the
-            z-score formula
-
-        verbose: boolean
-            a flag indicator to print out all the rejected or accepted features.
-
-        plot: boolean
-            show feature importance plot
+    :param X: _description_
+    :type X: _type_
+    :param y: _description_
+    :type y: _type_
+    :param base_model: _description_, defaults to lgb.LGBMRegressor()
+    :type base_model: _type_, optional
+    :param plot: show feature importance plot, defaults to True
+    :type plot: bool, optional
+    :param n_trials: _description_, defaults to 100
+    :type n_trials: int, optional
+    :param sample: if true then a row-wise sample of the data will be used to calculate the feature importance values, defaults to False
+    :type sample: bool, optional
+    :param train_or_test: Decides whether the feature importance should be calculated on out of sample data - see the dicussion here https://compstat-lmu.github.io/iml_methods_limitations/pfi-data.html#introduction-to-test-vs.training-data, defaults to "test"
+    :type train_or_test: str, optional
+    :param normalize: if true the importance values will be normalized using the z-score formula, defaults to True
+    :type normalize: bool, optional
+    :param verbose: a flag indicator to print out all the rejected or accepted features, defaults to True
+    :type verbose: bool, optional
+    :param incl_tentative: _description_, defaults to True
+    :type incl_tentative: bool, optional
+    :return: _description_
+    :rtype: _type_
     """
 
     ftr_selector = BorutaShap(
