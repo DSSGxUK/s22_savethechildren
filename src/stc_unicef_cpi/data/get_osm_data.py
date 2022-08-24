@@ -3,7 +3,7 @@ from io import StringIO
 
 import h3.api.numpy_int as h3
 import pandas as pd
-import requests  # type: ignore
+import requests
 from shapely import wkt
 
 from stc_unicef_cpi.utils.geospatial import (
@@ -124,6 +124,14 @@ def assign_cluster(
 
 
 def get_road_density(country, res):
+    """Get road density
+    :param country: country of interest
+    :type country: str
+    :param res: grid resolution
+    :type res: int
+    :return: road density at hex level
+    :rtype: dataframe
+    """
     hexes = get_hexes_for_ctry(country, res=2)
     coords = add_neighboring_hexagons(hexes)
     overpass_results = assign_road_length_to_hex(coords)
