@@ -1,0 +1,16 @@
+name: dssg
+channels:
+  - defaults
+dependencies:
+  - python=3.9
+  - cartopy
+  - ca-certificates
+  - certifi
+  - openssl
+  - shapely
+  - geos
+  - pygeos
+  - scipy
+  - gdal
+  - lightgbm
+prefix: /home/fitzgeraldj/miniconda3/envs/dssg
