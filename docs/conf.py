@@ -16,7 +16,30 @@ import sys
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-# sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath("../src/stc_unicef_cpi"))
+
+
+# def run_apidoc(_):
+#     ignore_paths = []
+
+#     argv = ["-f", "-T", "-e", "-M", "-o", ".", ".."] + ignore_paths
+
+#     try:
+#         # Sphinx >= 1.7
+#         from sphinx.ext import apidoc
+
+#         apidoc.main(argv)
+#     except ImportError:
+#         # Sphinx  < 1.7
+#         from sphinx import apidoc
+
+#         argv.insert(0, apidoc.__file__)
+#         apidoc.main(argv)
+
+
+# def setup(app):
+#     app.connect("builder-inited", run_apidoc)
+
 
 # -- General configuration -----------------------------------------------------
 
@@ -31,6 +54,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
+    "sphinxcontrib.apidoc",
 ]
 
 intersphinx_mapping = {
@@ -105,6 +129,7 @@ pygments_style = "sphinx"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 html_theme = "sphinx_rtd_theme"
+# html_theme = "default"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -265,3 +290,12 @@ texinfo_documents = [
 
 # How to display URL addresses: 'footnote', 'no', or 'inline'.
 # texinfo_show_urls = 'footnote'
+
+# -- Options for apidoc extension --------------------------------------------
+
+apidoc_module_dir = "../src/stc_unicef_cpi"
+
+# -- Options for autosummary extension --------------------------------------------
+
+# make docs automatically
+autosummary_generate = True
