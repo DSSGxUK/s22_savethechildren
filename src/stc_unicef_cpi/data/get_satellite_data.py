@@ -256,23 +256,6 @@ class SatelliteImages:
         self, transform, proj, ctry, geo, start_date, end_date, name="cpi_ndvi"
     ) -> dict:
         """Get Normalized Difference Vegetation Index 
-        :param transform: _description_
-        :type transform: _type_
-        :param proj: _description_
-        :type proj: _type_
-        :param ctry: _description_
-        :type ctry: _type_
-        :param geo: _description_
-        :type geo: _type_
-        :param start_date: _description_
-        :type start_date: _type_
-        :param end_date: _description_
-        :type end_date: _type_
-        :param name: _description_, defaults to "cpi_ndvi"
-        :type name: str, optional
-        :return: _description_
-        :rtype: _type_
-
         :param transform: transform between projected coordinates and the base coordinate system
         :type transform: list
         :param proj: the base coordinate reference system
@@ -305,20 +288,22 @@ class SatelliteImages:
         self, transform, proj, ctry, geo, start_date, end_date, name="cpi_pollution"
     ) -> dict:
         """Get pollution data
-        :param transform: _description_
-        :type transform: _type_
-        :param proj: _description_
-        :type proj: _type_
-        :param ctry: _description_
-        :type ctry: _type_
-        :param geo: _description_
-        :type geo: _type_
-        :param start_date: _description_
-        :type start_date: _type_
-        :param end_date: _description_
-        :type end_date: _type_
-        :param name: _description_, defaults to "cpi_pollution"
+        :param transform: transform between projected coordinates and the base coordinate system
+        :type transform: list
+        :param proj: the base coordinate reference system
+        :type proj: object
+        :param ctry: country of interest
+        :type ctry: str
+        :param geo: dissolved geometry of all features in the collection
+        :type geo: geometry
+        :param start_date: starting date
+        :type start_date: str
+        :param end_date: ending date
+        :type end_date: str
+        :param name: name of file, defaults to "cpi_ndwi"
         :type name: str, optional
+        :return: task status
+        :rtype: dictionary
         """
         def func_pio(m):
             collection = (
@@ -341,16 +326,16 @@ class SatelliteImages:
 
     def get_topography_data(self, transform, proj, ctry, geo):
         """Get topography data
-        :param transform: _description_
-        :type transform: _type_
-        :param proj: _description_
-        :type proj: _type_
-        :param ctry: _description_
-        :type ctry: _type_
-        :param geo: _description_
-        :type geo: _type_
-        :return: _description_
-        :rtype: _type_
+        :param transform: transform between projected coordinates and the base coordinate system
+        :type transform: list
+        :param proj: the base coordinate reference system
+        :type proj: object
+        :param ctry: country of interest
+        :type ctry: str
+        :param geo: dissolved geometry of all features in the collection
+        :type geo: geometry
+        :return: task status
+        :rtype: dictionary
         """
         elevation = ee.Image("CGIAR/SRTM90_V4").select("elevation").clip(ctry)
         slope = ee.Terrain.slope(elevation)
@@ -365,22 +350,22 @@ class SatelliteImages:
         self, transform, proj, ctry, geo, start_date, end_date, name="cpi_nighttime"
     ) -> dict:
         """Get nighttime data
-        :param transform: 
-        :type transform: _type_
-        :param proj: _description_
-        :type proj: _type_
-        :param ctry: _description_
-        :type ctry: _type_
-        :param geo: _description_
-        :type geo: _type_
-        :param start_date: _description_
-        :type start_date: _type_
-        :param end_date: _description_
-        :type end_date: _type_
-        :param name: _description_, defaults to "cpi_nighttime"
+        :param transform: transform between projected coordinates and the base coordinate system
+        :type transform: list
+        :param proj: the base coordinate reference system
+        :type proj: object
+        :param ctry: country of interest
+        :type ctry: str
+        :param geo: dissolved geometry of all features in the collection
+        :type geo: geometry
+        :param start_date: starting date
+        :type start_date: str
+        :param end_date: ending date
+        :type end_date: str
+        :param name: name of file, defaults to "cpi_ndwi"
         :type name: str, optional
-        :return: _description_
-        :rtype: _type_
+        :return: task status
+        :rtype: dictionary
         """
         night_time = (
             ee.ImageCollection("NOAA/VIIRS/DNB/MONTHLY_V1/VCMSLCFG")
@@ -397,18 +382,18 @@ class SatelliteImages:
         self, transform, proj, ctry, geo, name="cpi_health_acc"
     ) -> dict:
         """Get health care data
-        :param transform: _description_
-        :type transform: _type_
-        :param proj: _description_
-        :type proj: _type_
-        :param ctry: _description_
-        :type ctry: _type_
-        :param geo: _description_
-        :type geo: _type_
-        :param name: _description_, defaults to "cpi_health_acc"
+        :param transform: transform between projected coordinates and the base coordinate system
+        :type transform: list
+        :param proj: the base coordinate reference system
+        :type proj: object
+        :param ctry: country of interest
+        :type ctry: str
+        :param geo: dissolved geometry of all features in the collection
+        :type geo: geometry
+        :param name: name of file, defaults to "cpi_health_acc"
         :type name: str, optional
-        :return: _description_
-        :rtype: _type_
+        :return: task status
+        :rtype: dictionary
         """
         health_acc = ee.Image("Oxford/MAP/accessibility_to_healthcare_2019").clip(ctry)
         config = self.task_config(geo, name, health_acc, transform, proj)
