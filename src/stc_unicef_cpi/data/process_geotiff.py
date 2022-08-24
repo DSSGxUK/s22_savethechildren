@@ -130,7 +130,7 @@ def rxr_reproject_tiff_to_target(
     :param verbose: Verbosity, defaults to False
     :type verbose: bool, optional
     :return: Either None (if dest_path is not None) or reprojected raster
-    :rtype:Union[Dataset, DataArray, List[Dataset], None]
+    :rtype: Union[Dataset, DataArray, List[Dataset], None]
 
     """
     # f"shape: {raster.rio.shape}\n"

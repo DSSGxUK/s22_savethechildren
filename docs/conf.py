@@ -16,6 +16,7 @@ import sys
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
+sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../src/stc_unicef_cpi"))
 
 
@@ -292,10 +293,11 @@ texinfo_documents = [
 # texinfo_show_urls = 'footnote'
 
 # -- Options for apidoc extension --------------------------------------------
-
+# see options here https://github.com/sphinx-contrib/apidoc
 apidoc_module_dir = "../src/stc_unicef_cpi"
+apidoc_module_first = True
 
 # -- Options for autosummary extension --------------------------------------------
 
 # make docs automatically
-autosummary_generate = True
+# autosummary_generate = True

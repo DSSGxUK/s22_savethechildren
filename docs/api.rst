@@ -3,6 +3,7 @@ API
 
 .. autosummary::
    :toctree: _autosummary
+   :recursive:
 
    stc_unicef_cpi.data
    stc_unicef_cpi.features
