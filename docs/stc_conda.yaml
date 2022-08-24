@@ -322,7 +322,6 @@ dependencies:
     - sqlparse==0.4.2
     - stack-data==0.3.0
     - statsmodels==0.13.2
-    - stc-unicef-cpi==0.0.1
     - stevedore==4.0.0
     - swifter==1.2.0
     - tabulate==0.8.10
