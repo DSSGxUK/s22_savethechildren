@@ -18,19 +18,19 @@ if __name__ == "__main__":
     parser.add_argument(
         "--country",
         type=str,
-        help="Choice of which country to predict for - options are 'all', 'nigeria' or 'senegal'",
-        choices=[
-            "all",
-            "nigeria",
-            "senegal",
-            "togo",
-            "benin",
-            "guinea",
-            "cameroon",
-            "liberia",
-            "sierra leone",
-            "burkina faso",
-        ],
+        help="Choice of which country to predict for - options are 'all' (requiring a model trained on all available data), or the name of a specific country for which data and trained models are available",
+        # choices=[
+        #     "all",
+        #     "nigeria",
+        #     "senegal",
+        #     "togo",
+        #     "benin",
+        #     "guinea",
+        #     "cameroon",
+        #     "liberia",
+        #     "sierra leone",
+        #     "burkina faso",
+        # ],
     )
     MODEL_DIR = Path.cwd().parent.parent.parent / "data" / "models"
     DATA_DIR = MODEL_DIR.parent / "processed"

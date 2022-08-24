@@ -13,8 +13,7 @@ that estimates high-resolution, multi-dimensional child poverty using
 The package was initially developed during `DSSGxUK`_ 22, in collaboration with Save the Children and UNICEF.
 
 
-Check out the :doc:`usage` section for further information, including
-how to :ref:`installation` the project.
+Check out the :doc:`getting-started` section for further information about how to begin, including :ref:`installation` of the package.
 
 
 .. _DHS: https://dhsprogram.com/Data/
@@ -32,6 +31,7 @@ Contents
    :maxdepth: 2
 
    getting-started
+   reproducing
    commands
    api
 

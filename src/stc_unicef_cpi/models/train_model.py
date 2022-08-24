@@ -66,32 +66,42 @@ if __name__ == "__main__":
         default="hexes_{}_res{}_thres{}.csv",
     )
     parser.add_argument(
-        "--resolution", "-res", type=int, default=7, help="Resolution of h3 grid"
+        "--resolution",
+        "-res",
+        type=int,
+        default=7,
+        help="Resolution of h3 grid, defaults to 7",
     )
     parser.add_argument(
         "--threshold",
         "-thres",
         type=int,
         default=30,
-        help="Threshold for minimum number of surveys per hex",
+        help="Threshold for minimum number of surveys per hex, defaults to 30",
     )
     parser.add_argument(
         "--country",
         type=str,
-        help="Choice of which country to use for training - options are 'all', 'nigeria' or 'senegal'",
+        help="Choice of which country to use for training - options are 'all' in which case all currently available data is used, or the name of a specific country for which data is available",
         default="all",
-        choices=[
-            "all",
-            "nigeria",
-            "senegal",
-            "togo",
-            "benin",
-            "guinea",
-            "cameroon",
-            "liberia",
-            "sierra leone",
-            "burkina faso",
-        ],
+        # choices=[
+        #     "all",
+        #     "nigeria",
+        #     "senegal",
+        #     "togo",
+        #     "benin",
+        #     "guinea",
+        #     "cameroon",
+        #     "liberia",
+        #     "sierra leone",
+        #     "burkina faso",
+        # ],
+    )
+    parser.add_argument(
+        "--prefix",
+        type=str,
+        default="",
+        help="Prefix to name the saved models / checkpoints",
     )
     parser.add_argument(
         "-ip",
@@ -118,18 +128,9 @@ if __name__ == "__main__":
     # parser.add_argument(
     #     "--aug_data", action="store_true", help="Augment data with group features"
     # )
-    parser.add_argument(
-        "--ftr-impt",
-        action="store_true",
-        help="Investigate final model feature importance using BorutaShap",
-    )
-    parser.add_argument(
-        "--prefix",
-        type=str,
-        default="",
-        help="Prefix to name the saved models / checkpoints",
-    )
-    parser.add_argument("--n_runs", type=int, default=1, help="Number of runs")
+
+    # TODO: implement multiple runs (separate to warm starts)
+    # parser.add_argument("--n_runs", type=int, default=1, help="Number of runs")
 
     parser.add_argument(
         "--model",
@@ -192,6 +193,16 @@ if __name__ == "__main__":
         help="Target variable to use for training, default is all, choices are 'all' (train separate model for each of the following), 'av-severity' (average number of deprivations / child), 'av-prevalence' (average proportion of children with at least one deprivation), 'av-2-prevalence' (average proportion of children with at least two deprivations), proportion of children deprived in 'education', 'sanitation', 'housing', 'water'. May also pass 'health' or 'nutrition' but limited ground truth data increases model variance. Similarly may pass 'av-3-prevalence' or 'av-4-prevalence', but ~50pc of cell data is exactly zero for 3, and ~80pc for 4, so again causes modelling issues.",
     )
     parser.add_argument(
+        "--target-transform",
+        type=str,
+        default="none",
+        choices=["none", "log", "power"],
+        help="Transform target variable(s) prior to fitting model - choices of none (default, leave raw), 'log', 'power' (Yeo-Johnson)",
+    )
+    parser.add_argument(
+        "--ncores", type=int, default=4, help="Number of cores to use, defaults to 4"
+    )
+    parser.add_argument(
         "--impute",
         type=str,
         default="none",
@@ -206,11 +217,19 @@ if __name__ == "__main__":
         help="Standardise feature data prior to fitting model, options are none (default, leave raw), standard (z-score), minmax (min-max normalisation to limit to 0-1 range), or robust (median and quantile version of z-score)",
     )
     parser.add_argument(
-        "--target-transform",
-        type=str,
-        default="none",
-        choices=["none", "log", "power"],
-        help="Transform target variable(s) prior to fitting model - choices of none (default, leave raw), 'log', 'power' (Yeo-Johnson)",
+        "--automl-warm-start",
+        action="store_true",
+        help="When possible, use best model configuration found from previous runs to initialise hyperparameter search for each model.",
+    )
+    parser.add_argument(
+        "--plot",
+        action="store_true",
+        help="Produce scatter plot(s) of predicted vs actual values on test set",
+    )
+    parser.add_argument(
+        "--ftr-impt",
+        action="store_true",
+        help="Investigate final model feature importance using BorutaShap",
     )
     parser.add_argument(
         "--log-run",
@@ -222,17 +241,6 @@ if __name__ == "__main__":
         action="store_true",
         help="Save trained models (joblib pickled), by default in a /models directory contained in same parent folder as args.data",
     )
-    parser.add_argument(
-        "--automl-warm-start",
-        action="store_true",
-        help="When possible, use best model configuration found from previous runs to initialise hyperparameter search for each model.",
-    )
-    parser.add_argument(
-        "--plot",
-        action="store_true",
-        help="Produce scatter plot(s) of predicted vs actual values on test set",
-    )
-    parser.add_argument("--ncores", type=int, default=4, help="Number of cores to use")
     # NB not sensible to use the following in current setup
     # given trying overall pipeline hyperparams
     # in parallel using shell script
@@ -836,7 +844,7 @@ if __name__ == "__main__":
                         )
             if args.save_model:
                 if args.target != "all":
-                    model_desc = f"{args.country}-{args.target}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}"
+                    model_desc = f"{args.prefix}{args.country}-{args.target}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}"
                     pipeline_desc = f"best_cfg-{model_desc}.pkl"
                     with open(
                         SAVE_DIRECTORY / f"{model_desc}.pkl",
@@ -846,7 +854,7 @@ if __name__ == "__main__":
                     with open(SAVE_DIRECTORY / pipeline_desc, "wb") as f:
                         pickle.dump(automl.best_config_per_estimator, f)
                 else:
-                    model_desc = f"{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}"
+                    model_desc = f"{args.prefix}{args.country}-{col}-{args.cv_type}-{args.universal_data_only}-{univ_data}-{ip_data}-{args.impute}-{args.standardise}-{args.target_transform}-{args.copy_to_nbrs}_res{args.resolution}"
                     pipeline_desc = f"best_cfg-{model_desc}.pkl"
                     with open(SAVE_DIRECTORY / f"{model_desc}.pkl", "wb") as f:
                         joblib.dump(pipeline, f)
