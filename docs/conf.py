@@ -137,6 +137,7 @@ html_theme = "sphinx_rtd_theme"
 # documentation.
 html_theme_options = {
     "collapse_navigation": False,
+    "navigation_depth": 4,
 }
 
 # Add any paths that contain custom themes here, relative to this directory.
@@ -172,9 +173,9 @@ html_theme_options = {
 # html_use_smartypants = True
 
 # Custom sidebar templates, maps document names to template names.
-html_sidebars = {
-    "**": ["globaltoc.html", "relations.html", "sourcelink.html", "searchbox.html"]
-}
+# html_sidebars = {
+#     "**": ["globaltoc.html", "relations.html", "sourcelink.html", "searchbox.html"]
+# }
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
