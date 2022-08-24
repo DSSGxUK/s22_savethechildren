@@ -14,8 +14,7 @@ from stc_unicef_cpi.utils.general import (
 
 
 def get_opencell_url(country, token):
-    """get_opencell_url _summary_
-
+    """Get Open Cell Id data
     :param country: _description_
     :type country: _type_
     :param token: _description_
@@ -49,9 +48,6 @@ def get_opencell_url(country, token):
 
 def get_cell_data(country, save_path):
     """get_cell_data _summary_
-
-    _extended_summary_
-
     :param country: _description_
     :type country: _type_
     :param token: _description_
