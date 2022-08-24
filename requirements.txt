@@ -1,3 +1,4 @@
+sphinxcontrib-apidoc
 affine==2.3.0
 art==5.7
 beautifulsoup4==4.11.1
