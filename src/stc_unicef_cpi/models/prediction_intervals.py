@@ -11,15 +11,18 @@ def calibrate_prediction_intervals(pipeline_dir, pipeline_name, input_data, targ
 
     """
     Train MAPIE Regressor using train data
-
-    Inputs:
-        pipeline_dir: path to saved pipeline (from train_model.py)
-        pipeline_name: name of saved pkl file
-        input_data: Dataframe containing all data; output of make_dataset
-        target_dim: dimension to predict
-        mapie_dir: path to save fitted MapieRegressor instance
-
-    Outputs: None
+    :param pipeline_dir: path to trained Pipeline instance
+    :type pipeline_dir: str
+    :param pipeline_name: name of trained Pipeline instance
+    :type pipeline_name: str
+    :param input_data: Dataframe containing all data
+    :type input_data: _type_
+    :param target_dim: dimension to predict
+    :type target_dim: str
+    :param mapie_dir: path for saving MapieRegressor instance
+    :type mapie_dir: str
+    :return: None
+    :rtype: _type_
     """
     
     pipeline = joblib.load(Path(pipeline_dir)/(pipeline_name+".pkl"))
@@ -44,15 +47,20 @@ def predict_intervals(input_data, target_dim, mapie_dir, alpha=0.05, batch_size=
 
     """
     Get prediction intervals for all data using fitted MapieRegressor
-
-    Inputs:
-        input_data: Dataframe containing all data; output of make_dataset
-        target_dim: dimension to predict
-        mapie_dir: path to saved MapieRegressor instance
-        alpha: percent of out of intervals predictions tolerated
-        save_dir: path to save predictions csv
-
-    Outputs: If save_dir is None, Dataframe of shape (input_dir.shape[0], 3), else None
+    :param input_data: Dataframe containing all data
+    :type input_data: _type_
+    :param target_dim: dimension to predict
+    :type target_dim: str
+    :param mapie_dir: path to saved MapieRegressor instance
+    :type mapie_dir: str
+    :param alpha: percent of out of intervals predictions tolerated, defualt is 0.05
+    :type alpha: int, optional
+    :param batch_size: batch size for processing, default is 10000
+    :type batch_size: int, optional
+    :param save_dir: path to save predictions csv
+    :type save_dir: str, optional
+    :return: If save_dir is None, pandas Dataframe else None
+    :rtype: _type_
     """
 
     mapie = joblib.load(Path(mapie_dir)/("mapie_"+target_dim+".pkl"))

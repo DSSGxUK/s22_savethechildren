@@ -173,15 +173,20 @@ def get_trained_autoencoder(
     ):
     """
     Get the trained model using tuned hyperparameters
-    Inputs:
-      input_data: image input of size (num of samples, width, height, bands);
-                  reshaped & imputed input of convert_tiffs_to_image_dataset
-      batch_size): batch size for training
-      epochs: number of epochs for training
-      learning_rate: learning_rate for Adam optimizer
-      save_dir: directory to save model in
-      model_name: name of saved h5 model file
-    Outputs: If save_dir=None, Keras sequential model else None
+    :param input_data: image input of size (num of samples, width, height, bands)
+    :type input_data: _type_
+    :param batch_size: batch size for training, defaults to 128
+    :type batch_size: int, optional
+    :param learning_rate: learning rate for training, defaults to 1e-3
+    :type learning_rate: int, optional
+    :param epochs: epochs for training, defaults to 100
+    :type epochs: int, optional
+    :param savedir: directory for saving model
+    :type savedir: str, optional
+    :param model_name: name of project, defaults to "autoencoder"
+    :type model_name: str, optional
+    :return: If save_dir=None, Keras sequential model else None
+    :rtype: _type_
     """
   
     input_dims = input_data.shape
