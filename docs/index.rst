@@ -32,7 +32,7 @@ Contents
 
    getting-started
    reproducing
-   commands
+   dl_steps
    api
 
 

@@ -220,6 +220,9 @@ if __name__ == "__main__":
         preds = model.predict(X)
         # with open(f"tmp_{target}_preds.npy", "wb") as f:
         #     np.save(f, preds)
+
+        # TODO: Include prediction interval estimation here
+
         output = pd.concat([output, pd.DataFrame(preds, columns=[target_name])], axis=1)
     OUTPUT_DIR = DATA_DIR.parent / "predictions"
     OUTPUT_DIR.mkdir(exist_ok=True)
