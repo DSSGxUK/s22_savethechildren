@@ -8,47 +8,10 @@ Original file is located at
 
 # !pip install h3
 
+import geopandas as gpd
 import h3.api.numpy_int as h3
 import numpy as np
 import pandas as pd
-
-path = "/content/drive/MyDrive/DSSG (STC   UNICEF)/data"
-
-commuting = pd.read_csv(
-    path + "/raw/commuting/data-for-good-at-meta-commuting-zones-july-2021.csv"
-)
-nga_clean = pd.read_csv(path + "/clean/training_data/nga_clean_v1.csv")
-
-print(commuting.shape)
-commuting.head(2)
-
-# """# Visualization for Nigeria"""
-
-commuting_nga = commuting[commuting["country"] == "Nigeria"]
-commuting_nga.shape
-
-# pip install keplergl
-
-import geopandas as gpd
-import keplergl
-
-# This is needed for visualization in colab
-from google.colab import output
-from shapely.geometry import Polygon
-
-output.enable_custom_widget_manager()
-
-# Create the map
-kepler_map = keplergl.KeplerGl(height=400)
-
-# Add data on the map
-# kepler_map.add_data(data=gpd.GeoDataFrame(commuting_nga), name="Commuting Nigeria")
-kepler_map.add_data(data=commuting_nga, name="Commuting Nigeria")
-
-kepler_map
-
-# """# Extract data"""
-
 import shapely.wkt
 from shapely import geometry
 from shapely.geometry import Polygon
@@ -134,7 +97,43 @@ def extract_commuting(data, communting, country, resolution=7):
     return data
 
 
-nga_clean = extract_commuting(nga_clean, commuting, "Nigeria", resolution=7)
-nga_clean
+if __name__ == "__main__":
+    import keplergl
 
-nga_clean.to_csv("nga_clean_commuting.csv", index=False)
+    # This is needed for visualization in colab
+    from google.colab import output
+
+    path = "/content/drive/MyDrive/DSSG (STC   UNICEF)/data"
+
+    commuting = pd.read_csv(
+        path + "/raw/commuting/data-for-good-at-meta-commuting-zones-july-2021.csv"
+    )
+    nga_clean = pd.read_csv(path + "/clean/training_data/nga_clean_v1.csv")
+
+    print(commuting.shape)
+    commuting.head(2)
+
+    # """# Visualization for Nigeria"""
+
+    commuting_nga = commuting[commuting["country"] == "Nigeria"]
+    commuting_nga.shape
+
+    # pip install keplergl
+
+    output.enable_custom_widget_manager()
+
+    # Create the map
+    kepler_map = keplergl.KeplerGl(height=400)
+
+    # Add data on the map
+    # kepler_map.add_data(data=gpd.GeoDataFrame(commuting_nga), name="Commuting Nigeria")
+    kepler_map.add_data(data=commuting_nga, name="Commuting Nigeria")
+
+    kepler_map
+
+    # """# Extract data"""
+
+    nga_clean = extract_commuting(nga_clean, commuting, "Nigeria", resolution=7)
+    nga_clean
+
+    nga_clean.to_csv("nga_clean_commuting.csv", index=False)
