@@ -26,24 +26,25 @@ from xarray import DataArray, Dataset
 
 
 def print_tif_metadata(
-    rioxarray_rio_obj: Type[rxr.rio.Dataset], name: Optional[str] = None
+    rioxarray_rio_obj: Union[Dataset, DataArray, List[Dataset]],
+    name: Optional[str] = None,
 ) -> None:
     """View metadata associated with a raster file,
     loaded using rioxarray
 
     :param rioxarray_rio_obj: rioxarray dataset object
-    :type rioxarray_rio_obj: Type[rxr.rio.Dataset]
+    :type rioxarray_rio_obj: Union[Dataset, DataArray, List[Dataset]
     :param name: Name of tiff data, defaults to ""
     :type name: Optional[str], optional
     """
     if name is None:
         name = "your data"
 
-    print(f"The crs of {name} is:", rioxarray_rio_obj.rio.crs)
-    print(f"The nodatavalue of {name} is:", rioxarray_rio_obj.rio.nodata)
-    print(f"The shape of {name} is:", rioxarray_rio_obj.shape)
-    print(f"The spatial resolution for {name} is:", rioxarray_rio_obj.rio.resolution())
-    print(f"The metadata for {name} is:", rioxarray_rio_obj.attrs)
+    print(f"The crs of {name} is:", rioxarray_rio_obj.rio.crs)  # type: ignore
+    print(f"The nodatavalue of {name} is:", rioxarray_rio_obj.rio.nodata)  # type: ignore
+    print(f"The shape of {name} is:", rioxarray_rio_obj.shape)  # type: ignore
+    print(f"The spatial resolution for {name} is:", rioxarray_rio_obj.rio.resolution())  # type: ignore
+    print(f"The metadata for {name} is:", rioxarray_rio_obj.attrs)  # type: ignore
 
 
 def clip_tif_to_ctry(
