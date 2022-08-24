@@ -432,7 +432,7 @@ def rast_to_agg_df(
 
 def agg_tif_to_df(
     df: pd.DataFrame,
-    tiff_dir: Union[str, PathLike],
+    tiff_dir: Union[str, PathLike, List[str], List[PathLike]],
     rm_prefix: Union[str, Pattern[str]] = "cpi",
     agg_fn: Callable[[npt.NDArray], npt.NDArray] = np.mean,
     max_records: int = int(1e5),
@@ -483,16 +483,16 @@ def agg_tif_to_df(
         raise ValueError("hex_code not in df.columns")
 
     try:
-        if os.path.isdir(tiff_dir):
+        if os.path.isdir(tiff_dir):  # type: ignore
             # absolute path to search for all tiff files inside a specified folder
-            path = Path(tiff_dir) / "*.tif"
+            path = Path(tiff_dir) / "*.tif"  # type: ignore
             tif_files = glob.glob(str(path))
-        elif os.path.isfile(tiff_dir):
+        elif os.path.isfile(tiff_dir):  # type: ignore
             tif_files = [tiff_dir]  # type: ignore
     except TypeError:
         # list of tiff files passed directly
         assert type(tiff_dir) == list
-        tif_files = tiff_dir
+        tif_files = tiff_dir  # type: ignore
 
     for i, fname in enumerate(tif_files):
         title = re.sub(rm_prefix, "", Path(fname).name).replace(".tif", "", 1)

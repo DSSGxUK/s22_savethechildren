@@ -2,9 +2,11 @@ import argparse
 import glob as glob
 import logging
 import os
-import tensorflow as tf
 import sys
 import warnings
+from functools import partial, reduce
+from pathlib import Path
+
 import cartopy.io.shapereader as shpreader
 import geopandas as gpd
 import h3.api.numpy_int as h3
@@ -14,17 +16,16 @@ import pycountry
 import rasterio
 import rioxarray as rxr
 import shapely.wkt
+import tensorflow as tf
+from art import tprint
+from rich import print
+
+import stc_unicef_cpi.data.get_osm_data as osm
 import stc_unicef_cpi.data.process_geotiff as pg
 import stc_unicef_cpi.data.process_netcdf as net
 import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
-import stc_unicef_cpi.data.get_osm_data as osm
-
-from art import *
-from rich import print
-from functools import partial, reduce
-from pathlib import Path
 from stc_unicef_cpi.data.stream_data import RunStreamer
 
 try:
@@ -66,7 +67,7 @@ def select_country(df, country_code, lat, long) -> pd.DataFrame:
 
 
 def aggregate_dataset(df) -> pd.DataFrame:
-    """Aggregate dataset 
+    """Aggregate dataset
     :param df: input required to aggregate
     :type df: dataframe
     :return: agg mean, agg count
@@ -202,7 +203,7 @@ def preprocessed_tiff_files(
     country, read_dir=c.ext_data, out_dir=c.int_data, force=False
 ) -> None:
     """Preprocess tiff files
-    
+
     :param country: country of interest
     :type country: str
     :param read_dir: path to read data from, defaults to c.ext_data
@@ -271,9 +272,7 @@ def preprocessed_tiff_files(
 
 
 @g.timing
-def preprocessed_speed_test(
-    speed, res, country
-) -> pd.DataFrame:
+def preprocessed_speed_test(speed, res, country) -> pd.DataFrame:
     """Processing speed test data
     :param speed: dataset containing speed test data
     :type speed: dataframe
@@ -333,9 +332,7 @@ def preprocessed_speed_test(
 
 
 @g.timing
-def preprocessed_commuting_zones(
-    country, res, read_dir=c.ext_data
-) -> pd.DataFrame:
+def preprocessed_commuting_zones(country, res, read_dir=c.ext_data) -> pd.DataFrame:
     """Preprocess commuting zones
     :param country: country of interest
     :type country: str
@@ -712,7 +709,7 @@ def create_dataset(
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
+    parser = argparse.ArgumentParser("High-res multi-dim CPI dataset creation")
 
     parser.add_argument(
         "-c",
