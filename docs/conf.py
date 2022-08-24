@@ -182,6 +182,7 @@ htmlhelp_basename = "stc_unicef_cpidoc"
 # -- Options for EPUB output
 
 epub_show_urls = "footnote"
+copyright = "2022, J. Fitzgerald, D. Pinto Veizaga, A. Saggar, M. Vicini"
 
 # -- Options for LaTeX output --------------------------------------------------
 
