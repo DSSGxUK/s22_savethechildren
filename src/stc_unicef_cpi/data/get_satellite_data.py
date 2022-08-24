@@ -1,19 +1,21 @@
 import ee
 import pycountry
 
+import stc_unicef_cpi.utils.constants as c
+
 
 class SatelliteImages:
     """Get Satellite Images From Google Earth Engine"""
 
     def __init__(
-        self, country, folder="gee", res=500, start="2010-01-01", end="2020-01-01"
+        self, country, folder=c.folder_ee, res=c.res_ee, start=c.start_ee, end=c.end_ee
     ):
         """Initialize class
         :param country: country
         :type country: str
         :param folder: folder path
         :type folder: str
-        :param res: resolution
+        :param res: grid resolution
         :type res: int
         :param start: starting date
         :type start: str
@@ -47,7 +49,7 @@ class SatelliteImages:
         return proj["transform"], proj["crs"]
 
     def task_config(self, geo, name, image, transform, proj):
-        """ "Determine countries parameters"""
+        """Determine countries parameters"""
         config = {
             "region": geo,
             "description": f"{name}_{self.country.lower()}_{self.res}",

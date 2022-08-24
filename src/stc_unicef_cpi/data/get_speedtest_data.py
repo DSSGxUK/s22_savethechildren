@@ -1,11 +1,12 @@
 import geopandas as gpd
 import stc_unicef_cpi.utils.general as g
+import logging
 
 from datetime import datetime
 from pathlib import Path
 
 
-def get_speedtest_url(service_type, year, q):
+def get_speedtest_url(service_type, year, q) -> str:
     """Get Speed Test Url From Ookla
     :param service_type: type of network performance
     :type service_type: str
@@ -13,6 +14,8 @@ def get_speedtest_url(service_type, year, q):
     :type year: int
     :param q: quarter
     :type q: int
+    :return: url, name
+    :rtype: str
     """
 
     def quarter_start(year, q):
@@ -30,15 +33,12 @@ def get_speedtest_url(service_type, year, q):
     return url, name
 
 
-def prep_tile(data, name, path_save):
-    """Prepare tile
-
-    _extended_summary_
-
-    :param data: _description_
-    :type data: _type_
-    :param name: _description_
-    :type name: _type_
+def prep_tile(data, name, path_save) -> None:
+    """Prepare tile for further preprocessing
+    :param data: data containing information related to speed test
+    :type data: dataframe
+    :param name: name of file
+    :type name: str
     """
     data = data[['avg_d_kbps', 'avg_u_kbps', 'geometry']]
     print('Saving speedtest data to directory...')
@@ -46,10 +46,23 @@ def prep_tile(data, name, path_save):
     data.to_csv(Path(path_save) / "connectivity" / f"{name}", index=False)
 
 
-def get_speedtest_info(url, name, path_save):
-        try:
-            gdf_tiles = gpd.read_file(url)
-            data = gdf_tiles
-            data = prep_tile(data, name, path_save)
-        except:
-            raise ValueError("Unable to retrieve data.")
+def get_speedtest_info(url, name, path_save) -> None:
+    """Get speedtest information
+    :param url: url needed to retrieve information
+    :type url: str
+    :param name: name of the file we want to retrieve
+    :type name: str
+    :param path_save: directory to save information
+    :type path_save: str
+    :raises ValueError: unable to retrieve data message
+    """
+    logger = logging.getLogger(__name__)
+
+    try:
+        gdf_tiles = gpd.read_file(url)
+        data = gdf_tiles
+        data = prep_tile(data, name, path_save)
+
+    except ValueError as e:
+        logger.exception(e)
+        raise ValueError("Unable to retrieve data.")
