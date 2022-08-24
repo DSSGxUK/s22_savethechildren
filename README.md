@@ -1,7 +1,6 @@
-stc_unicef_cpi
-==============================
+# Microestimates of child poverty in Developing Countries
 
-A package to produce a high-resolution multi-dimensional child poverty index.
+A package to produce a high-resolution multi-dimensional child poverty index estimates.
 
 ## Getting started
 
@@ -48,7 +47,8 @@ def hello_world():
 Don't include parentheses within the identifier itself.
 
 # Project Organization
-------------
+
+---
 
     ├── LICENSE
     ├── Makefile           <- Makefile with commands like `make data` or `make train`
@@ -88,13 +88,12 @@ Don't include parentheses within the identifier itself.
     │
     └── tox.ini            <- tox file with settings for running tox; see tox.readthedocs.io
 
-
---------
+---
 
 <p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
 
-
 ## Script breakdown
+
 Main package code is found in `src/stc_unicef_cpi`, with the structure
 
 ```
