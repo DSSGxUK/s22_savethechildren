@@ -264,39 +264,28 @@ def lgbmreg_optuna(
 
     Main params to target:
 
-    * num_leaves (max. limit should be 2^(max_depth) according to docs)
-    - number of decision points in tree, given max_depth relatively
+    * num_leaves (max. limit should be 2^(max_depth) according to docs) - number of decision points in tree, given max_depth relatively
         easy to choose, but expensive so choose conservative range
         e.g. (20,3000)
-    * max_depth
-    - number of levels, more makes more complex and prone to overfit,
+    * max_depth - number of levels, more makes more complex and prone to overfit,
         too few and will underfit. Kaggle finds values of 3-12 works
         well for most datasets
-    * min_data_in_leaf
-    - min num observations that fit dec. crit. of each leaf,
+    * min_data_in_leaf - min num observations that fit dec. crit. of each leaf,
         should be >100 for larger datasets as helps prevent overfitting
-    * n_estimators
-    - Number of decision trees used - larger will be slower but should
+    * n_estimators - Number of decision trees used - larger will be slower but should
         be more accurate
-    * learning_rate
-    - step size param of gradient descent at each iteration, with
+    * learning_rate - step size param of gradient descent at each iteration, with
         typical values between 0.01 and 0.3, sometimes lower. Perfect
         setup w n_estimators is many trees w early stopping and low
         lr
-    * max_bin
-    - default already 255, likely to cause overfitting if increased
-    * reg_alpha or _lambda
-    - L1 / L2 regularisation - good search range usually (0,100) for
-            both
-    * min_gain_to_split
-    - conservative search range is (0,15), can help regularisation
-    * bagging_fraction and feature_fraction
-    - proportion of training samples (within (0,1), needs bagging_freq
+    * max_bin - default already 255, likely to cause overfitting if increased
+    * reg_alpha or _lambda - L1 / L2 regularisation - good search range usually (0,100) for both
+    * min_gain_to_split - conservative search range is (0,15), can help regularisation
+    * bagging_fraction and feature_fraction - proportion of training samples (within (0,1), needs bagging_freq
         set to an integer also) and proportion of features (also in (0,1)),
         respectively used to train each tree. Both can again help with
         overfitting
-    * objective
-    - the learning objective used, which can be custom (!)
+    * objective - the learning objective used, which can be custom (!)
 
     Additionally use MLflow to log the run unless specified not to
 

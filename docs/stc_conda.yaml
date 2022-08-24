@@ -249,7 +249,7 @@ dependencies:
     - locket==1.0.0
     - lxml==4.9.1
     - mako==1.2.1
-    - mapie
+    - mapie==0.4.1
     - markdown==3.4.1
     - markupsafe==2.1.1
     - matplotlib==3.5.3
