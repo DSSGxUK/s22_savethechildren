@@ -318,6 +318,7 @@ dependencies:
     - snuggs==1.4.7
     - sortedcontainers==2.4.0
     - soupsieve==2.3.2.post1
+    - sphinxcontrib-apidoc
     - sqlalchemy==1.4.40
     - sqlparse==0.4.2
     - stack-data==0.3.0
