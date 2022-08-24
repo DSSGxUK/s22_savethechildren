@@ -360,4 +360,3 @@ dependencies:
     - yarl==1.8.1
     - zict==2.2.0
     - zipp==3.8.1
-prefix: /home/fitzgeraldj/miniconda3/envs/dssg
