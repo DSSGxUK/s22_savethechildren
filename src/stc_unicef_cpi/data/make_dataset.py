@@ -2,12 +2,9 @@ import argparse
 import glob as glob
 import logging
 import os
+import tensorflow as tf
 import sys
-import time
 import warnings
-from functools import partial, reduce
-from pathlib import Path
-
 import cartopy.io.shapereader as shpreader
 import geopandas as gpd
 import h3.api.numpy_int as h3
@@ -17,14 +14,17 @@ import pycountry
 import rasterio
 import rioxarray as rxr
 import shapely.wkt
-from art import *
-from rich import pretty, print
-
 import stc_unicef_cpi.data.process_geotiff as pg
 import stc_unicef_cpi.data.process_netcdf as net
 import stc_unicef_cpi.utils.constants as c
 import stc_unicef_cpi.utils.general as g
 import stc_unicef_cpi.utils.geospatial as geo
+import stc_unicef_cpi.data.get_osm_data as osm
+
+from art import *
+from rich import print
+from functools import partial, reduce
+from pathlib import Path
 from stc_unicef_cpi.data.stream_data import RunStreamer
 
 try:
@@ -35,29 +35,29 @@ except ModuleNotFoundError:
     )
 
 
-def read_input_unicef(path_read):
-    """read_input_unicef _summary_
-    :param path_read: _description_
-    :type path_read: _type_
-    :return: _description_
-    :rtype: _type_
+def read_input_unicef(path_read) -> pd.DataFrame:
+    """Read source data provided by STC and UNICEF
+    :param path_read: path to read data from
+    :type path_read: str
+    :return: database with target variable
+    :rtype: dataframe
     """
     df = pd.read_csv(path_read, low_memory=False)
     return df
 
 
-def select_country(df, country_code, lat, long):
+def select_country(df, country_code, lat, long) -> pd.DataFrame:
     """Select country of interest
-    :param df: _description_
-    :type df: _type_
-    :param country_code: _description_
-    :type country_code: _type_
-    :param lat: _description_
-    :type lat: _type_
-    :param long: _description_
-    :type long: _type_
-    :return: _description_
-    :rtype: _type_
+    :param df: input provided by UNICEF and STC
+    :type df: dataframe
+    :param country_code: country code
+    :type country_code: str
+    :param lat: colname containing latitude measures
+    :type lat: numerical
+    :param long: colname containing longitude measures
+    :type long: numerical
+    :return: database with info related to country of interest
+    :rtype: dataframe
     """
     df.columns = df.columns.str.lower()
     subset = df[df["countrycode"].str.strip() == country_code].copy()
@@ -65,12 +65,12 @@ def select_country(df, country_code, lat, long):
     return subset
 
 
-def aggregate_dataset(df):
-    """aggregate_dataset _summary_
-    :param df: _description_
-    :type df: _type_
-    :return: _description_
-    :rtype: _type_
+def aggregate_dataset(df) -> pd.DataFrame:
+    """Aggregate dataset 
+    :param df: input required to aggregate
+    :type df: dataframe
+    :return: agg mean, agg count
+    :rtype: dataframe, dataframe
     """
     df_mean = df.groupby(by=["hex_code"], as_index=False).mean()
     df_count = df.groupby(by=["hex_code"], as_index=False).count()[
@@ -81,7 +81,26 @@ def aggregate_dataset(df):
 
 def create_target_variable(
     country_code, res, lat, long, threshold, read_dir, copy_to_nbrs=False
-):
+) -> pd.DataFrame:
+    """Create target variable
+    :param country_code: country code related to country of interest
+    :type country_code: str
+    :param res: resolution of country of interest
+    :type res: int
+    :param lat: latitude of country of interest
+    :type lat: numeric
+    :param long: longitude of country of interest
+    :type long: numeric
+    :param threshold: minimal number of surveys per hexagon
+    :type threshold: int
+    :param read_dir: directory from where to read dataset
+    :type read_dir: str
+    :param copy_to_nbrs: include neighbouring resolution, defaults to False
+    :type copy_to_nbrs: bool, optional
+    :raises ValueError: no raw survey data available
+    :return: dataset with observations satisfying conditions
+    :rtype: dataframe
+    """
     try:
         source = Path(read_dir) / "childpoverty_microdata_gps_21jun22.csv"
     except FileNotFoundError:
@@ -114,7 +133,6 @@ def create_target_variable(
         ]
         agg_dict = {col: "mean" for col in other_cols}
         agg_dict.update({idx: ["mean", "count"] for idx in sev_cols})
-        # agg_dict.update({"hhid": "count"})
         sub = sub.explode("hex_incl_nbrs").groupby(by=["hex_incl_nbrs"]).agg(agg_dict)
         sub.columns = ["_".join(col) for col in sub.columns.values]
         sub.rename(
@@ -153,16 +171,16 @@ def create_target_variable(
 
 def change_name_reproject_tiff(
     tiff, attribute, country, read_dir=c.ext_data, out_dir=c.int_data
-):
-    """Rename attributes and reproject Tiff file
-    :param tiff: _description_
-    :type tiff: _type_
-    :param attributes: _description_
-    :type attributes: _type_
-    :param country: _description_
-    :type country: _type_
-    :param read_dir: _description_, defaults to c.ext_data
-    :type read_dir: _type_, optional
+) -> None:
+    """Rename attributes and reprojection of Tiff file
+    :param tiff: path to tiff file
+    :type tiff: str
+    :param attributes: attributes names
+    :type attributes: list of lists
+    :param country: contry of interest
+    :type country: str
+    :param read_dir: path to read external data from, defaults to c.ext_data
+    :type read_dir: str, optional
     """
     with rxr.open_rasterio(tiff) as data:
         fname = Path(tiff).name
@@ -182,14 +200,17 @@ def change_name_reproject_tiff(
 @g.timing
 def preprocessed_tiff_files(
     country, read_dir=c.ext_data, out_dir=c.int_data, force=False
-):
+) -> None:
     """Preprocess tiff files
-    :param country: _description_
-    :type country: _type_
-    :param read_dir: _description_, defaults to c.ext_data
-    :type read_dir: _type_, optional
-    :param out_dir: _description_, defaults to c.int_data
-    :type out_dir: _type_, optional
+    
+    :param country: country of interest
+    :type country: str
+    :param read_dir: path to read data from, defaults to c.ext_data
+    :type read_dir: str, optional
+    :param out_dir: path to save data, defaults to c.int_data
+    :type out_dir: str, optional
+    :param force: force clipping, defaults to False
+    :type force: bool, optional
     """
     g.create_folder(out_dir)
     # clip gdp ppp 30 arc sec
@@ -250,9 +271,19 @@ def preprocessed_tiff_files(
 
 
 @g.timing
-def preprocessed_speed_test(speed, res, country):
-    # speed["geometry"] = speed.geometry.swifter.apply(shapely.wkt.loads)
-    # speed = gpd.GeoDataFrame(speed, crs="epsg:4326")
+def preprocessed_speed_test(
+    speed, res, country
+) -> pd.DataFrame:
+    """Processing speed test data
+    :param speed: dataset containing speed test data
+    :type speed: dataframe
+    :param res: grid resolution
+    :type res: int
+    :param country: country of interest
+    :type country: str
+    :return: clipped speed data to country, reprojected and aggregated
+    :rtype: dataframe
+    """
     logging.info("Clipping speed data to country - can take a couple of mins...")
     shpfilename = shpreader.natural_earth(
         resolution="10m", category="cultural", name="admin_0_countries"
@@ -302,8 +333,19 @@ def preprocessed_speed_test(speed, res, country):
 
 
 @g.timing
-def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
-    """Preprocess commuting zones"""
+def preprocessed_commuting_zones(
+    country, res, read_dir=c.ext_data
+) -> pd.DataFrame:
+    """Preprocess commuting zones
+    :param country: country of interest
+    :type country: str
+    :param res: grid resolution
+    :type res: int
+    :param read_dir: path to read data from, defaults to c.ext_data
+    :type read_dir: str, optional
+    :return: processed information of commuting zones
+    :rtype: dataframe
+    """
     commuting = pd.read_csv(Path(read_dir) / "commuting_zones.csv", low_memory=False)
     commuting = commuting[commuting["country"] == country]
     comm = list(commuting["geometry"])
@@ -311,7 +353,6 @@ def preprocessed_commuting_zones(country, res, read_dir=c.ext_data):
     comm_zones = comm_zones.merge(commuting, on="geometry", how="left")
     comm_zones = comm_zones.add_suffix("_commuting")
     comm_zones.rename(columns={"hex_code_commuting": "hex_code"}, inplace=True)
-
     return comm_zones
 
 
@@ -329,18 +370,34 @@ def append_features_to_hexes(
     model_dir=c.base_dir_model,
     tiff_dir=c.tiff_data,
     hyper_tuning=False,
-):
+) -> pd.DataFrame:
     """Append features to hexagons withing a country
-    :param country_code: _description_, defaults to "NGA"
-    :type country_code: str, optional
-    :param country: _description_, defaults to "Nigeria"
-    :type country: str, optional
-    :param lat: _description_, defaults to "latnum"
-    :type lat: str, optional
-    :param long: _description_, defaults to "longnum"
-    :type long: str, optional
-    :param res: _description_, defaults to 6
-    :type res: int, optional
+    :param country: country of interest
+    :type country: str
+    :param res: grid resolution
+    :type res: int
+    :param encoders: whether to append autoencoder features
+    :type encoders: bool
+    :param gpu: whether to use gpus or not
+    :type gpu: bool
+    :param force: force clipping, defaults to False
+    :type force: bool, optional
+    :param force_download: force download, defaults to False
+    :type force_download: bool, optional
+    :param audience: whether or not to include audience estimates, defaults to False
+    :type audience: bool, optional
+    :param read_dir: path to read input, defaults to c.ext_data
+    :type read_dir: str, optional
+    :param save_dir: path to save output, defaults to c.int_data
+    :type save_dir: str, optional
+    :param model_dir: path to model, defaults to c.base_dir_model
+    :type model_dir: str, optional
+    :param tiff_dir: path to tiff files, defaults to c.tiff_data
+    :type tiff_dir: str, optional
+    :param hyper_tuning: whether or not to perform hyperparameter tuning, defaults to False
+    :type hyper_tuning: bool, optional
+    :return: hexes with corresponding features
+    :rtype: dataframe
     """
     # Setting up logger
     logger = logging.getLogger(__name__)
@@ -404,12 +461,9 @@ def append_features_to_hexes(
     logger.info("Reading and computing commuting zone estimates...")
     commuting = preprocessed_commuting_zones(country, res, read_dir)[c.cols_commuting]
 
-    ## Economic data
+    # Economic data
     logger.info("Retrieving features from economic tif files...")
     econ_files = glob.glob(str(Path(save_dir) / f"{country.lower()}*.tif"))
-    # econ_files = [ele for ele in econ_files if "ppp" not in ele]
-    # print("ctry:", len(ctry))
-    # print(ctry.head())
 
     econ = pg.agg_tif_to_df(
         ctry,
@@ -418,28 +472,10 @@ def append_features_to_hexes(
         rm_prefix=rf"cpi|_|{country.lower()}|500",
         verbose=True,
     )
-    # print(econ.head()) # looks OK
-    # econ = list(map(pg.geotiff_to_df, econ_files))
-    # NB never want to join on lat long if only need
-    # aggregated values - first aggregate then join
-    # on hex codes
-    # econ = reduce(
-    #     lambda left, right: pd.merge(
-    #         left, right, on=["latitude", "longitude"], how="outer"
-    #     ),
-    #     econ,
-    # )
-    # ppp = glob.glob(str(Path(save_dir) / f"{country.lower()}*ppp*.tif"))[0]
-    # ppp = pg.geotiff_to_df(ppp, ["gdp_ppp_1990", "gdp_ppp_2000", "gdp_ppp_2015"])
-    # econ = econ.merge(ppp, on=["latitude", "longitude"], how="outer")
-    # del ppp  # Clean up memory
+
     # Google Earth Engine
     logger.info("Retrieving features from google earth engine tif files...")
     gee_files = glob.glob(str(Path(read_dir) / "gee" / f"*_{country.lower()}*.tif"))
-    # don't want to do this as loads every tiff as df and
-    # loads all into memory at once
-    # gee = list(map(pg.geotiff_to_df, gee_files))
-
     max_bands = 3
     gee_nbands = np.zeros(len(gee_files))
     for idx, file in enumerate(gee_files):
@@ -454,51 +490,33 @@ def append_features_to_hexes(
         rm_prefix=rf"cpi|_|{country.lower()}|500",
         verbose=True,
     )
-    # print("small gee:", len(gee))
-    # print(gee.head())
+
     for large_file in large_gee:
         large_gee_df = pg.rast_to_agg_df(
             large_file, resolution=res, max_bands=max_bands, verbose=True
         )
-        # print("just large gee:", len(large_gee_df))
-        # print(large_gee_df.head())
         gee = gee.join(
             large_gee_df,
             on="hex_code",
             how="outer",
         )
-    # print("w large gee, pop non-nans:", len(gee.dropna(subset=["population"])))
-    # print(gee.head())
-    # gee = reduce(
-    #     lambda left, right: pd.merge(
-    #         left, right, on=["latitude", "longitude"], how="outer"
-    #     ),
-    #     gee,
-    # )
 
     # Join GEE with Econ
     logger.info("Merging aggregated features from tiff files to hexagons...")
     # econ.to_csv(Path(save_dir) / f"tmp_{country.lower()}_econ.csv")
     # gee.to_csv(Path(save_dir) / f"tmp_{country.lower()}_gee.csv")
-    # print("econ:", len(econ))
-    # print(econ.head())
+
     images = gee.merge(econ, on=["hex_code"], how="outer")
     del econ
-    # print("images:", len(images))
-    # print(images.head())
 
     # Road density
     if force:
         logger.info("Recreating road density estimates...")
-        import stc_unicef_cpi.data.get_osm_data as osm
-
         road_file_name = "road_density_" + country.lower() + "_res" + str(res) + ".csv"
         rd = osm.get_road_density(country, res)
         rd.to_csv(Path(read_dir) / road_file_name, index=False)
     logger.info("Reading road density estimates...")
     road = pd.read_csv(Path(read_dir) / f"road_density_{country.lower()}_res{res}.csv")
-    # print("road:", len(road))
-    # print(road.head())
 
     # Speed Test
     logger.info("Reading speed test estimates...")
@@ -506,8 +524,6 @@ def append_features_to_hexes(
         Path(read_dir) / "connectivity" / "2021-10-01_performance_mobile_tiles.csv"
     )
     speed = preprocessed_speed_test(speed, res, country)
-    # print("speed:", len(speed))
-    # print(speed.head())
 
     # Open Cell Data
     logger.info("Reading open cell data...")
@@ -525,17 +541,9 @@ def append_features_to_hexes(
         .fillna(0)
         .join(cell.groupby("hex_code").avg_signal.mean())
     ).reset_index()
-    # print("cell: ", len(cell))
-    # print(cell.head())
 
     # Collected Data
     logger.info("Merging all features")
-    # print("ctry:", len(ctry))
-    # print(ctry.head())
-    # print("commuting:", len(commuting))
-    # print(commuting.head())
-    # print("conflict:", len(cz))
-    # print(cz.head())
     dfs = [ctry, commuting, cz, road, speed, cell, images]
     assert all(["hex_code" in df.columns for df in dfs])
     hexes = reduce(
@@ -594,12 +602,11 @@ def append_features_to_hexes(
     # where nans mean zero, fill as such
     hexes.fillna(value={col: 0 for col in zero_fill_cols}, inplace=True)
     logger.info("Finishing process...")
-    # print("out:", len(hexes))
     return hexes
 
 
 @g.timing
-def append_target_variable_to_hexes(
+def create_dataset(
     country_code,
     country,
     res,
@@ -618,7 +625,47 @@ def append_target_variable_to_hexes(
     read_dir_target=c.raw_data,
     read_dir=c.ext_data,
     tiff_dir=c.tiff_data,
-):
+) -> pd.DataFrame:
+    """Create dataset
+    :param country_code: country code
+    :type country_code: str
+    :param country: country of interest
+    :type country: str
+    :param res: grid resolution
+    :type res: int
+    :param gpu: whether to use gpus or not
+    :type gpu: bool
+    :param encoders: whether to append autoencoder features
+    :type encoders: bool
+    :param force: force clipping, defaults to False
+    :type force: bool, optional
+    :param force_download: force download, defaults to False
+    :type force_download: bool, optional
+    :param audience: whether or not to include audience estimates, defaults to False
+    :type audience: bool, optional
+    :param hyper_tuning: whether or not to perform hyperparameter tuning, defaults to False
+    :type hyper_tuning: bool, optional
+    :param lat: colname containing latitude, defaults to "latnum"
+    :type lat: str, optional
+    :param long: colname containing longitude, defaults to "longnum"
+    :type long: str, optional
+    :param interim_dir: path to interim data, defaults to c.int_data
+    :type interim_dir: str, optional
+    :param read_dir: path to read input, defaults to c.ext_data
+    :type read_dir: str, optional
+    :param save_dir: path to save output, defaults to c.proc_data
+    :type save_dir: str, optional
+    :param model_dir: path to model, defaults to c.base_dir_model
+    :type model_dir: str, optional
+    :param tiff_dir: path to tiff files, defaults to c.tiff_data
+    :type tiff_dir: str, optional
+    :param threshold: minimum number of surveys per hexagon, defaults to c.cutoff
+    :type threshold: int, optional
+    :param read_dir_target: path to directory of target data, defaults to c.raw_data
+    :type read_dir_target: str, optional
+    :return: dataset with features and target variable
+    :rtype: dataframe
+    """
     tprint("Child Poverty Index", font="cybermedum")
     print(f"Building dataset for {country} at resolution {res}")
     print(
@@ -666,13 +713,6 @@ def append_target_variable_to_hexes(
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
-    # parser.add_argument(
-    #     "-cc",
-    #     "--country_code",
-    #     type=str,
-    #     help="Country code to make dataset for, default is NGA",
-    #     default="NGA",
-    # )
 
     parser.add_argument(
         "-c",
@@ -710,13 +750,12 @@ if __name__ == "__main__":
     except argparse.ArgumentError:
         parser.print_help()
         sys.exit(0)
+
     country = pycountry.countries.search_fuzzy(args.country)[0]
     country_name = country.name
     country_code = country.alpha_3
 
     if args.add_auto:
-        import tensorflow as tf
-
         num_gpus = len(tf.config.experimental.list_physical_devices("GPU"))
         print("Num GPUs Available: ", num_gpus)
         if num_gpus > 0:
@@ -727,7 +766,7 @@ if __name__ == "__main__":
     else:
         gpu = False
 
-    append_target_variable_to_hexes(
+    create_dataset(
         country_code=country_code,
         country=country_name,
         gpu=gpu,
@@ -736,17 +775,3 @@ if __name__ == "__main__":
         force_download=args.force_download,
         encoders=args.add_auto,
     )
-
-## Health Sites
-# hh = pd.read_csv("nga_health.csv")
-# hh = hh[~hh.X.isna()]
-# hh = create_geometry(hh, "X", "Y")
-# hh = get_hex_code(hh, "X", "Y")
-# hh = aggregate_hexagon(hh, "geometry", "n_health", "count")
-#
-#
-## Education Facilities
-# edu = gpd.read_file("nga_education")
-# edu = get_lat_long(edu, "geometry")
-# edu = get_hex_code(edu, "lat", "long")
-# edu = aggregate_hexagon(edu, "geometry", "n_education", "count")
