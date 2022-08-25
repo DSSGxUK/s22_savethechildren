@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 Welcome to stc_unicef_cpi's documentation!
-===================================
+==========================================
 
 **stc_unicef_cpi** is a Python library for the open source data science for international development community
 that estimates high-resolution, multi-dimensional child poverty using
@@ -28,12 +28,15 @@ Contents
 --------
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 4
 
+   Home <self>
    getting-started
    reproducing
    dl_steps
-   api
+   API <api/modules>
+   API stubs <api_summary>
+   Dev README <readme>
 
 
 

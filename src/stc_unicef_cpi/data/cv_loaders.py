@@ -1,7 +1,7 @@
 import warnings
 from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
-from typing import List, Union
+from typing import Iterator, List, Tuple, Union
 
 import h3.api.numpy_int as h3
 import numpy as np
@@ -279,24 +279,28 @@ class HexSpatialKFold(KFold):
 
         return self.get_even_clusters(latlongs, self.n_splits)
 
-    def split(self, X, y=None, groups=None):
+    def split(
+        self,
+        X: Union[pd.DataFrame, np.ndarray],
+        y: Union[pd.Series, np.ndarray] = None,
+        groups: Union[pd.Series, np.ndarray] = None,
+    ) -> Iterator[Tuple[np.ndarray, np.ndarray]]:
         """Generate indices to split data into training and test set.
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
+
+        :param X: array-like of shape (n_samples, n_features)
             Training data, where `n_samples` is the number of samples
             and `n_features` is the number of features.
-        y : array-like of shape (n_samples,), default=None
-            The target variable for supervised learning problems.
-        groups : array-like of shape (n_samples,)
-            Group labels for the samples used while splitting the dataset into
-            train/test set.
-        Yields
-        ------
-        train : ndarray
-            The training set indices for that split.
-        test : ndarray
-            The testing set indices for that split.
+        :type X: Union[pd.DataFrame, np.ndarray]
+        :param y: array-like of shape (n_samples,),
+            The target variable for supervised learning problems, defaults to None
+        :type y: Union[pd.Series, np.ndarray], optional
+        :param groups: Spatial group labels for the samples used while splitting the dataset into
+            train/test set, defaults to None
+        :type groups: Union[pd.Series, np.ndarray], optional
+        :return: Generator of tuples of train and test indices
+        :rtype: Iterator[Tuple[np.ndarray, np.ndarray]]
+        :yield: Next set of train, test indices
+        :rtype: Iterator[Tuple[np.ndarray, np.ndarray]]
         """
         return super().split(X, y, groups)
 

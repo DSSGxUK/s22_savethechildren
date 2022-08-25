@@ -43,10 +43,6 @@ optuna.logging.set_verbosity(
 
 # TODO: Use poetry to properly save environment for transfer
 
-SAVE_DIRECTORY = Path("../../../models")
-SAVE_DIRECTORY.mkdir(exist_ok=True)
-DATA_DIRECTORY = Path("../../../data")
-
 
 def adjusted_rsquared(r2, n, p):
     return 1 - (1 - r2) * ((n - 1) / (n - p - 1))
@@ -58,16 +54,18 @@ def adjusted_rsquared(r2, n, p):
 def get_card_split(df, cols, n=11):
     """
     Splits categorical columns into 2 lists based on cardinality (i.e # of unique values)
+
     Parameters
-    ----------
+
     df : Pandas DataFrame
         DataFrame from which the cardinality of the columns is calculated.
     cols : list-like
         Categorical columns to list
     n : int, optional (default=11)
         The value of 'n' will be used to split columns.
+
     Returns
-    -------
+
     card_low : list-like
         Columns with cardinality < n
     card_high : list-like
@@ -264,39 +262,30 @@ def lgbmreg_optuna(
     Or just directly from docs
     https://lightgbm.readthedocs.io/en/latest/Parameters-Tuning.html
 
-    Main params to target:  num_leaves (max. limit should be 2^(max_depth) according to docs)
-                                - number of decision points in tree, given max_depth relatively
-                                  easy to choose, but expensive so choose conservative range
-                                  e.g. (20,3000)
-                            max_depth
-                                - number of levels, more makes more complex and prone to overfit,
-                                  too few and will underfit. Kaggle finds values of 3-12 works
-                                  well for most datasets
-                            min_data_in_leaf
-                                - min num observations that fit dec. crit. of each leaf,
-                                  should be >100 for larger datasets as helps prevent overfitting
-                            n_estimators
-                                - Number of decision trees used - larger will be slower but should
-                                  be more accurate
-                            learning_rate
-                                - step size param of gradient descent at each iteration, with
-                                  typical values between 0.01 and 0.3, sometimes lower. Perfect
-                                  setup w n_estimators is many trees w early stopping and low
-                                  lr
-                            max_bin
-                                - default already 255, likely to cause overfitting if increased
-                            reg_alpha or _lambda
-                                - L1 / L2 regularisation - good search range usually (0,100) for
-                                  both
-                            min_gain_to_split
-                                - conservative search range is (0,15), can help regularisation
-                            bagging_fraction and feature_fraction
-                                - proportion of training samples (within (0,1), needs bagging_freq
-                                  set to an integer also) and proportion of features (also in (0,1)),
-                                  respectively used to train each tree. Both can again help with
-                                  overfitting
-                            objective
-                                - the learning objective used, which can be custom (!)
+    Main params to target:
+
+    * num_leaves (max. limit should be 2^(max_depth) according to docs) - number of decision points in tree, given max_depth relatively
+        easy to choose, but expensive so choose conservative range
+        e.g. (20,3000)
+    * max_depth - number of levels, more makes more complex and prone to overfit,
+        too few and will underfit. Kaggle finds values of 3-12 works
+        well for most datasets
+    * min_data_in_leaf - min num observations that fit dec. crit. of each leaf,
+        should be >100 for larger datasets as helps prevent overfitting
+    * n_estimators - Number of decision trees used - larger will be slower but should
+        be more accurate
+    * learning_rate - step size param of gradient descent at each iteration, with
+        typical values between 0.01 and 0.3, sometimes lower. Perfect
+        setup w n_estimators is many trees w early stopping and low
+        lr
+    * max_bin - default already 255, likely to cause overfitting if increased
+    * reg_alpha or _lambda - L1 / L2 regularisation - good search range usually (0,100) for both
+    * min_gain_to_split - conservative search range is (0,15), can help regularisation
+    * bagging_fraction and feature_fraction - proportion of training samples (within (0,1), needs bagging_freq
+        set to an integer also) and proportion of features (also in (0,1)),
+        respectively used to train each tree. Both can again help with
+        overfitting
+    * objective - the learning objective used, which can be custom (!)
 
     Additionally use MLflow to log the run unless specified not to
 
@@ -336,6 +325,7 @@ def lgbmreg_optuna(
     if log_run:
         """Enables (or disables) and configures autologging from
         LightGBM to MLflow. Logs the following:
+
             - parameters specified in lightgbm.train.
             - metrics on each iteration (if valid_sets specified).
             - metrics at the best iteration (if early_stopping_rounds
@@ -346,6 +336,7 @@ def lgbmreg_optuna(
               including:
                 - an example of valid input.
                 - inferred signature of the inputs and outputs of the model.
+
         """
         mlflow.set_tracking_uri(tracking_uri)
         client = mlflow.tracking.MlflowClient()
@@ -417,6 +408,7 @@ def lgbmreg_optunaCV(
     experiment_name="nga-cpi",
 ):
     """Use optuna default tuner CV instead of above definition - only optimises
+
         - lambda_l1
         - lambda_l2
         - num_leaves
@@ -424,6 +416,7 @@ def lgbmreg_optunaCV(
         - bagging_fraction
         - bagging_freq
         - min_child_samples
+
     Additionally use MLflow to log the run unless specified not to
 
     Args:
@@ -715,6 +708,9 @@ def flaml_multireg(
 
 if __name__ == "__main__":
     ### Argument and global variables
+    SAVE_DIRECTORY = Path("../../../models")
+    SAVE_DIRECTORY.mkdir(exist_ok=True)
+    DATA_DIRECTORY = Path("../../../data")
     parser = argparse.ArgumentParser("High-res multi-dim CPI model training")
     parser.add_argument(
         "-d",

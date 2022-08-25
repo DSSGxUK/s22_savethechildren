@@ -30,47 +30,65 @@ folder_ee = "gee"
 
 current_dir = Path.cwd()
 if current_dir.name == "data" and current_dir.parent.name == "stc_unicef_cpi":
+    # restrict to when calling from make_dataset.py
     # base directory for data
     base_dir_data = Path.cwd().parent.parent.parent / "data"
-    base_dir_data.mkdir(exist_ok=True)
     # base directory for autoencoder models
     base_dir_model = Path.cwd().parent.parent.parent / "models"
-    base_dir_model.mkdir(exist_ok=True)
+    # external data
+    if Path("/scratch").is_dir():
+        base_ext_dir = Path("/scratch/fitzgeraldj")
+        base_ext_dir.mkdir(exist_ok=True)
+        ext_data = base_ext_dir / "external"
+    else:
+        ext_data = base_dir_data / "external"
+    ext_data.mkdir(exist_ok=True)
+
+    # interim data
+    int_data = base_dir_data / "interim"
+    int_data.mkdir(exist_ok=True)
+
+    # processed data
+    proc_data = base_dir_data / "processed"
+    proc_data.mkdir(exist_ok=True)
+
+    # raw data
+    raw_data = base_dir_data / "raw"
+    raw_data.mkdir(exist_ok=True)
+
+    # tiff files
+    if Path("/scratch").is_dir():
+        tiff_data = base_ext_dir / "tiff"
+    else:
+        tiff_data = ext_data / "tiff"
+    tiff_data.mkdir(exist_ok=True)
+
 else:
+    # just make objects none so no import errors
     # true if not importing from notebook
+    base_dir_data = None  # type: ignore
+    # base directory for autoencoder models
+    base_dir_model = None  # type: ignore
+    # external data
+    ext_data = None  # type: ignore
+    # interim data
+    int_data = None  # type: ignore
+    # processed data
+    proc_data = None  # type: ignore
+    # raw data
+    raw_data = None  # type: ignore
+    # tiff files
+    tiff_data = None  # type: ignore
     # importing_file = Path(__file__).name
     # if importing_file == "make_dataset.py":
-    raise ValueError(
-        "Must run make_dataset.py from stc_unicef_cpi/data directly for default paths to work as intended: constants.py should only be relevant for this script."
-    )
+    # base_dir_data = current_dir / "data"
+    # base_dir_model = current_dir / "models"
+    # base_dir_data.mkdir(exist_ok=True)
+    # base_dir_model.mkdir(exist_ok=True)
+    # raise ValueError(
+    #     "Must run make_dataset.py from stc_unicef_cpi/data directly for default paths to work as intended: constants.py should only be relevant for this script."
+    # )
 
-# external data
-if Path("/scratch").is_dir():
-    base_ext_dir = Path("/scratch/fitzgeraldj")
-    base_ext_dir.mkdir(exist_ok=True)
-    ext_data = base_ext_dir / "external"
-else:
-    ext_data = base_dir_data / "external"
-ext_data.mkdir(exist_ok=True)
-
-# interim data
-int_data = base_dir_data / "interim"
-int_data.mkdir(exist_ok=True)
-
-# processed data
-proc_data = base_dir_data / "processed"
-proc_data.mkdir(exist_ok=True)
-
-# raw data
-raw_data = base_dir_data / "raw"
-raw_data.mkdir(exist_ok=True)
-
-# tiff files
-if Path("/scratch").is_dir():
-    tiff_data = base_ext_dir / "tiff"
-else:
-    tiff_data = ext_data / "tiff"
-tiff_data.mkdir(exist_ok=True)
 
 # loggers
 str_log = "data_streamer"

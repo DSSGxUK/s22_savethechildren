@@ -16,7 +16,31 @@ import sys
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-# sys.path.insert(0, os.path.abspath('.'))
+sys.path.insert(0, os.path.abspath("."))
+sys.path.insert(0, os.path.abspath("../src/stc_unicef_cpi"))
+
+
+# def run_apidoc(_):
+#     ignore_paths = []
+
+#     argv = ["-f", "-T", "-e", "-M", "-o", ".", ".."] + ignore_paths
+
+#     try:
+#         # Sphinx >= 1.7
+#         from sphinx.ext import apidoc
+
+#         apidoc.main(argv)
+#     except ImportError:
+#         # Sphinx  < 1.7
+#         from sphinx import apidoc
+
+#         argv.insert(0, apidoc.__file__)
+#         apidoc.main(argv)
+
+
+# def setup(app):
+#     app.connect("builder-inited", run_apidoc)
+
 
 # -- General configuration -----------------------------------------------------
 
@@ -26,6 +50,7 @@ import sys
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 extensions = [
+    "sphinxcontrib.apidoc",
     "sphinx.ext.duration",
     "sphinx.ext.doctest",
     "sphinx.ext.autodoc",
@@ -34,6 +59,7 @@ extensions = [
 ]
 
 intersphinx_mapping = {
+    "rtd": ("https://docs.readthedocs.io/en/stable/", None),
     "python": ("https://docs.python.org/3/", None),
     "sphinx": ("https://www.sphinx-doc.org/en/master/", None),
 }
@@ -105,11 +131,15 @@ pygments_style = "sphinx"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 html_theme = "sphinx_rtd_theme"
+# html_theme = "default"
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
-# html_theme_options = {}
+html_theme_options = {
+    "collapse_navigation": False,
+    "navigation_depth": 4,
+}
 
 # Add any paths that contain custom themes here, relative to this directory.
 # html_theme_path = []
@@ -133,7 +163,7 @@ html_theme = "sphinx_rtd_theme"
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ["_static"]
+# html_static_path = ["_static"]
 
 # If not '', a 'Last updated on:' timestamp is inserted at every page bottom,
 # using the given strftime format.
@@ -144,7 +174,9 @@ html_static_path = ["_static"]
 # html_use_smartypants = True
 
 # Custom sidebar templates, maps document names to template names.
-# html_sidebars = {}
+# html_sidebars = {
+#     "**": ["globaltoc.html", "relations.html", "sourcelink.html", "searchbox.html"]
+# }
 
 # Additional templates that should be rendered to pages, maps page names to
 # template names.
@@ -182,6 +214,7 @@ htmlhelp_basename = "stc_unicef_cpidoc"
 # -- Options for EPUB output
 
 epub_show_urls = "footnote"
+copyright = "2022, J. Fitzgerald, D. Pinto Veizaga, A. Saggar, M. Vicini"
 
 # -- Options for LaTeX output --------------------------------------------------
 
@@ -264,3 +297,13 @@ texinfo_documents = [
 
 # How to display URL addresses: 'footnote', 'no', or 'inline'.
 # texinfo_show_urls = 'footnote'
+
+# -- Options for apidoc extension --------------------------------------------
+# see options here https://github.com/sphinx-contrib/apidoc
+apidoc_module_dir = "../src/stc_unicef_cpi"
+apidoc_module_first = True
+
+# -- Options for autosummary extension --------------------------------------------
+
+# make docs automatically
+# autosummary_generate = True

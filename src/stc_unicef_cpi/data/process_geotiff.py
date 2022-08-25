@@ -130,7 +130,8 @@ def rxr_reproject_tiff_to_target(
     :param verbose: Verbosity, defaults to False
     :type verbose: bool, optional
     :return: Either None (if dest_path is not None) or reprojected raster
-    :rtype:Union[Dataset, DataArray, List[Dataset], None]
+    :rtype: Union[Dataset, DataArray, List[Dataset], None]
+
     """
     # f"shape: {raster.rio.shape}\n"
     # f"resolution: {raster.rio.resolution()}\n"
@@ -739,7 +740,7 @@ def extract_image_at_coords(
 
 def extract_ims_from_hex_codes(
     datasets: Union[List[str], List[PathLike]],
-    hex_codes: Union[List[int], npt.NDArray[np.int_]],
+    hex_codes: Union[List[int], npt.NDArray[Union[np.int32, np.int64]]],
     width: int = 256,
     height: int = 256,
     verbose: bool = False,
@@ -747,13 +748,12 @@ def extract_ims_from_hex_codes(
     """For a set of datasets, specified by file path, and
     a set of h3 hex codes, extract centered
     images of specified size and return a 4D array
-    in shape
-        (image_idx,band,i,j).
+    in shape (image_idx,band,i,j).
 
     :param datasets: List of paths to tiff files for which you want to extract (and stack) 'image' bands
     :type datasets: Union[List[str], List[PathLike]]
     :param hex_codes: Set of H3 hex codes in numpy_int format for which you wish to extract images
-    :type hex_codes: Union[List[int], npt.NDArray[np.int_]]
+    :type hex_codes: Union[List[int], npt.NDArray[Union[np.int32,np.int64]]]
     :param width: Width of extracted images in pixels, defaults to 256
     :type width: int, optional
     :param height: Height of extracted images in pixels, defaults to 256
@@ -807,7 +807,7 @@ def extract_ims_from_hex_codes(
 
 def convert_tiffs_to_image_dataset(
     tiff_dir: Union[str, PathLike],
-    hex_codes: Union[List[int], npt.NDArray[np.int_]],
+    hex_codes: Union[List[int], npt.NDArray[Union[np.int32, np.int64]]],
     dim_x: int = 256,
     dim_y: int = 256,
 ) -> npt.NDArray:
@@ -825,7 +825,7 @@ def convert_tiffs_to_image_dataset(
                      extensions '.tif'
     :type tiff_dir: Union[str, PathLike]
     :param hex_codes: Set of H3 hex codes for which you wish to extract images
-    :type hex_codes: Union[List[int], npt.NDArray[np.int_]]
+    :type hex_codes: Union[List[int], npt.NDArray[Union[np.int32,np.int64]]]
     :param dim_x: Pixel width of extracted images, defaults to 256
     :type dim_x: int, optional
     :param dim_y: Pixel height of extracted images, defaults to 256
