@@ -44,8 +44,7 @@ Contents
    results
    dl_steps
    Developer information <devinfo>
-   API <api/modules>
-   API stubs <api_summary>
+   api_summary
 
 
 

@@ -6,7 +6,7 @@ Developer information
 .. _dev_getting_started:
 
 Getting started
-===============
+---------------
 
 To set up pre-commit to run, just ``pip install pre-commit``, navigate to top-level directory, then run ``pre-commit install`` to be good to go.
 
@@ -15,7 +15,7 @@ Github workflow to automatically register issues from ``# TODO:`` comments alrea
 While ``black`` will autoformat scripts on commit, if you want this to run locally you should ``pip install black[jupyter]`` to allow formatting of exploratory notebooks also.
 
 Install locally
----------------
+^^^^^^^^^^^^^^^
 
 To allow import of functions locally through e.g. ``stc_unicef_cpi.subpkg.module``, navigate to top-level directory then just run editable install (``pip install -e .``).
 
@@ -59,7 +59,7 @@ As per the `Google Style Guide <https://google.github.io/styleguide/cppguide.htm
 Don't include parentheses within the identifier itself.
 
 Project Organization
-====================
+--------------------
 
 .. code-block:: console
 
@@ -161,3 +161,10 @@ Main components
 
 Contribution guidelines
 -----------------------
+
+
+.. toctree::
+    :caption: Developer docs
+    :maxdepth: 2
+
+    self
