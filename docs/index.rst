@@ -15,6 +15,11 @@ The package was initially developed during `DSSGxUK`_ 22, in collaboration with 
 
 Check out the :doc:`getting-started` section for further information about how to begin, including :ref:`installation` of the package.
 
+Raw data used is explained in :doc:`data`, methodology in :doc:`methodology` (with sections on e.g. :ref:`data_prep` etc.), and some
+initial results are displayed in :doc:`results`.
+
+Information for contributors is available in :doc:`devinfo`.
+
 
 .. _DHS: https://dhsprogram.com/Data/
 .. _MICS: https://mics.unicef.org/surveys
@@ -33,11 +38,20 @@ Contents
    Home <self>
    getting-started
    reproducing
+   data
+   methodology
+   results
    dl_steps
+   Developer information <devinfo>
    API <api/modules>
    API stubs <api_summary>
-   Dev README <readme>
 
+
+
+.. include:: ../README.rst
+
+
+.. include:: ./bibliography.rst
 
 
 Indices and tables
