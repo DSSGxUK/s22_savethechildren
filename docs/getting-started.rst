@@ -165,6 +165,7 @@ After running ``make_dataset.py`` and ``train_model.py`` with chosen parameters,
 using ``predict_model.py``, with the following command line arguments:
 
 .. code-block:: console
+
   (.venv) $ python predict_model.py --help
   usage: High-res multi-dim CPI pretrained model predictions [-h] [--country COUNTRY] [--data-dir DATA_DIR] [--model-dir MODEL_DIR] [-ip] [--universal-data-only {true,false}] [--model {lgbm,automl,catboost}] [--cv-type {normal,stratified,spatial}]
                                                            [--target {all,education,sanitation,housing,water,av-severity,av-prevalence,av-2-prevalence,health,nutrition,av-3-prevalence,av-4-prevalence}] [--impute {none,mean,median,knn,linear,rf}] [--standardise {none,standard,minmax,robust}]
