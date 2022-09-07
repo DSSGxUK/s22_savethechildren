@@ -148,3 +148,13 @@ Main package code is found in `src/stc_unicef_cpi`, with the structure
 `-- visualization
     `-- visualize.py <- Visualisation utils for model + predictions
 ```
+
+## Contributors
+
+- [John Fitzergerald](https://github.com/fitzgeraldja) 
+- [Daniela Pinto Veizaga](https://github.com/dapivei)
+- [Arpita Saggar](https://github.com/Arpita2512)
+- [Marina Viccin](https://github.com/marinavicini)
+
+In collaboration with Project Manager: [Valerie Lim](https://github.com/valerielim) and Technical Mentor: [Mihir Mehta](https://github.com/mihirpsu) 
+
