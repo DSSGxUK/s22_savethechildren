@@ -17,7 +17,11 @@ So, UNICEF and Save The Children have proposed a new definition of child poverty
 
 ![image](https://drive.google.com/uc?export=view&id=1OAGcy5YSbTtj6C7w8Jq-jCp_9z1dhd_G)
 
-Our team produced a high-resolution map of child poverty using several countries in Africa as proof of concept. 
+![image](https://drive.google.com/uc?export=view&id=1erKLUBtslBRNf-KqFxO28j-lkYvSQdxR)
+
+Our team produced a high-resolution map of child poverty that shows the proportion of children facing deprivations in a given area, and our confidence intervals for that prediction. 
+
+![image](https://drive.google.com/uc?export=view&id=1EuPo2dVybmNHaUYWsjRmNTDGGlkSUyJI)
 
 We also produced [`stc_unicef_cpi`](https://stc-unicef-cpi.readthedocs.io/en/latest/index.html), an open-source Python library for the Data Science for International Development community that estimates high-resolution, multi-dimensional child poverty using DHS (and soon MICS!) geocoded survey data.
 
@@ -36,25 +40,31 @@ Our team has used public data from Google Earth Engine (GEE) on precipitation, e
 
 ![image](https://drive.google.com/uc?export=view&id=1nt6c8zEsPbJ0iZDHh6kJZfCw9itvIGib)
 
+![image](https://drive.google.com/uc?export=view&id=1FpOTT0kBKKjcJa011Uk5TNNKyL1RkUne)
+
 We used machine learning and deep learning techniques to achieve a very high resolution of 5km2, beyond most public research which is only aggregated at state levels, which will be helpful for targetted aid planning and policy research in both organisations.
 
 ![image](https://drive.google.com/uc?export=view&id=11Y4PEZxyYCr0705pyAwNT0Z8qDu7DRSD)
-
-#### Architecture 
 
 Beyond this map, the team has also done excellent work in creating a python package and reproducible scripts for parsing public census data and satellite images, that may be helpful for many other internal projects, such as the Climate Mobility and Children piece, or the Children on the Move research.
 
 ## Getting started
 
-To set up pre-commit to run, just `pip install pre-commit`, navigate to top-level directory, then run `pre-commit install` to be good to go.
+To use stc_unicef_cpi, first clone the repo:
 
-Github workflow to automatically register issues from `# TODO:` comments already set up: for extra functionality see below.
+```
+git clone git@github.com:DSSGxUK/s22_savethechildren.git
+```
 
-While `black` will autoformat scripts on commit, if you want this to run locally you should `pip install black[jupyter]` to allow formatting of exploratory notebooks also.
+Then inside the top-level directory of the repo, run
 
-### Install locally
+``` 
+pip install .
+```
 
-To allow import of functions locally through e.g. `stc_unicef_cpi.subpkg.module`, navigate to top-level directory then just run editable install (`pip install -e .`).
+to allow imports from other python scripts.
+
+For more information on getting data, training a model and making predictions, [click here](https://stc-unicef-cpi.readthedocs.io/en/latest/getting-started.html#getting-started).
 
 
 # Project Organization
