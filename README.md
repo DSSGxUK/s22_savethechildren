@@ -9,9 +9,9 @@ This project is a collaboration between [Save The Children United Kingdom (STC)]
 
 ### Challenge 
 
-The World Bank defines [Global Poverty](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&cad=rja&uact=8&ved=2ahUKEwiJy4yTgoP6AhV-QUEAHQy7C2cQFnoECAQQAw&url=https%3A%2F%2Fwww.compassion.com%2Fpoverty%2Fglobal-poverty-definition.htm%23%3A~%3Atext%3DGlobal%2520poverty%2520is%2520defined%2520as%2Cdefined%2520by%2520the%2520World%2520Bank.&usg=AOvVaw1IvLvvBCUkZxRtVl5eM7km) as the number of people worldwide who live on less than USD $1.90 a day. However, this definition is not ideal  for assessing poverty amongst **children**, who have different needs in areas such as education and nutrition, and who are not able to earn a living in the same way adults do.
+The World Bank defines [Global Poverty](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&cad=rja&uact=8&ved=2ahUKEwiJy4yTgoP6AhV-QUEAHQy7C2cQFnoECAQQAw&url=https%3A%2F%2Fwww.compassion.com%2Fpoverty%2Fglobal-poverty-definition.htm%23%3A~%3Atext%3DGlobal%2520poverty%2520is%2520defined%2520as%2Cdefined%2520by%2520the%2520World%2520Bank.&usg=AOvVaw1IvLvvBCUkZxRtVl5eM7km) as the number of people worldwide who live on less than USD $1.90 a day. However, this definition is not ideal  for assessing poverty amongst **children**, who have different needs in areas such as education and nutrition, and who are not able to earn a living in the same way adults do. Thus, UNICEF and Save The Children have proposed a new definition of child poverty based on deprivations in any of 6 factors: **access to water, sanitation, healthcare, housing, nutrition and education**. 
 
-So, UNICEF and Save The Children have proposed a new definition of child poverty based on deprivations in any of 6 factors: **access to water, sanitation, healthcare, housing, nutrition and education**. Our goal is to help these organisations predict and assess child poverty in developing nations, using open source data formats, to produce a **map visualisation** that will accurately support policy design and local resource planning. 
+Our aim of our project is to help these organisations predict and assess multi-dimensional child poverty in developing nations, using open source data formats, to produce a **map visualisation** that will accurately support policy design and local resource planning. 
 
 ### Solution
 
