@@ -34,15 +34,31 @@ Our team has used public data from Google Earth Engine (GEE) on precipitation, e
 
 #### Methods 
 
+<!---
+
 ![image](https://drive.google.com/uc?export=view&id=1H5-MTQ3E-Ave7JS0YsJLhsCJ7s58-DNG)
 
 ![image](https://drive.google.com/uc?export=view&id=1FpOTT0kBKKjcJa011Uk5TNNKyL1RkUne)
 
 ![image](https://drive.google.com/uc?export=view&id=11Y4PEZxyYCr0705pyAwNT0Z8qDu7DRSD)
 
+--->
+
+We make use of Uber's [H3 spatial indexing](https://www.uber.com/en-IN/blog/h3/) to tesselate over geographical locations. The hexagonal shape is chosen due to uniformity of neighbors and reduced sampling bias from edge effects, which is attributed to a high perimeter:area ratio. Our experiments are performed at [H3 resolution](https://h3geo.org/docs/core-library/restable/) 7 (each hexagon has area ~5.16km2)
+
+The target dimensions are averaged at the hexagonal level. To account for geographic displacement introduced by DHS, data for each hexagon is copied to its neighbors (1 for urban areas and 2 for rural areas). Feature extraction from satelltite images is performed using a convolutional autoencoder:
+
+![image](https://drive.google.com/uc?export=view&id=1v6vLy6C9g46K-xr71Z8BoHohBUWHZ0gw)
+
+For the prediction task, we use machine learning, along with spatial cross validation, to train and tune our models. Uncertainity estimation is done through generation of 90% prediction intervals. Visualization of predictions is performed using [kepler.gl](https://github.com/keplergl/kepler.gl).
+
+Further, these scripts have been bundled into a Python package, with reproducible scripts for parsing public census data and satellite images, that may be helpful for many other internal projects, such as the Climate Mobility and Children piece, or the Children on the Move research.
+
+<!---
 We used machine learning and deep learning techniques to achieve a very high resolution of 5km2, beyond most public research which is only aggregated at state levels, which will be helpful for targetted aid planning and policy research in both organisations.
 
 Beyond this map, the team has also done excellent work in creating a python package and reproducible scripts for parsing public census data and satellite images, that may be helpful for many other internal projects, such as the Climate Mobility and Children piece, or the Children on the Move research.
+--->
 
 ## Getting started
 
