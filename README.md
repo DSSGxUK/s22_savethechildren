@@ -44,7 +44,7 @@ Our team has used public data from Google Earth Engine (GEE) on precipitation, e
 
 --->
 
-We make use of Uber's [H3 spatial indexing](https://www.uber.com/en-IN/blog/h3/) to tesselate over geographical locations. The hexagonal shape is chosen due to uniformity of neighbors and reduced sampling bias from edge effects, which is attributed to a high perimeter:area ratio. Our experiments are performed at [H3 resolution](https://h3geo.org/docs/core-library/restable/) 7 (each hexagon has area ~5.16km2)
+We make use of Uber's [H3 spatial indexing](https://www.uber.com/en-IN/blog/h3/) to tessellate over geographical locations. The hexagonal shape is chosen due to uniformity of neighbors and reduced sampling bias from edge effects, which is attributed to a high perimeter:area ratio. Our experiments are performed at [H3 resolution](https://h3geo.org/docs/core-library/restable/) 7 (each hexagon has area ~5.16km2)
 
 The target dimensions are averaged at the hexagonal level. To account for geographic displacement introduced by DHS, data for each hexagon is copied to its neighbors (1 for urban areas and 2 for rural areas). Feature extraction from satelltite images is performed using a convolutional autoencoder:
 
@@ -154,6 +154,7 @@ Main package code is found in `src/stc_unicef_cpi`, with the structure
 |   |-- lgbm_baseline.py <- LGBM baseline
 |   |-- mobnet_TL.py <- MobNet transfer learning (future work)
 |   |-- predict_model.py <- Make predictions
+|   |-- prediction_intervals.py <- Generate prediction intervals using the dataset and trained model/pipeline
 |   `-- train_model.py <- Train overall model
 |-- utils
 |   |-- constants.py <- Constants
