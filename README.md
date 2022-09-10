@@ -1,7 +1,7 @@
-stc_unicef_cpi
+Microestimates of Multidimensional Child Poverty
 ==============================
 
-A package to produce a high-resolution multi-dimensional child poverty index visualisation.
+A Python package to produce high-resolution multi-dimensional child poverty estimates.
 
 ### Partners
 
@@ -9,19 +9,19 @@ This project is a collaboration between [Save The Children United Kingdom (STC)]
 
 ### Challenge 
 
-The World Bank defines [Global Poverty](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&cad=rja&uact=8&ved=2ahUKEwiJy4yTgoP6AhV-QUEAHQy7C2cQFnoECAQQAw&url=https%3A%2F%2Fwww.compassion.com%2Fpoverty%2Fglobal-poverty-definition.htm%23%3A~%3Atext%3DGlobal%2520poverty%2520is%2520defined%2520as%2Cdefined%2520by%2520the%2520World%2520Bank.&usg=AOvVaw1IvLvvBCUkZxRtVl5eM7km) as the number of people worldwide who live on less than USD $1.90 a day. However, this definition is not ideal  for assessing poverty amongst **children**, who have different needs in areas such as education and nutrition, and who are not able to earn a living in the same way adults do. Thus, UNICEF and Save The Children have proposed a new definition of child poverty based on deprivations in any of 6 factors: **access to water, sanitation, healthcare, housing, nutrition and education**. 
+The World Bank defines [Global Poverty](https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&cad=rja&uact=8&ved=2ahUKEwiJy4yTgoP6AhV-QUEAHQy7C2cQFnoECAQQAw&url=https%3A%2F%2Fwww.compassion.com%2Fpoverty%2Fglobal-poverty-definition.htm%23%3A~%3Atext%3DGlobal%2520poverty%2520is%2520defined%2520as%2Cdefined%2520by%2520the%2520World%2520Bank.&usg=AOvVaw1IvLvvBCUkZxRtVl5eM7km) as the number of people worldwide who live on less than USD $1.90 a day.  However, depending solely on economic definitions is not ideal for assessing poverty amongst **children**, who may be deprived across different areas such as education or nutrition. Thus, UNICEF and Save The Children have proposed a new definition of child poverty based on deprivations in any of 6 factors: **water, sanitation, healthcare, housing, nutrition and education**.  
 
-Our aim of our project is to help these organisations predict and assess multi-dimensional child poverty in developing nations, using open source data formats, to produce a **map visualisation** that will accurately support policy design and local resource planning. 
+The aim of our project is to help these organisations predict multi-dimensional child poverty in developing nations at a granular level, through use of open source data. These predictions can then be used to create **geospatial visualisations in the form of poverty maps**, that will accurately support policy design and local resource planning.
 
 ### Solution
 
 ![image](https://drive.google.com/uc?export=view&id=1OAGcy5YSbTtj6C7w8Jq-jCp_9z1dhd_G)
 
-Our team produced a high-resolution map of child poverty that shows the proportion of children facing deprivations in a given area, and our confidence intervals for that prediction. 
+Our team produced a high-resolution map of child poverty that shows the proportion of children facing deprivations in a given area, along with the corresponding prediction interval. 
 
 ![image](https://drive.google.com/uc?export=view&id=1EuPo2dVybmNHaUYWsjRmNTDGGlkSUyJI)
 
-We also produced [`stc_unicef_cpi`](https://stc-unicef-cpi.readthedocs.io/en/latest/index.html), an open-source Python library for the Data Science for International Development community that estimates high-resolution, multi-dimensional child poverty using DHS (and soon MICS!) geocoded survey data.
+We also produced [`stc_unicef_cpi`](https://stc-unicef-cpi.readthedocs.io/en/latest/index.html), an open-source Python library for the Data Science for International Development community that estimates high-resolution, multi-dimensional child poverty using DHS (and soon MICS!) geocoded survey data as ground truth.
 
 
 ## About the Project
@@ -30,7 +30,7 @@ We also produced [`stc_unicef_cpi`](https://stc-unicef-cpi.readthedocs.io/en/lat
 
 #### Data
 
-Our team has used public data from Google Earth Engine (GEE) on precipitation, elevation, land usage census, Facebook's ads connectivity graph, open telecommunications tower networks, and Facebook's Relative Wealth Index (RWI). We validated this against annual surveys from the [Demographic and Health Surveys (DHS) dataset](https://dhsprogram.com/) as our ground truth. 
+Our team has used public data from Google Earth Engine (GEE) on precipitation, elevation, land usage census, etc; Facebook's ads connectivity graph, open telecommunications tower networks, and [Facebook's Relative Wealth Index (RWI)](https://dataforgood.facebook.com/dfg/tools/relative-wealth-index). Surveys from the [Demographic and Health Surveys (DHS) dataset](https://dhsprogram.com/) serve as our ground truth. 
 
 #### Methods 
 
